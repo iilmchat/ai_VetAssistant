@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vetassistant"
+version = "0.1.0"
+description = "Русскоязычный ветеринарный ИИ-ассистент: пайплайн данных, обучение и оценка"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "VetAssistant Team" }]
+keywords = ["veterinary", "llm", "synthetic-data", "russian"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Private :: Do Not Upload",
+]
+
+# Рантайм-зависимости пайплайна (T-001).
+dependencies = [
+    "openai>=1.40.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "tenacity>=8.3.0",
+    "loguru>=0.7.2",
+]
+
+[project.optional-dependencies]
+# `pip install -e ".[dev]"` — окружение разработчика и CI.
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["configs", "data_pipeline", "evaluation"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# docs/ — источник истины, код в markdown-блоках не форматируем автоматически.
+extend-exclude = ["docs", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
+# Проект русскоязычный: кириллица в строках — норма, а не «неоднозначные» символы.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"

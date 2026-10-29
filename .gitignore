@@ -1,0 +1,55 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.installed.cfg
+
+# --- Виртуальные окружения ---
+.venv/
+venv/
+env/
+
+# --- Секреты (RULES §4) ---
+.env
+.env.*
+!.env.example
+
+# --- Сгенерированные данные: воспроизводимы из seeds, в git не нужны ---
+data/*.jsonl
+!data/seeds.jsonl
+data/*.csv
+data/*.parquet
+
+# --- Артефакты обучения и моделей (готовятся на GPU-сервере) ---
+models/
+checkpoints/
+outputs/
+*.gguf
+*.safetensors
+*.bin
+wandb/
+
+# --- Логи и отчёты прогонов ---
+logs/
+*.log
+eval_report.json
+eval_report_*.json
+
+# --- Кэши инструментов ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

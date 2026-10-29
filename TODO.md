@@ -7,7 +7,7 @@
 
 ## Фаза 0. Инфраструктура и пайплайн (Итерация 1)
 
-### [ ] T-001. Инициализация репозитория
+### [x] T-001. Инициализация репозитория
 - **Зависит от:** —
 - **Что:** Создать структуру папок (`data_pipeline/`, `scripts/`, `configs/`, `data/`). Создать `pyproject.toml` с зависимостями (`openai`, `pydantic`, `tenacity`, `loguru`, `pytest`). Создать `.env.example` (ключи `TEACHER_API_KEY`, `TEACHER_BASE_URL`, `TEACHER_MODEL`). Настроить `.gitignore`.
 - **DoD:** `pip install -e .` проходит без ошибок. Структура папок создана.

@@ -13,10 +13,10 @@
 
 | Документ | Описание |
 |---|---|
-| [**Design.md**](Design.md) | **Источник истины.** Архитектура пайплайна, выбор моделей, инфраструктура, риски. |
-| [**synthetic_prompts.md**](synthetic_prompts.md) | Библиотека промптов для двухшаговой генерации (Шаг A + Шаг B) и Safety-кейсов. |
-| [**eval_harness.md**](eval_harness.md) | Структура бенчмарка, JSONL-схемы, метрики (MCQ, Safety, Multi-turn) и код `evaluate.py`. |
-| [**RULES.md**](RULES.md) | **Обязательно к прочтению.** Правила коммитов, код-стайла и отчетности для агента. |
+| [**Design.md**](docs/development/Design_v1.md) | **Источник истины.** Архитектура пайплайна, выбор моделей, инфраструктура, риски. |
+| [**synthetic_prompts.md**](docs/synthetic_prompts.md) | Библиотека промптов для двухшаговой генерации (Шаг A + Шаг B) и Safety-кейсов. |
+| [**eval_harness.md**](docs/eval_harness.md) | Структура бенчмарка, JSONL-схемы, метрики (MCQ, Safety, Multi-turn) и код `evaluate.py`. |
+| [**RULES.md**](docs/development/RULES.md) | **Обязательно к прочтению.** Правила коммитов, код-стайла и отчетности для агента. |
 | [**TODO.md**](TODO.md) | Пошаговый план работ с зависимостями и Definition of Done. |
 
 ## 🚀 Быстрый старт для разработки
