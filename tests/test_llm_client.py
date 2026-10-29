@@ -232,7 +232,7 @@ async def test_empty_content_after_length_raises_clear_error(
         content="", completion_tokens=2048, finish_reason="length"
     )
 
-    with pytest.raises(TeacherAPIError, match=r"max_tokens.*reasoning"):
+    with pytest.raises(TeacherAPIError, match="пустой ответ"):
         await client.chat([{"role": "user", "content": "Привет"}])
 
 

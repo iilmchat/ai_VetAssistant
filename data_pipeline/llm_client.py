@@ -235,14 +235,13 @@ class TeacherClient:
         if usage is None:
             logger.warning("Провайдер не вернул usage: токены неизвестны (model={})", model)
 
-        # Reasoning-модели (например, deepseek-flash) тратят max_tokens на
-        # скрытые reasoning-токены. Если лимит исчерпан до ответа, content пуст,
-        # а finish_reason == "length" — без этой проверки ошибка выглядела бы
-        # как «модель вернула пустоту».
+        # Некоторые провайдеры при исчерпании max_tokens возвращают content=""
+        # и finish_reason="length". Без этой проверки ошибка выглядела бы как
+        # «модель вернула пустоту» без указания причины.
         if not content and finish_reason == "length":
             raise TeacherAPIError(
-                "Провайдер израсходовал max_tokens на reasoning и вернул пустой ответ; "
-                "увеличьте max_tokens или отключите reasoning у модели "
+                "Провайдер вернул пустой ответ при finish_reason=length "
+                "(исчерпан max_tokens); увеличьте max_tokens "
                 f"(model={model}, completion_tokens={usage.completion_tokens if usage else 0})"
             )
 

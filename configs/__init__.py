@@ -5,6 +5,7 @@
 """
 
 from configs.settings import (
+    DEFAULT_PRIMARY_MODEL,
     PROVIDER_NAMES,
     ProviderConfig,
     ProviderName,
@@ -15,6 +16,7 @@ from configs.settings import (
 )
 
 __all__ = [
+    "DEFAULT_PRIMARY_MODEL",
     "PROVIDER_NAMES",
     "ProviderConfig",
     "ProviderName",

@@ -26,11 +26,14 @@ ProviderName = Literal["primary", "fallback"]
 PROVIDER_NAMES: tuple[ProviderName, ...] = ("primary", "fallback")
 
 #: Обязательные переменные primary-провайдера (см. `.env.example`).
+#: Модель не входит в список: у неё есть дефолт `deepseek-chat`.
 REQUIRED_ENV_VARS: tuple[str, ...] = (
     "TEACHER_PRIMARY_API_KEY",
     "TEACHER_PRIMARY_BASE_URL",
-    "TEACHER_PRIMARY_MODEL",
 )
+
+#: Модель primary-провайдера по умолчанию (без reasoning-режима — для bulk).
+DEFAULT_PRIMARY_MODEL = "deepseek-chat"
 
 #: Переменные fallback-провайдера; нужны только при `--provider fallback`.
 FALLBACK_ENV_VARS: tuple[str, ...] = (
@@ -76,7 +79,11 @@ class Settings(BaseSettings):
     teacher_primary_base_url: str = Field(
         min_length=1, description="Базовый URL primary-провайдера"
     )
-    teacher_primary_model: str = Field(min_length=1, description="Модель primary-провайдера")
+    teacher_primary_model: str = Field(
+        default=DEFAULT_PRIMARY_MODEL,
+        min_length=1,
+        description="Модель primary-провайдера (по умолчанию deepseek-chat)",
+    )
 
     teacher_fallback_api_key: SecretStr | None = Field(
         default=None, description="API-ключ fallback-провайдера (опционально)"
