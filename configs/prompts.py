@@ -1,16 +1,20 @@
-"""Загрузчик библиотеки промптов (T-003).
+"""Загрузчик библиотеки промптов (T-003, T-004).
 
 Промпты живут в `configs/prompts.yaml`, чтобы менять их без правки кода.
+Подстановка значений — через :class:`string.Template` (`$name`), а не
+`str.format`: шаблон Шага B содержит JSON-пример с фигурными скобками,
+который `format` попытался бы интерпретировать.
+
 Загрузчик валидирует структуру через Pydantic и проверяет, что в шаблоне
 есть все обязательные плейсхолдеры и нет опечаток в них.
 """
 
 from __future__ import annotations
 
-import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Self
+from string import Template
+from typing import ClassVar, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -18,36 +22,72 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: Плейсхолдеры, которые обязаны присутствовать в шаблоне Шага A.
 STAGE_A_PLACEHOLDERS: tuple[str, ...] = ("topic", "seed_text")
 
-DEFAULT_PROMPTS_PATH = Path(__file__).resolve().parent / "prompts.yaml"
+#: Плейсхолдеры, которые обязаны присутствовать в шаблоне Шага B.
+STAGE_B_PLACEHOLDERS: tuple[str, ...] = ("topic", "user_query")
 
-_PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+DEFAULT_PROMPTS_PATH = Path(__file__).resolve().parent / "prompts.yaml"
 
 
 class PromptError(ValueError):
     """Файл промптов отсутствует или не соответствует схеме."""
 
 
-class StageAPrompt(BaseModel):
-    """Шаблон Шага A: из seed-факта делает вопрос владельца животного."""
+def _validate_template(step: str, template: str, required: tuple[str, ...]) -> None:
+    """Проверить синтаксис `string.Template` и набор плейсхолдеров."""
+    parsed = Template(template)
+    used = set(parsed.get_identifiers())
+
+    missing = [name for name in required if name not in used]
+    if missing:
+        raise ValueError(f"в шаблоне {step} нет плейсхолдеров: {missing}")
+
+    unknown = sorted(used - set(required))
+    if unknown:
+        raise ValueError(f"неизвестные плейсхолдеры в шаблоне {step}: {unknown}")
+
+    # Ловит синтаксические ошибки вроде одиночного '$' в конце строки.
+    try:
+        parsed.substitute(dict.fromkeys(required, ""))
+    except (KeyError, ValueError) as exc:
+        raise ValueError(f"некорректный синтаксис шаблона {step}: {exc}") from exc
+
+
+class StagePrompt(BaseModel):
+    """Базовый шаблон одного шага генерации."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    template: str = Field(min_length=1, description="Шаблон с {topic} и {seed_text}")
+    template: str = Field(min_length=1)
+
+    required_placeholders: ClassVar[tuple[str, ...]] = ()
+    step_name: ClassVar[str] = "?"
 
     @model_validator(mode="after")
     def _validate_placeholders(self) -> Self:
-        used = set(_PLACEHOLDER_RE.findall(self.template))
-        missing = [name for name in STAGE_A_PLACEHOLDERS if name not in used]
-        if missing:
-            raise ValueError(f"в шаблоне Шага A нет плейсхолдеров: {sorted(missing)}")
-        unknown = sorted(used - set(STAGE_A_PLACEHOLDERS))
-        if unknown:
-            raise ValueError(f"неизвестные плейсхолдеры в шаблоне Шага A: {unknown}")
+        _validate_template(self.step_name, self.template, self.required_placeholders)
         return self
+
+
+class StageAPrompt(StagePrompt):
+    """Шаблон Шага A: из seed-факта делает вопрос владельца животного."""
+
+    required_placeholders: ClassVar[tuple[str, ...]] = STAGE_A_PLACEHOLDERS
+    step_name: ClassVar[str] = "Шага A"
 
     def render(self, *, topic: str, seed_text: str) -> str:
         """Подставить данные сида в шаблон."""
-        return self.template.format(topic=topic, seed_text=seed_text)
+        return Template(self.template).substitute(topic=topic, seed_text=seed_text)
+
+
+class StageBPrompt(StagePrompt):
+    """Шаблон Шага B: из вопроса владельца делает многотурный диалог."""
+
+    required_placeholders: ClassVar[tuple[str, ...]] = STAGE_B_PLACEHOLDERS
+    step_name: ClassVar[str] = "Шага B"
+
+    def render(self, *, topic: str, user_query: str) -> str:
+        """Подставить стартовый вопрос и тему в шаблон."""
+        return Template(self.template).substitute(topic=topic, user_query=user_query)
 
 
 class PromptLibrary(BaseModel):
@@ -57,6 +97,7 @@ class PromptLibrary(BaseModel):
 
     version: int = Field(ge=1)
     stage_a: StageAPrompt
+    stage_b: StageBPrompt
 
 
 class PromptRenderer:
@@ -75,9 +116,18 @@ class PromptRenderer:
         """Шаблон Шага A."""
         return self._library.stage_a
 
+    @property
+    def stage_b(self) -> StageBPrompt:
+        """Шаблон Шага B."""
+        return self._library.stage_b
+
     def render_stage_a(self, *, topic: str, seed_text: str) -> str:
         """Собрать готовый промпт Шага A."""
         return self._library.stage_a.render(topic=topic, seed_text=seed_text)
+
+    def render_stage_b(self, *, topic: str, user_query: str) -> str:
+        """Собрать готовый промпт Шага B."""
+        return self._library.stage_b.render(topic=topic, user_query=user_query)
 
 
 def load_prompts(path: Path | None = None) -> PromptRenderer:

@@ -25,7 +25,7 @@ from pydantic import ValidationError
 
 from configs.prompts import PromptError, PromptRenderer, get_prompts
 from configs.settings import PROJECT_ROOT
-from data_pipeline.cli import configure_logging
+from data_pipeline.cli import configure_logging, positive_int
 from data_pipeline.dataset_io import (
     append_jsonl,
     collect_existing_ids,
@@ -41,17 +41,6 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "data" / "stage_a_output.jsonl"
 PREVIEW_SIZE = 2
 
 
-def _positive_int(value: str) -> int:
-    """argparse-тип: целое >= 1."""
-    try:
-        parsed = int(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(f"ожидалось целое число, получено {value!r}") from exc
-    if parsed < 1:
-        raise argparse.ArgumentTypeError("значение должно быть >= 1")
-    return parsed
-
-
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Разобрать аргументы командной строки."""
     parser = argparse.ArgumentParser(
@@ -65,7 +54,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--limit",
-        type=_positive_int,
+        type=positive_int,
         default=None,
         metavar="N",
         help="обработать не больше N сидов",

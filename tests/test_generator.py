@@ -1,4 +1,4 @@
-"""Тесты Шага A: промпты, генератор, resume-логика (T-003).
+"""Тесты генераторов Шагов A и B, resume-логики и JSONL-утилит (T-003, T-004).
 
 Сеть не используется: `TeacherClient` замокан. Отдельно проверяем, что
 репозиторный `data/seeds.jsonl` валиден и содержит ровно 5 пилотных сидов.
@@ -13,23 +13,25 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from configs.prompts import (
-    PromptError,
-    PromptRenderer,
-    get_prompts,
-    load_prompts,
-)
+from configs.prompts import PromptRenderer, get_prompts
 from configs.settings import PROJECT_ROOT
 from data_pipeline.dataset_io import (
     append_jsonl,
     collect_existing_ids,
     read_jsonl,
     read_seed_records,
+    read_stage_a_records,
     select_pending,
 )
-from data_pipeline.generator import GenerationError, StageAGenerator, clean_query
+from data_pipeline.generator import (
+    GenerationError,
+    StageAGenerator,
+    StageBGenerator,
+    clean_query,
+    parse_dialogue_json,
+)
 from data_pipeline.llm_client import ChatResult, TeacherClient
-from data_pipeline.schemas import SeedRecord
+from data_pipeline.schemas import DialogueRecord, SeedRecord, StageARecord
 
 SEEDS_PATH = PROJECT_ROOT / "data" / "seeds.jsonl"
 
@@ -37,13 +39,42 @@ SEED_TEXT = (
     "Парацетамол высокотоксичен для кошек даже в небольших дозах. "
     "Специфического домашнего антидота не существует."
 )
+USER_QUERY = "Кот наелся таблеток, что делать?"
+
+VALID_DIALOGUE: list[dict[str, str]] = [
+    {"role": "user", "content": USER_QUERY},
+    {"role": "assistant", "content": "Сколько коту лет и когда он съел таблетку?"},
+    {"role": "user", "content": "Два года, примерно час назад."},
+    {
+        "role": "assistant",
+        "content": "Это экстренная ситуация: срочно везите кота в клинику, не ждите симптомов.",
+    },
+]
 
 
 def _seed(seed_id: str = "seed-test-001", topic: str = "toxicology") -> SeedRecord:
     return SeedRecord(id=seed_id, topic=topic, seed_text=SEED_TEXT)  # type: ignore[arg-type]
 
 
-def _chat_result(content: str = "У кота рвота, что делать?") -> ChatResult:
+def _stage_a_payload(record_id: str = "seed-test-001") -> dict[str, object]:
+    return {
+        "id": record_id,
+        "stage": "A",
+        "topic": "toxicology",
+        "seed_text": SEED_TEXT,
+        "user_query": USER_QUERY,
+        "model": "teacher-test",
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+        "total_tokens": 15,
+        "latency_s": 0.1,
+        "attempts": 1,
+        "prompts_version": 2,
+        "generated_at": "2026-01-01T00:00:00Z",
+    }
+
+
+def _chat_result(content: str) -> ChatResult:
     return ChatResult(
         content=content,
         model="teacher-test",
@@ -58,7 +89,7 @@ def _chat_result(content: str = "У кота рвота, что делать?") 
 @pytest.fixture
 def mock_client() -> Iterator[MagicMock]:
     client = MagicMock(spec=TeacherClient)
-    client.chat = AsyncMock(return_value=_chat_result())
+    client.chat = AsyncMock(return_value=_chat_result("У кота рвота, что делать?"))
     yield client
 
 
@@ -68,64 +99,27 @@ def prompts() -> PromptRenderer:
 
 
 @pytest.fixture
-def generator(mock_client: MagicMock, prompts: PromptRenderer) -> StageAGenerator:
+def stage_a(mock_client: MagicMock, prompts: PromptRenderer) -> StageAGenerator:
     return StageAGenerator(mock_client, prompts=prompts)
 
 
-# --- Библиотека промптов ----------------------------------------------------
+@pytest.fixture
+def stage_b(mock_client: MagicMock, prompts: PromptRenderer) -> StageBGenerator:
+    return StageBGenerator(mock_client, prompts=prompts)
 
 
-def test_repo_prompts_are_valid(prompts: PromptRenderer) -> None:
-    assert prompts.version >= 1
-    template = prompts.stage_a.template
-    assert "{topic}" in template
-    assert "{seed_text}" in template
+def _reply(mock_client: MagicMock, content: str) -> None:
+    mock_client.chat = AsyncMock(return_value=_chat_result(content))
 
 
-def test_prompt_rendering_substitutes_placeholders(prompts: PromptRenderer) -> None:
-    rendered = prompts.render_stage_a(topic="toxicology", seed_text=SEED_TEXT)
-
-    assert "toxicology" in rendered
-    assert SEED_TEXT in rendered
-    assert "{topic}" not in rendered
-    assert "{seed_text}" not in rendered
-
-
-def test_prompt_without_required_placeholder_is_rejected(tmp_path: Path) -> None:
-    path = tmp_path / "prompts.yaml"
-    path.write_text(
-        "version: 1\nstage_a:\n  template: 'Только тема: {topic}'\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(PromptError, match="плейсхолдер"):
-        load_prompts(path)
-
-
-def test_prompt_with_unknown_placeholder_is_rejected(tmp_path: Path) -> None:
-    path = tmp_path / "prompts.yaml"
-    path.write_text(
-        "version: 1\nstage_a:\n  template: '{topic} {seed_text} {weigth}'\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(PromptError, match="weigth"):
-        load_prompts(path)
-
-
-def test_missing_prompts_file_is_reported(tmp_path: Path) -> None:
-    with pytest.raises(PromptError, match="не найден"):
-        load_prompts(tmp_path / "absent.yaml")
-
-
-# --- Генератор --------------------------------------------------------------
+# --- Шаг A ------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_generator_sends_rendered_prompt(
-    generator: StageAGenerator, mock_client: MagicMock
+async def test_stage_a_sends_rendered_prompt(
+    stage_a: StageAGenerator, mock_client: MagicMock
 ) -> None:
-    await generator.generate_query("toxicology", SEED_TEXT, seed_id="seed-test-001")
+    await stage_a.generate_query("toxicology", SEED_TEXT, seed_id="seed-test-001")
 
     mock_client.chat.assert_awaited_once()
     call = mock_client.chat.await_args
@@ -136,15 +130,15 @@ async def test_generator_sends_rendered_prompt(
     content = messages[0]["content"]
     assert "toxicology" in content
     assert SEED_TEXT in content
-    assert "{topic}" not in content
-    assert "{seed_text}" not in content
+    assert "$topic" not in content
+    assert "$seed_text" not in content
     assert call.kwargs["temperature"] == 0.9
     assert call.kwargs["max_tokens"] == 300
 
 
 @pytest.mark.asyncio
-async def test_generator_returns_structured_record(generator: StageAGenerator) -> None:
-    record = await generator.generate_query("toxicology", SEED_TEXT, seed_id="seed-test-001")
+async def test_stage_a_returns_structured_record(stage_a: StageAGenerator) -> None:
+    record = await stage_a.generate_query("toxicology", SEED_TEXT, seed_id="seed-test-001")
 
     assert record.id == "seed-test-001"
     assert record.stage == "A"
@@ -161,10 +155,10 @@ async def test_generator_returns_structured_record(generator: StageAGenerator) -
 
 
 @pytest.mark.asyncio
-async def test_generator_rejects_empty_answer(
+async def test_stage_a_rejects_empty_answer(
     mock_client: MagicMock, prompts: PromptRenderer
 ) -> None:
-    mock_client.chat = AsyncMock(return_value=_chat_result("   "))
+    _reply(mock_client, "   ")
     generator = StageAGenerator(mock_client, prompts=prompts)
 
     with pytest.raises(GenerationError, match="пустой"):
@@ -183,6 +177,183 @@ async def test_generator_rejects_empty_answer(
 )
 def test_clean_query(raw: str, expected: str) -> None:
     assert clean_query(raw) == expected
+
+
+# --- Шаг B ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_stage_b_sends_prompt_with_json_example(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(VALID_DIALOGUE, ensure_ascii=False))
+
+    await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-test-001")
+
+    call = mock_client.chat.await_args
+    assert call is not None
+    content = call.args[0][0]["content"]
+    assert USER_QUERY in content
+    assert "toxicology" in content
+    assert '{"role": "user", "content": "..."}' in content
+    assert "$user_query" not in content
+
+
+@pytest.mark.asyncio
+async def test_stage_b_parses_valid_dialogue(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(VALID_DIALOGUE, ensure_ascii=False))
+
+    dialogue = await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-test-001")
+
+    assert isinstance(dialogue, DialogueRecord)
+    assert dialogue.id == "seed-test-001"
+    assert dialogue.stage == "B"
+    assert dialogue.topic == "toxicology"
+    assert len(dialogue.messages) == 4
+    assert dialogue.turns == 2
+    assert dialogue.messages[0].role == "user"
+    assert dialogue.messages[-1].role == "assistant"
+    assert dialogue.messages[0].content == USER_QUERY
+    assert dialogue.model == "teacher-test"
+    assert dialogue.total_tokens == 120
+    assert dialogue.prompts_version == get_prompts().version
+
+
+@pytest.mark.asyncio
+async def test_stage_b_accepts_markdown_fence(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    fenced = "```json\n" + json.dumps(VALID_DIALOGUE, ensure_ascii=False) + "\n```"
+    _reply(mock_client, fenced)
+
+    dialogue = await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+    assert len(dialogue.messages) == 4
+
+
+@pytest.mark.asyncio
+async def test_stage_b_accepts_surrounding_prose(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    payload = json.dumps(VALID_DIALOGUE, ensure_ascii=False)
+    _reply(mock_client, f"Вот диалог:\n{payload}\nНадеюсь, подойдёт.")
+
+    dialogue = await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+    assert len(dialogue.messages) == 4
+
+
+@pytest.mark.asyncio
+async def test_stage_b_accepts_messages_wrapper(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    payload = json.dumps({"messages": VALID_DIALOGUE}, ensure_ascii=False)
+    _reply(mock_client, payload)
+
+    dialogue = await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+    assert len(dialogue.messages) == 4
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_invalid_json(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, "Извините, не могу сгенерировать диалог.")
+
+    with pytest.raises(GenerationError, match="JSON"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_two_users_in_a_row(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    broken = [
+        {"role": "user", "content": "Раз"},
+        {"role": "user", "content": "Два"},
+        {"role": "assistant", "content": "Три"},
+        {"role": "assistant", "content": "Четыре"},
+    ]
+    _reply(mock_client, json.dumps(broken, ensure_ascii=False))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_too_short_dialogue(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(VALID_DIALOGUE[:2], ensure_ascii=False))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_too_long_dialogue(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    long_dialogue = [
+        {"role": "user" if index % 2 == 0 else "assistant", "content": f"Реплика {index}"}
+        for index in range(10)
+    ]
+    _reply(mock_client, json.dumps(long_dialogue, ensure_ascii=False))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_starting_with_assistant(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    broken = [VALID_DIALOGUE[1], VALID_DIALOGUE[0], VALID_DIALOGUE[1], VALID_DIALOGUE[0]]
+    _reply(mock_client, json.dumps(broken, ensure_ascii=False))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_non_object_messages(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(["user", "assistant", "user", "assistant"]))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{}",
+        '"строка"',
+        '{"messages": "не массив"}',
+    ],
+)
+def test_parse_dialogue_json_rejects_wrong_shapes(payload: str) -> None:
+    with pytest.raises(GenerationError):
+        parse_dialogue_json(payload)
+
+
+def test_parse_dialogue_json_returns_array_as_is() -> None:
+    """Пустой массив — валидный JSON; его отбраковывает уже схема диалога."""
+    assert parse_dialogue_json("[]") == []
+
+
+@pytest.mark.asyncio
+async def test_stage_b_rejects_empty_array(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, "[]")
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
 
 
 # --- Сиды и resume ----------------------------------------------------------
@@ -212,6 +383,29 @@ def test_read_seed_records_rejects_duplicates(tmp_path: Path) -> None:
 def test_missing_seeds_file_is_reported(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         read_seed_records(tmp_path / "absent.jsonl")
+
+
+def test_read_stage_a_records_validates(tmp_path: Path) -> None:
+    path = tmp_path / "stage_a.jsonl"
+    path.write_text(
+        json.dumps(_stage_a_payload(), ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    records = read_stage_a_records(path)
+
+    assert len(records) == 1
+    assert isinstance(records[0], StageARecord)
+    assert records[0].user_query == USER_QUERY
+
+
+def test_read_stage_a_records_rejects_duplicates(tmp_path: Path) -> None:
+    path = tmp_path / "stage_a.jsonl"
+    line = json.dumps(_stage_a_payload(), ensure_ascii=False)
+    path.write_text(f"{line}\n{line}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="дубликат"):
+        read_stage_a_records(path)
 
 
 def test_collect_existing_ids_ignores_broken_lines(tmp_path: Path) -> None:
@@ -247,6 +441,16 @@ def test_select_pending_skips_done_and_applies_limit() -> None:
         "seed-1",
         "seed-3",
     ]
+
+
+def test_select_pending_works_with_stage_a_records() -> None:
+    records = [
+        StageARecord.model_validate(_stage_a_payload(f"seed-{index}")) for index in range(1, 4)
+    ]
+
+    pending = select_pending(records, existing_ids={"seed-2"})
+
+    assert [record.id for record in pending] == ["seed-1", "seed-3"]
 
 
 def test_select_pending_rejects_non_positive_limit() -> None:

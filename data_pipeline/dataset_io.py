@@ -1,16 +1,27 @@
-"""Чтение и запись JSONL, подготовка сидов (T-003)."""
+"""Чтение и запись JSONL, подготовка записей пайплайна (T-003, T-004)."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from loguru import logger
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from data_pipeline.schemas import SeedRecord
+from data_pipeline.schemas import SeedRecord, StageARecord
+
+
+class Identified(Protocol):
+    """Любая запись с уникальным `id` — для логики `--resume`."""
+
+    @property
+    def id(self) -> str: ...
+
+
+RecordT = TypeVar("RecordT", bound=Identified)
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 def read_jsonl(path: Path) -> Iterator[dict[str, Any]]:
@@ -48,6 +59,28 @@ def collect_existing_ids(path: Path) -> set[str]:
     return ids
 
 
+def _read_records(path: Path, model: type[ModelT], label: str) -> list[ModelT]:
+    """Прочитать JSONL и провалидировать каждую строку моделью `model`."""
+    if not path.exists():
+        raise FileNotFoundError(f"файл {label} не найден: {path}")
+
+    records: list[ModelT] = []
+    seen: set[str] = set()
+    for index, payload in enumerate(read_jsonl(path), start=1):
+        try:
+            record = model.model_validate(payload)
+        except ValidationError as exc:
+            raise ValueError(f"{path}: запись #{index} не прошла валидацию:\n{exc}") from exc
+        record_id = getattr(record, "id", None)
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError(f"{path}: запись #{index} без поля id")
+        if record_id in seen:
+            raise ValueError(f"{path}: дубликат id {record_id!r}")
+        seen.add(record_id)
+        records.append(record)
+    return records
+
+
 def read_seed_records(path: Path) -> list[SeedRecord]:
     """Прочитать и провалидировать сиды.
 
@@ -55,21 +88,17 @@ def read_seed_records(path: Path) -> list[SeedRecord]:
         FileNotFoundError: файла сидов нет.
         ValueError: запись не прошла схему или id повторяется.
     """
-    if not path.exists():
-        raise FileNotFoundError(f"файл сидов не найден: {path}")
+    return _read_records(path, SeedRecord, "сидов")
 
-    seeds: list[SeedRecord] = []
-    seen: set[str] = set()
-    for index, payload in enumerate(read_jsonl(path), start=1):
-        try:
-            seed = SeedRecord.model_validate(payload)
-        except ValidationError as exc:
-            raise ValueError(f"{path}: запись #{index} не прошла валидацию:\n{exc}") from exc
-        if seed.id in seen:
-            raise ValueError(f"{path}: дубликат id {seed.id!r}")
-        seen.add(seed.id)
-        seeds.append(seed)
-    return seeds
+
+def read_stage_a_records(path: Path) -> list[StageARecord]:
+    """Прочитать результаты Шага A (вход для Шага B).
+
+    Raises:
+        FileNotFoundError: файла нет (сначала запустите `run_stage_a.py`).
+        ValueError: запись не прошла схему или id повторяется.
+    """
+    return _read_records(path, StageARecord, "результатов Шага A")
 
 
 def append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
@@ -80,13 +109,13 @@ def append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def select_pending(
-    seeds: Sequence[SeedRecord],
+    records: Sequence[RecordT],
     *,
     existing_ids: Collection[str] = (),
     limit: int | None = None,
-) -> list[SeedRecord]:
-    """Отбросить уже обработанные сиды (`--resume`) и применить `--limit`."""
+) -> list[RecordT]:
+    """Отбросить уже обработанные записи (`--resume`) и применить `--limit`."""
     if limit is not None and limit < 1:
         raise ValueError("limit должен быть >= 1")
-    pending = [seed for seed in seeds if seed.id not in existing_ids]
+    pending = [record for record in records if record.id not in existing_ids]
     return pending[:limit] if limit is not None else pending
