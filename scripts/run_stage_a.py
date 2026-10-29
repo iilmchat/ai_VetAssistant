@@ -101,7 +101,7 @@ async def _generate(
     prompts: PromptRenderer,
 ) -> int:
     """Сгенерировать вопросы и дописать их в JSONL. Возвращает код выхода."""
-    async with TeacherClient(get_provider()) as client:
+    async with TeacherClient(get_provider(), disable_thinking=True) as client:
         generator = StageAGenerator(client, prompts=prompts)
         for index, seed in enumerate(seeds, start=1):
             try:

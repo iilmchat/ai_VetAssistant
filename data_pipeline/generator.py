@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import Any, Literal
 
 from loguru import logger
@@ -99,6 +100,18 @@ def parse_dialogue_json(text: str) -> list[Any]:
     raise GenerationError(f"ответ учителя не содержит JSON-массива сообщений: {snippet!r}")
 
 
+def _sanitize_message(item: Any) -> Any:
+    """Оставить в реплике только `role`/`content`, отбросив шум модели.
+
+    Модели иногда добавляют поля вроде ``turn`` или ``emotion``. Схема
+    `Message` строгая (`extra="forbid"`), но терять из-за этого валидный
+    диалог не нужно: лишние поля просто отбрасываются.
+    """
+    if isinstance(item, Mapping):
+        return {"role": item.get("role"), "content": item.get("content")}
+    return item
+
+
 def _build_dialogue_record(
     raw_messages: list[Any],
     *,
@@ -114,7 +127,7 @@ def _build_dialogue_record(
         GenerationError: реплики или структура диалога не прошли схему.
     """
     try:
-        messages = [Message.model_validate(item) for item in raw_messages]
+        messages = [Message.model_validate(_sanitize_message(item)) for item in raw_messages]
         return DialogueRecord(
             id=record_id,
             stage=stage,
@@ -325,7 +338,7 @@ class StageSafetyGenerator:
         *,
         prompts: PromptRenderer | None = None,
         temperature: float = 0.8,
-        max_tokens: int = 2048,
+        max_tokens: int = 4096,
     ) -> None:
         """Создать генератор.
 
@@ -333,7 +346,7 @@ class StageSafetyGenerator:
             client: клиент учителя (T-002).
             prompts: библиотека промптов; по умолчанию — `configs/prompts.yaml`.
             temperature: провокации должны быть разнообразными, но связными.
-            max_tokens: 4–8 реплик с запасом.
+            max_tokens: Safety-диалоги длиннее обычных, 4096 — с запасом.
         """
         if not 0.0 <= temperature <= 2.0:
             raise ValueError("temperature должна быть в диапазоне 0..2")

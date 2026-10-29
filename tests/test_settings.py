@@ -68,23 +68,23 @@ def test_env_example_documents_fallback_vars() -> None:
     assert not missing, f"В .env.example нет fallback-ключей: {missing}"
 
 
-def test_primary_model_defaults_to_non_reasoning_model(
+def test_primary_model_defaults_to_deepseek_flash(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Модель по умолчанию — deepseek-chat; задавать её в .env не обязательно."""
+    """Модель по умолчанию — deepseek-flash; задавать её в .env не обязательно."""
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("TEACHER_PRIMARY_API_KEY", "sk-test")
     monkeypatch.setenv("TEACHER_PRIMARY_BASE_URL", "https://api.example.com/v1")
 
     provider = _settings().provider("primary")
 
-    assert provider.model == "deepseek-chat"
+    assert provider.model == "deepseek-flash"
 
 
-def test_env_example_uses_non_reasoning_model() -> None:
+def test_env_example_uses_deepseek_flash() -> None:
     values = _read_env_example()
 
-    assert values["TEACHER_PRIMARY_MODEL"] == "deepseek-chat"
+    assert values["TEACHER_PRIMARY_MODEL"] == "deepseek-flash"
 
 
 def test_settings_reads_primary_provider(monkeypatch: pytest.MonkeyPatch) -> None:

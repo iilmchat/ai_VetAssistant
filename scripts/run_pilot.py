@@ -136,7 +136,7 @@ async def _run_pilot(
     errors = 0
     total_tokens = 0
 
-    async with TeacherClient(provider) as client:
+    async with TeacherClient(provider, disable_thinking=True) as client:
         stage_a = StageAGenerator(client)
         stage_b = StageBGenerator(client)
 

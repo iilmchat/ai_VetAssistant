@@ -344,6 +344,39 @@ def test_sdk_client_is_built_without_builtin_retries(
 
 
 @pytest.mark.asyncio
+async def test_thinking_is_enabled_by_default(
+    client: TeacherClient, mock_client: MagicMock
+) -> None:
+    """Судья и обычные вызовы не отключают thinking."""
+    _create_mock(mock_client).return_value = _completion()
+
+    await client.chat([{"role": "user", "content": "Привет"}])
+
+    call = _create_mock(mock_client).await_args
+    assert call is not None
+    assert "extra_body" not in call.kwargs
+
+
+@pytest.mark.asyncio
+async def test_disable_thinking_sends_extra_body(mock_client: MagicMock) -> None:
+    """Генерация данных передаёт thinking=disabled в тело запроса."""
+    client = TeacherClient(
+        _provider(),
+        client=mock_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+        disable_thinking=True,
+    )
+    _create_mock(mock_client).return_value = _completion()
+
+    await client.chat([{"role": "user", "content": "Привет"}])
+
+    call = _create_mock(mock_client).await_args
+    assert call is not None
+    assert call.kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+@pytest.mark.asyncio
 async def test_custom_provider_model_is_forwarded(mock_client: MagicMock) -> None:
     """Клиент использует модель переданного провайдера, а не глобальный конфиг."""
     client = TeacherClient(

@@ -32,8 +32,8 @@ REQUIRED_ENV_VARS: tuple[str, ...] = (
     "TEACHER_PRIMARY_BASE_URL",
 )
 
-#: Модель primary-провайдера по умолчанию (без reasoning-режима — для bulk).
-DEFAULT_PRIMARY_MODEL = "deepseek-chat"
+#: Модель primary-провайдера по умолчанию (thinking отключается на уровне клиента).
+DEFAULT_PRIMARY_MODEL = "deepseek-flash"
 
 #: Переменные fallback-провайдера; нужны только при `--provider fallback`.
 FALLBACK_ENV_VARS: tuple[str, ...] = (
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     teacher_primary_model: str = Field(
         default=DEFAULT_PRIMARY_MODEL,
         min_length=1,
-        description="Модель primary-провайдера (по умолчанию deepseek-chat)",
+        description="Модель primary-провайдера (по умолчанию deepseek-flash)",
     )
 
     teacher_fallback_api_key: SecretStr | None = Field(

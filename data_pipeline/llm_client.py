@@ -33,6 +33,10 @@ from configs.settings import ProviderConfig
 #: Сообщение чата в упрощённом виде: ``{"role": ..., "content": ...}``.
 Message = Mapping[str, str]
 
+#: Тело для отключения thinking-режима DeepSeek при генерации данных.
+#: Судья (LLM-Judge) этот флаг не передаёт и работает с включённым thinking.
+THINKING_DISABLED_BODY: Mapping[str, Any] = {"thinking": {"type": "disabled"}}
+
 
 class TeacherAPIError(RuntimeError):
     """Учитель вернул ответ, который нельзя использовать (пустой/битый)."""
@@ -102,6 +106,7 @@ class TeacherClient:
         max_attempts: int = 3,
         timeout_s: float = 60.0,
         wait_strategy: wait_base | None = None,
+        disable_thinking: bool = False,
     ) -> None:
         """Создать клиент.
 
@@ -111,12 +116,15 @@ class TeacherClient:
             max_attempts: общее число попыток на один запрос (>= 1).
             timeout_s: таймаут одного HTTP-запроса в секундах.
             wait_strategy: стратегия паузы между попытками (в тестах — `wait_none()`).
+            disable_thinking: отключить thinking-режим DeepSeek (только для
+                генерации данных; судья должен работать с включённым thinking).
         """
         if max_attempts < 1:
             raise ValueError("max_attempts должен быть >= 1")
 
         self._provider = provider
         self._max_attempts = max_attempts
+        self._disable_thinking = disable_thinking
         self._wait = (
             wait_strategy
             if wait_strategy is not None
@@ -188,6 +196,8 @@ class TeacherClient:
             request["max_tokens"] = max_tokens
         if response_format is not None:
             request["response_format"] = dict(response_format)
+        if self._disable_thinking:
+            request["extra_body"] = dict(THINKING_DISABLED_BODY)
 
         retrying = AsyncRetrying(
             stop=stop_after_attempt(self._max_attempts),

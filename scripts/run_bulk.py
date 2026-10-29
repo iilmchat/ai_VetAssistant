@@ -232,7 +232,7 @@ async def _run(
         concurrency,
     )
 
-    async with TeacherClient(provider) as client:
+    async with TeacherClient(provider, disable_thinking=True) as client:
         stats = await generate_bulk(seeds, output, client, concurrency=concurrency)
 
     logger.info(

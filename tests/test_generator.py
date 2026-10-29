@@ -265,6 +265,22 @@ async def test_stage_b_accepts_messages_wrapper(
 
 
 @pytest.mark.asyncio
+async def test_stage_b_drops_extra_message_fields(
+    stage_b: StageBGenerator, mock_client: MagicMock
+) -> None:
+    """Модель иногда добавляет `turn`/`emotion` — лишние поля не ломают диалог."""
+    noisy = [
+        dict(message, turn=index, emotion="neutral") for index, message in enumerate(VALID_DIALOGUE)
+    ]
+    _reply(mock_client, json.dumps(noisy, ensure_ascii=False))
+
+    dialogue = await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
+
+    assert len(dialogue.messages) == 4
+    assert dialogue.messages[0].model_dump() == {"role": "user", "content": USER_QUERY}
+
+
+@pytest.mark.asyncio
 async def test_stage_b_rejects_invalid_json(
     stage_b: StageBGenerator, mock_client: MagicMock
 ) -> None:

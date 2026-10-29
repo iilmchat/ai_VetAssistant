@@ -162,7 +162,7 @@ def test_resume_skips_ids_already_in_output(
     write_jsonl(output, [_dialogue_payload("bulk-0001")])
     client: Any = _FakeClient()
 
-    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider: client)
+    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider, **kwargs: client)
     monkeypatch.setattr("scripts.run_bulk.get_provider", lambda name: _provider())
 
     exit_code = main(
@@ -199,7 +199,7 @@ def test_resume_with_everything_done_does_nothing(
         [_dialogue_payload("bulk-0001"), _dialogue_payload("bulk-0002")],
     )
     client: Any = _FakeClient()
-    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider: client)
+    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider, **kwargs: client)
     monkeypatch.setattr("scripts.run_bulk.get_provider", lambda name: _provider())
 
     exit_code = main(["--resume", "--seeds", str(seeds), "--output", str(output)])
@@ -213,7 +213,7 @@ def test_limit_caps_new_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     seeds = _write_seeds(tmp_path / "seeds.jsonl", count=4)
     output = tmp_path / "bulk.jsonl"
     client: Any = _FakeClient()
-    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider: client)
+    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider, **kwargs: client)
     monkeypatch.setattr("scripts.run_bulk.get_provider", lambda name: _provider())
 
     exit_code = main(
@@ -242,7 +242,7 @@ def test_dry_run_does_not_call_api_or_write(
     seeds = _write_seeds(tmp_path / "seeds.jsonl", count=2)
     output = tmp_path / "bulk.jsonl"
     client: Any = _FakeClient()
-    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider: client)
+    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider, **kwargs: client)
     monkeypatch.setattr("scripts.run_bulk.get_provider", lambda name: _provider())
 
     exit_code = main(["--dry-run", "--seeds", str(seeds), "--output", str(output), "--limit", "2"])

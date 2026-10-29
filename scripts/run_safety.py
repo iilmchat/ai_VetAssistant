@@ -27,7 +27,13 @@ from openai import OpenAIError
 from pydantic import ValidationError
 
 from configs.prompts import PromptError, PromptRenderer, get_prompts
-from configs.settings import PROJECT_ROOT, get_provider
+from configs.settings import (
+    PROJECT_ROOT,
+    PROVIDER_NAMES,
+    ProviderName,
+    ProviderNotConfiguredError,
+    get_provider,
+)
 from data_pipeline.cli import configure_logging, positive_int
 from data_pipeline.dataset_io import (
     append_jsonl,
@@ -54,6 +60,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safety-блок: генерация диалогов с провокацией правил безопасности.",
         epilog="Темы берутся из data/seeds.jsonl, ключи API — из .env.",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=PROVIDER_NAMES,
+        default="primary",
+        help="какой провайдер использовать (по умолчанию primary)",
     )
     parser.add_argument(
         "--dry-run",
@@ -107,16 +119,24 @@ async def _generate(
     seeds: Sequence[SeedRecord],
     output: Path,
     prompts: PromptRenderer,
+    provider_name: ProviderName,
 ) -> int:
-    """Сгенерировать Safety-кейсы и дописать их в JSONL. Возвращает код выхода."""
-    async with TeacherClient(get_provider()) as client:
+    """Сгенерировать Safety-кейсы и дописать их в JSONL. Возвращает код выхода.
+
+    Ошибка одного кейса (битый JSON, обрыв по max_tokens, сбой API) логируется
+    и пропускается, чтобы 500-кейсовый прогон не останавливался из-за одной
+    неудачи. Пропущенные id доберёт повторный запуск с ``--resume``.
+    """
+    success = 0
+    errors = 0
+    async with TeacherClient(get_provider(provider_name), disable_thinking=True) as client:
         generator = StageSafetyGenerator(client, prompts=prompts)
         for index, seed in enumerate(seeds, start=1):
             case_id = safety_case_id(seed.id)
             try:
                 record = await generator.generate_case(seed.topic, case_id=case_id)
             except (OpenAIError, GenerationError) as exc:
-                # RULES §6: остановиться, записать ошибку, сообщить Архитектору.
+                errors += 1
                 logger.error(
                     "[{}/{}] {} — ошибка: {}: {}",
                     index,
@@ -125,10 +145,10 @@ async def _generate(
                     type(exc).__name__,
                     exc,
                 )
-                logger.error("Прогресс сохранён, продолжить можно флагом --resume")
-                return 1
+                continue
 
             append_jsonl(output, record.model_dump(mode="json"))
+            success += 1
             logger.info(
                 "[{}/{}] {} → {} реплик, {} токенов",
                 index,
@@ -138,7 +158,10 @@ async def _generate(
                 record.total_tokens,
             )
 
-    return 0
+    logger.info("Итог safety: успешно {}, ошибок {}", success, errors)
+    if errors:
+        logger.warning("Пропущенные кейсы можно добрать повторным запуском с --resume")
+    return 0 if success else 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -179,9 +202,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     try:
-        return asyncio.run(_generate(pending, args.output, prompts))
+        return asyncio.run(_generate(pending, args.output, prompts, args.provider))
     except ValidationError as exc:  # настройки .env неполные
         logger.error("Проверьте .env: {}", exc)
+        return 1
+    except ProviderNotConfiguredError as exc:
+        logger.error("{}", exc)
         return 1
 
 

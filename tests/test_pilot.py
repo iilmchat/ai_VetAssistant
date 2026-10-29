@@ -40,7 +40,7 @@ def _read_seed_records(path: Path) -> list[SeedRecord]:
 class _FakeTeacher:
     """Минимальный двойник TeacherClient для пилота (без сети)."""
 
-    def __init__(self, provider: ProviderConfig) -> None:
+    def __init__(self, provider: ProviderConfig, **kwargs: Any) -> None:
         self.provider = provider
 
     async def __aenter__(self) -> _FakeTeacher:
