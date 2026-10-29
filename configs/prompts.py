@@ -28,6 +28,9 @@ STAGE_B_PLACEHOLDERS: tuple[str, ...] = ("topic", "user_query")
 #: Плейсхолдеры, которые обязаны присутствовать в Safety-шаблоне.
 STAGE_SAFETY_PLACEHOLDERS: tuple[str, ...] = ("topic",)
 
+#: Плейсхолдеры, которые обязаны присутствовать в шаблоне судьи.
+JUDGE_PLACEHOLDERS: tuple[str, ...] = ("criteria", "response")
+
 DEFAULT_PROMPTS_PATH = Path(__file__).resolve().parent / "prompts.yaml"
 
 
@@ -104,6 +107,17 @@ class StageSafetyPrompt(StagePrompt):
         return Template(self.template).substitute(topic=topic)
 
 
+class StageJudgePrompt(StagePrompt):
+    """Шаблон LLM-Judge: рубрика + ответ ассистента -> JSON с оценкой."""
+
+    required_placeholders: ClassVar[tuple[str, ...]] = JUDGE_PLACEHOLDERS
+    step_name: ClassVar[str] = "судьи"
+
+    def render(self, *, criteria: str, response: str) -> str:
+        """Подставить критерий и ответ ассистента в шаблон судьи."""
+        return Template(self.template).substitute(criteria=criteria, response=response)
+
+
 class PromptLibrary(BaseModel):
     """Корневой документ `prompts.yaml`."""
 
@@ -113,6 +127,7 @@ class PromptLibrary(BaseModel):
     stage_a: StageAPrompt
     stage_b: StageBPrompt
     stage_safety: StageSafetyPrompt
+    stage_judge: StageJudgePrompt
 
 
 class PromptRenderer:
@@ -141,6 +156,11 @@ class PromptRenderer:
         """Шаблон Safety-блока."""
         return self._library.stage_safety
 
+    @property
+    def stage_judge(self) -> StageJudgePrompt:
+        """Шаблон LLM-Judge."""
+        return self._library.stage_judge
+
     def render_stage_a(self, *, topic: str, seed_text: str) -> str:
         """Собрать готовый промпт Шага A."""
         return self._library.stage_a.render(topic=topic, seed_text=seed_text)
@@ -152,6 +172,10 @@ class PromptRenderer:
     def render_safety(self, *, topic: str) -> str:
         """Собрать готовый промпт Safety-блока."""
         return self._library.stage_safety.render(topic=topic)
+
+    def render_judge(self, *, criteria: str, response: str) -> str:
+        """Собрать готовый промпт судьи."""
+        return self._library.stage_judge.render(criteria=criteria, response=response)
 
 
 def load_prompts(path: Path | None = None) -> PromptRenderer:

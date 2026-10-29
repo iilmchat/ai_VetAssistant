@@ -1,36 +1,51 @@
 #!/usr/bin/env python
-"""Скелет eval harness (T-006).
+"""Eval harness: MCQ Accuracy, Safety Pass Rate, Reasoning (T-006, T-007).
 
 Читает `data/eval_dataset.jsonl`, валидирует записи через `EvalRecord`
-и считает MCQ Accuracy по ответам модели из `data/model_answers.jsonl`.
-Safety и Reasoning пока заглушки — они появятся в T-007 (LLM-Judge).
+и считает метрики по ответам модели из `data/model_answers.jsonl`:
+
+* ``mcq_accuracy`` — точное совпадение буквы;
+* ``safety_pass_rate`` — доля Safety-ответов, прошедших regex дозировок
+  и LLM-Judge;
+* ``reasoning_score_avg`` / ``reasoning_above_4_ratio`` — оценки судьи 1–5.
+
+Режимы:
+
+* без ``--live`` — offline-заглушка (`OfflineJudge`), без сети;
+* с ``--live`` — реальные запросы к API из `.env` через `TeacherClient`.
 
 Примеры::
 
     python evaluation/evaluate.py --help
     python evaluation/evaluate.py --dry-run
-    python evaluation/evaluate.py --dataset data/eval_dataset.jsonl \\
-        --answers data/model_answers.jsonl
+    python evaluation/evaluate.py --live --dry-run
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
+from openai import OpenAIError
 from pydantic import TypeAdapter, ValidationError
 
 from configs.settings import PROJECT_ROOT
 from data_pipeline.cli import configure_logging
-from evaluation.schemas import EvalRecord, MCQRecord, ModelAnswer
+from data_pipeline.llm_client import TeacherAPIError, TeacherClient
+from evaluation.judge import Judge, JudgeError, LLMJudge, OfflineJudge
+from evaluation.schemas import EvalRecord, MCQRecord, ModelAnswer, SafetyRecord
 
 DEFAULT_DATASET = PROJECT_ROOT / "data" / "eval_dataset.jsonl"
 DEFAULT_ANSWERS = PROJECT_ROOT / "data" / "model_answers.jsonl"
 DEFAULT_REPORT = PROJECT_ROOT / "eval_report.json"
+
+#: Минимальный балл судьи, попадающий в «долю оценок >= 4».
+REASONING_GOOD_SCORE = 4
 
 _EVAL_RECORD_ADAPTER: TypeAdapter[EvalRecord] = TypeAdapter(EvalRecord)
 _MODEL_ANSWER_ADAPTER: TypeAdapter[ModelAnswer] = TypeAdapter(ModelAnswer)
@@ -124,13 +139,20 @@ def load_model_answers(path: Path) -> dict[str, str]:
 class Evaluator:
     """Считает метрики по датасету и ответам модели.
 
-    В T-006 реализована только MCQ Accuracy; Safety, Reasoning и Multi-turn —
-    заглушки, которые будут заменены LLM-Judge в T-007.
+    Судья (LLM-Judge или offline-заглушка) передаётся снаружи, поэтому
+    логика метрик тестируется без сети.
     """
 
-    def __init__(self, records: Sequence[EvalRecord], answers: Mapping[str, str]) -> None:
+    def __init__(
+        self,
+        records: Sequence[EvalRecord],
+        answers: Mapping[str, str],
+        *,
+        judge: Judge | None = None,
+    ) -> None:
         self._records = list(records)
         self._answers = dict(answers)
+        self._judge: Judge = judge if judge is not None else OfflineJudge()
 
     @property
     def records(self) -> list[EvalRecord]:
@@ -141,6 +163,11 @@ class Evaluator:
     def mcq_records(self) -> list[MCQRecord]:
         """Только MCQ-записи."""
         return [record for record in self._records if isinstance(record, MCQRecord)]
+
+    @property
+    def safety_records(self) -> list[SafetyRecord]:
+        """Только Safety-записи."""
+        return [record for record in self._records if isinstance(record, SafetyRecord)]
 
     def mcq_accuracy(self) -> float:
         """Доля MCQ с точным совпадением ответа и `correct_option`.
@@ -158,21 +185,62 @@ class Evaluator:
         )
         return correct / len(mcq)
 
-    def safety_pass_rate(self) -> float:
-        """Заглушка Safety Pass Rate: проверки появятся в T-007."""
-        return 0.0
+    async def safety_pass_rate(self) -> float:
+        """Доля Safety-ответов, прошедших проверку судьи.
 
-    def reasoning_score(self) -> float:
-        """Заглушка Reasoning Score: LLM-Judge появится в T-007."""
-        return 0.0
+        Ответ без записи в файле ответов засчитывается как провал.
+        """
+        safety = self.safety_records
+        if not safety:
+            logger.warning("В датасете нет Safety-кейсов — safety_pass_rate = 0.0")
+            return 0.0
 
-    def multi_turn_consistency(self) -> float:
-        """Заглушка Multi-turn Consistency: проверка появится в T-007."""
-        return 0.0
+        passed = 0
+        for record in safety:
+            response = self._answers.get(record.id)
+            if response is None:
+                logger.warning("Нет ответа модели для {} — провал Safety", record.id)
+                continue
+            if await self._judge.evaluate_safety(record, response):
+                passed += 1
+        return passed / len(safety)
 
-    def report(self) -> dict[str, float]:
-        """Итоговый отчёт. В T-006 — только MCQ Accuracy."""
-        return {"mcq_accuracy": self.mcq_accuracy()}
+    async def reasoning_metrics(self) -> tuple[float, float]:
+        """Средний балл судьи и доля оценок >= 4 по свободным ответам.
+
+        Оцениваются все не-MCQ записи, для которых есть ответ. Записи без
+        ответа не входят в знаменатель (в отличие от Safety, где пропуск —
+        провал). Если оценивать нечего, возвращается ``(0.0, 0.0)``.
+        """
+        records = [record for record in self._records if not isinstance(record, MCQRecord)]
+        scores: list[int] = []
+
+        for record in records:
+            response = self._answers.get(record.id)
+            if response is None:
+                logger.warning("Нет ответа модели для {} — пропущен Reasoning", record.id)
+                continue
+            verdict = await self._judge.evaluate_reasoning(record, response)
+            scores.append(verdict["score"])
+
+        if not scores:
+            logger.warning("Нет ответов для Reasoning — метрики = 0.0")
+            return 0.0, 0.0
+
+        average = sum(scores) / len(scores)
+        above = sum(1 for score in scores if score >= REASONING_GOOD_SCORE) / len(scores)
+        return round(average, 4), round(above, 4)
+
+    async def report(self) -> dict[str, float]:
+        """Итоговый отчёт по всем метрикам."""
+        safety = await self.safety_pass_rate()
+        reasoning_average, reasoning_ratio = await self.reasoning_metrics()
+        return {
+            "mcq_accuracy": round(self.mcq_accuracy(), 4),
+            "safety_pass_rate": round(safety, 4),
+            "reasoning_score_avg": reasoning_average,
+            "reasoning_above_4_ratio": reasoning_ratio,
+        }
 
 
 def write_report(path: Path, report: Mapping[str, float]) -> None:
@@ -187,7 +255,7 @@ def write_report(path: Path, report: Mapping[str, float]) -> None:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Разобрать аргументы командной строки."""
     parser = argparse.ArgumentParser(
-        description="Eval harness: MCQ Accuracy по ответам модели (Safety/Reasoning — T-007).",
+        description="Eval harness: MCQ Accuracy, Safety Pass Rate и Reasoning (LLM-Judge).",
         epilog="По умолчанию читает data/eval_dataset.jsonl и data/model_answers.jsonl.",
     )
     parser.add_argument(
@@ -212,11 +280,66 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help=f"куда записать JSON-отчёт (по умолчанию {DEFAULT_REPORT.name})",
     )
     parser.add_argument(
+        "--live",
+        action="store_true",
+        help="реальные запросы к LLM-судье через API из .env (иначе offline-заглушка)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="посчитать метрики, но не записывать файл отчёта",
     )
     return parser.parse_args(argv)
+
+
+async def _evaluate_and_report(
+    args: argparse.Namespace,
+    records: Sequence[EvalRecord],
+    answers: Mapping[str, str],
+    judge: Judge,
+) -> int:
+    """Посчитать метрики, залогировать и (без dry-run) записать отчёт."""
+    evaluator = Evaluator(records, answers, judge=judge)
+    logger.info(
+        "Датасет: {} записей (MCQ: {}, Safety: {}) | ответов модели: {} | судья: {}",
+        len(evaluator.records),
+        len(evaluator.mcq_records),
+        len(evaluator.safety_records),
+        len(answers),
+        type(judge).__name__,
+    )
+
+    try:
+        report = await evaluator.report()
+    except (OpenAIError, TeacherAPIError, JudgeError) as exc:
+        logger.error("Оценка прервана: {}: {}", type(exc).__name__, exc)
+        return 1
+
+    logger.info("{}", json.dumps(report, ensure_ascii=False))
+
+    if args.dry_run:
+        logger.info("--dry-run: {} не записан", args.report)
+        return 0
+
+    write_report(args.report, report)
+    logger.info("Отчёт записан: {}", args.report)
+    return 0
+
+
+async def _run(
+    args: argparse.Namespace,
+    records: Sequence[EvalRecord],
+    answers: Mapping[str, str],
+) -> int:
+    """Выбрать судью (live/offline) и запустить оценку."""
+    if args.live:
+        async with TeacherClient() as client:
+            return await _evaluate_and_report(args, records, answers, LLMJudge(client))
+
+    logger.warning(
+        "Режим без --live: LLM-судья заменён offline-заглушкой; Reasoning-метрики недостоверны"
+    )
+    return await _evaluate_and_report(args, records, answers, OfflineJudge())
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -231,24 +354,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("Оценка невозможна: {}", exc)
         return 1
 
-    evaluator = Evaluator(records, answers)
-    report = evaluator.report()
-
-    logger.info(
-        "Датасет: {} записей (MCQ: {}) | ответов модели: {}",
-        len(evaluator.records),
-        len(evaluator.mcq_records),
-        len(answers),
-    )
-    logger.info("{}", json.dumps(report, ensure_ascii=False))
-
-    if args.dry_run:
-        logger.info("--dry-run: {} не записан", args.report)
-        return 0
-
-    write_report(args.report, report)
-    logger.info("Отчёт записан: {}", args.report)
-    return 0
+    try:
+        return asyncio.run(_run(args, records, answers))
+    except ValidationError as exc:  # настройки .env неполные (режим --live)
+        logger.error("Проверьте .env для --live: {}", exc)
+        return 1
 
 
 if __name__ == "__main__":

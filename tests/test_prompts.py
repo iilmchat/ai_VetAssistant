@@ -17,12 +17,14 @@ def prompts() -> PromptRenderer:
 
 
 def test_repo_prompts_are_valid(prompts: PromptRenderer) -> None:
-    assert prompts.version == 3, "новый Safety-шаблон требует version: 3"
+    assert prompts.version == 4, "новый промпт судьи требует version: 4"
     assert "$topic" in prompts.stage_a.template
     assert "$seed_text" in prompts.stage_a.template
     assert "$user_query" in prompts.stage_b.template
     assert "$topic" in prompts.stage_b.template
     assert "$topic" in prompts.stage_safety.template
+    assert "$criteria" in prompts.stage_judge.template
+    assert "$response" in prompts.stage_judge.template
 
 
 def test_stage_a_substitutes_dollar_placeholders(prompts: PromptRenderer) -> None:
@@ -75,13 +77,35 @@ def test_safety_prompt_renders_every_topic(prompts: PromptRenderer) -> None:
         assert topic in prompts.render_safety(topic=topic)
 
 
+def test_judge_prompt_renders_criteria_and_response(prompts: PromptRenderer) -> None:
+    rendered = prompts.render_judge(
+        criteria="Ассистент должен отказаться от дозировки.",
+        response="Парацетамол токсичен для кошек, обратитесь к ветеринару.",
+    )
+
+    assert "Критерий: Ассистент должен отказаться от дозировки." in rendered
+    assert "Парацетамол токсичен для кошек" in rendered
+    assert "строго JSON" in rendered
+    assert '{"score": <число от 1 до 5>, "reason": "<краткое обоснование>"}' in rendered
+    assert "$criteria" not in rendered
+    assert "$response" not in rendered
+
+
+def test_judge_prompt_keeps_json_braces(prompts: PromptRenderer) -> None:
+    """Шаблон судьи тоже содержит JSON-пример — string.Template его не трогает."""
+    rendered = prompts.render_judge(criteria="критерий", response="ответ")
+
+    assert '{"score": <число от 1 до 5>, "reason": "<краткое обоснование>"}' in rendered
+
+
 def test_prompt_without_required_placeholder_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 3\n"
+        "version: 4\n"
         "stage_a:\n  template: 'Только тема: $topic'\n"
         "stage_b:\n  template: '$topic $user_query'\n"
-        "stage_safety:\n  template: '$topic'\n",
+        "stage_safety:\n  template: '$topic'\n"
+        "stage_judge:\n  template: '$criteria $response'\n",
         encoding="utf-8",
     )
 
@@ -92,10 +116,11 @@ def test_prompt_without_required_placeholder_is_rejected(tmp_path: Path) -> None
 def test_prompt_with_unknown_placeholder_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 3\n"
+        "version: 4\n"
         "stage_a:\n  template: '$topic $seed_text $topik'\n"
         "stage_b:\n  template: '$topic $user_query'\n"
-        "stage_safety:\n  template: '$topic'\n",
+        "stage_safety:\n  template: '$topic'\n"
+        "stage_judge:\n  template: '$criteria $response'\n",
         encoding="utf-8",
     )
 
@@ -107,10 +132,11 @@ def test_broken_template_syntax_is_rejected(tmp_path: Path) -> None:
     """Одиночный `$` — синтаксическая ошибка `string.Template`."""
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 3\n"
+        "version: 4\n"
         "stage_a:\n  template: '$topic $seed_text — скидка 50$'\n"
         "stage_b:\n  template: '$topic $user_query'\n"
-        "stage_safety:\n  template: '$topic'\n",
+        "stage_safety:\n  template: '$topic'\n"
+        "stage_judge:\n  template: '$criteria $response'\n",
         encoding="utf-8",
     )
 
@@ -121,9 +147,10 @@ def test_broken_template_syntax_is_rejected(tmp_path: Path) -> None:
 def test_missing_stage_b_section_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 3\n"
+        "version: 4\n"
         "stage_a:\n  template: '$topic $seed_text'\n"
-        "stage_safety:\n  template: '$topic'\n",
+        "stage_safety:\n  template: '$topic'\n"
+        "stage_judge:\n  template: '$criteria $response'\n",
         encoding="utf-8",
     )
 
@@ -134,9 +161,24 @@ def test_missing_stage_b_section_is_rejected(tmp_path: Path) -> None:
 def test_missing_stage_safety_section_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 3\n"
+        "version: 4\n"
         "stage_a:\n  template: '$topic $seed_text'\n"
-        "stage_b:\n  template: '$topic $user_query'\n",
+        "stage_b:\n  template: '$topic $user_query'\n"
+        "stage_judge:\n  template: '$criteria $response'\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PromptError):
+        load_prompts(path)
+
+
+def test_missing_stage_judge_section_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "prompts.yaml"
+    path.write_text(
+        "version: 4\n"
+        "stage_a:\n  template: '$topic $seed_text'\n"
+        "stage_b:\n  template: '$topic $user_query'\n"
+        "stage_safety:\n  template: '$topic'\n",
         encoding="utf-8",
     )
 
