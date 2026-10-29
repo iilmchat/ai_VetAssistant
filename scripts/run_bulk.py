@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
-from openai import OpenAIError
+from openai import APIStatusError, OpenAIError
 from pydantic import ValidationError
 
 from configs.prompts import PromptError, PromptRenderer, get_prompts
@@ -46,12 +46,16 @@ from data_pipeline.dataset_io import (
     write_jsonl,
 )
 from data_pipeline.generator import GenerationError, StageAGenerator, StageBGenerator
-from data_pipeline.llm_client import TeacherClient
+from data_pipeline.llm_client import TeacherClient, is_fatal_provider_error
 from data_pipeline.schemas import SeedRecord
 
 DEFAULT_SEEDS = PROJECT_ROOT / "data" / "seeds_bulk.jsonl"
 DEFAULT_CONCURRENCY = 10
 PREVIEW_SIZE = 2
+
+
+class FatalProviderError(RuntimeError):
+    """Провайдер отклонил запросы из-за ключа, доступа или баланса."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,11 +104,16 @@ async def generate_bulk(
     success = 0
     errors = 0
     tokens = 0
+    fatal_error: FatalProviderError | None = None
     started = time.perf_counter()
 
     async def process(seed: SeedRecord) -> None:
-        nonlocal success, errors, tokens
+        nonlocal success, errors, tokens, fatal_error
+        if fatal_error is not None:
+            return
         async with semaphore:
+            if fatal_error is not None:
+                return
             try:
                 stage_a_record = await stage_a.generate_query(
                     seed.topic, seed.seed_text, seed_id=seed.id
@@ -112,6 +121,17 @@ async def generate_bulk(
                 dialogue = await stage_b.generate_dialogue(
                     stage_a_record.user_query, seed.topic, seed_id=seed.id
                 )
+            except APIStatusError as exc:
+                if is_fatal_provider_error(exc):
+                    fatal_error = FatalProviderError(
+                        "провайдер отклонил запросы "
+                        f"(HTTP {exc.status_code}: {exc.message}) — проверьте ключ и баланс"
+                    )
+                    logger.error("{}; генерация остановлена", fatal_error)
+                    return
+                errors += 1
+                logger.error("{} — APIStatusError {}: {}", seed.id, exc.status_code, exc)
+                return
             except (OpenAIError, GenerationError) as exc:
                 errors += 1
                 logger.error("{} — {}: {}", seed.id, type(exc).__name__, exc)
@@ -131,6 +151,8 @@ async def generate_bulk(
             )
 
     await asyncio.gather(*(process(seed) for seed in seeds))
+    if fatal_error is not None:
+        raise fatal_error
     elapsed_s = time.perf_counter() - started
     return BulkStats(
         processed=len(seeds),
@@ -289,6 +311,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         return asyncio.run(_run(pending, output, provider_name, args.concurrency))
+    except FatalProviderError as exc:
+        logger.error("Bulk остановлен: {}", exc)
+        return 1
     except ValidationError as exc:
         logger.error("Проверьте .env: {}", exc)
         return 1

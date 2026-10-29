@@ -42,6 +42,15 @@ class TeacherAPIError(RuntimeError):
     """Учитель вернул ответ, который нельзя использовать (пустой/битый)."""
 
 
+#: HTTP-статусы, при которых повторять/продолжать бессмысленно: ключ, доступ, баланс.
+FATAL_PROVIDER_STATUSES = frozenset({401, 402, 403})
+
+
+def is_fatal_provider_error(exc: BaseException) -> bool:
+    """Ошибка ключа/доступа/баланса — прогон нужно немедленно остановить."""
+    return isinstance(exc, APIStatusError) and exc.status_code in FATAL_PROVIDER_STATUSES
+
+
 def is_retryable_error(exc: BaseException) -> bool:
     """Ретраить ли ошибку.
 

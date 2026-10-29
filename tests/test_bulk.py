@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx2
 import pytest
-from openai import APIConnectionError
+from openai import APIConnectionError, APIStatusError
 from pydantic import SecretStr
 
 from configs.settings import ProviderConfig
@@ -19,7 +19,7 @@ from data_pipeline.dataset_io import read_jsonl, write_jsonl
 from data_pipeline.llm_client import ChatResult
 from data_pipeline.schemas import DialogueRecord
 from scripts.generate_seeds import build_seeds
-from scripts.run_bulk import bulk_output_path, generate_bulk, main
+from scripts.run_bulk import FatalProviderError, bulk_output_path, generate_bulk, main
 
 DIALOGUE = [
     {"role": "user", "content": "Кот не ест второй день, что делать?"},
@@ -71,12 +71,15 @@ class _FakeClient:
         *,
         delay: float = 0.0,
         fail_on_numbers: set[int] | None = None,
+        fatal_status: int | None = None,
     ) -> None:
         self.delay = delay
         self.fail_on_numbers = fail_on_numbers or set()
+        self.fatal_status = fatal_status
         self.active = 0
         self.max_active = 0
         self.stage_a_numbers: list[int] = []
+        self.calls = 0
 
     async def __aenter__(self) -> _FakeClient:
         return self
@@ -85,6 +88,7 @@ class _FakeClient:
         return None
 
     async def chat(self, messages: Any, **kwargs: Any) -> ChatResult:
+        self.calls += 1
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         try:
@@ -94,6 +98,11 @@ class _FakeClient:
             is_stage_b = "Формат вывода: JSON-массив" in prompt
             match = SEED_NUMBER_RE.search(prompt)
             number = int(match.group(1)) if match else None
+
+            if not is_stage_b and self.fatal_status is not None:
+                request = httpx2.Request("POST", "http://test")
+                response = httpx2.Response(self.fatal_status, request=request)
+                raise APIStatusError("Insufficient Balance", response=response, body=None)
 
             if not is_stage_b and number in self.fail_on_numbers:
                 raise APIConnectionError(request=httpx2.Request("POST", "http://test"))
@@ -150,6 +159,20 @@ async def test_one_error_does_not_stop_the_run(tmp_path: Path) -> None:
     assert stats.tokens == 120  # 2 успешных кейса × (30 + 30)
     records = [DialogueRecord.model_validate(row) for row in read_jsonl(output)]
     assert {record.id for record in records} == {"bulk-0001", "bulk-0003"}
+
+
+@pytest.mark.asyncio
+async def test_fatal_balance_error_aborts_bulk(tmp_path: Path) -> None:
+    """402/401/403 — не транзиентные: прогон должен остановиться сразу."""
+    seeds = build_seeds(5, rng=random.Random(3))
+    client: Any = _FakeClient(fatal_status=402)
+    output = tmp_path / "out.jsonl"
+
+    with pytest.raises(FatalProviderError, match="402"):
+        await generate_bulk(seeds, output, client, concurrency=1)
+
+    assert client.calls == 1
+    assert list(read_jsonl(output)) == []
 
 
 def test_resume_skips_ids_already_in_output(

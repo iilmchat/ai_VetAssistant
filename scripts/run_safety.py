@@ -23,7 +23,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from loguru import logger
-from openai import OpenAIError
+from openai import APIStatusError, OpenAIError
 from pydantic import ValidationError
 
 from configs.prompts import PromptError, PromptRenderer, get_prompts
@@ -42,7 +42,7 @@ from data_pipeline.dataset_io import (
     select_pending,
 )
 from data_pipeline.generator import GenerationError, StageSafetyGenerator
-from data_pipeline.llm_client import TeacherClient
+from data_pipeline.llm_client import TeacherClient, is_fatal_provider_error
 from data_pipeline.schemas import SeedRecord
 
 DEFAULT_SEEDS = PROJECT_ROOT / "data" / "seeds.jsonl"
@@ -135,6 +135,24 @@ async def _generate(
             case_id = safety_case_id(seed.id)
             try:
                 record = await generator.generate_case(seed.topic, case_id=case_id)
+            except APIStatusError as exc:
+                if is_fatal_provider_error(exc):
+                    logger.error(
+                        "Провайдер отклонил запросы (HTTP {}): {} — safety остановлен",
+                        exc.status_code,
+                        exc.message,
+                    )
+                    return 1
+                errors += 1
+                logger.error(
+                    "[{}/{}] {} — APIStatusError {}: {}",
+                    index,
+                    len(seeds),
+                    case_id,
+                    exc.status_code,
+                    exc,
+                )
+                continue
             except (OpenAIError, GenerationError) as exc:
                 errors += 1
                 logger.error(

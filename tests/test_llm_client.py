@@ -34,6 +34,7 @@ from data_pipeline.llm_client import (
     ChatResult,
     TeacherAPIError,
     TeacherClient,
+    is_fatal_provider_error,
     is_retryable_error,
 )
 
@@ -278,6 +279,21 @@ async def test_raises_after_attempts_exhausted(
 )
 def test_is_retryable_error(error: BaseException, expected: bool) -> None:
     assert is_retryable_error(error) is expected
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (_status_error(AuthenticationError, 401), True),
+        (_status_error(PermissionDeniedError, 403), True),
+        (_status_error(BadRequestError, 400), False),
+        (_status_error(RateLimitError, 429), False),
+        (_status_error(InternalServerError, 500), False),
+        (ValueError("not an api error"), False),
+    ],
+)
+def test_is_fatal_provider_error(error: BaseException, expected: bool) -> None:
+    assert is_fatal_provider_error(error) is expected
 
 
 @pytest.mark.asyncio
