@@ -21,6 +21,8 @@ env/
 # --- Сгенерированные данные: воспроизводимы из seeds, в git не нужны ---
 data/*.jsonl
 !data/seeds.jsonl
+!data/eval_dataset.jsonl
+!data/model_answers.jsonl
 data/*.csv
 data/*.parquet
 
