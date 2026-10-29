@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
 from collections.abc import Sequence
 
 from loguru import logger
@@ -24,6 +23,7 @@ from openai import OpenAIError
 from pydantic import ValidationError
 
 from configs import get_settings
+from data_pipeline.cli import configure_logging
 from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 
 TEST_PROMPT = "Скажи 'Привет, я ассистент'"
@@ -41,20 +41,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="только проверить наличие настроек в .env, не обращаясь к API",
     )
     return parser.parse_args(argv)
-
-
-def _configure_logging() -> None:
-    """Логи в stdout (RULES §3: без print), безопасно к кодировке консоли Windows."""
-    logger.remove()
-    stream = sys.stdout
-    reconfigure = getattr(stream, "reconfigure", None)
-    if callable(reconfigure):
-        reconfigure(errors="backslashreplace")
-    logger.add(
-        stream,
-        level="INFO",
-        format="<green>{time:HH:mm:ss}</green> | <level>{level:<8}</level> | {message}",
-    )
 
 
 def _describe_validation_error(exc: ValidationError) -> str:
@@ -104,7 +90,7 @@ async def _request_teacher() -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Точка входа CLI. Возвращает код выхода процесса."""
     args = parse_args(argv)
-    _configure_logging()
+    configure_logging()
 
     if args.dry_run:
         return _check_settings()
