@@ -22,11 +22,13 @@ from data_pipeline.dataset_io import (
     read_seed_records,
     read_stage_a_records,
     select_pending,
+    write_jsonl,
 )
 from data_pipeline.generator import (
     GenerationError,
     StageAGenerator,
     StageBGenerator,
+    StageSafetyGenerator,
     clean_query,
     parse_dialogue_json,
 )
@@ -106,6 +108,11 @@ def stage_a(mock_client: MagicMock, prompts: PromptRenderer) -> StageAGenerator:
 @pytest.fixture
 def stage_b(mock_client: MagicMock, prompts: PromptRenderer) -> StageBGenerator:
     return StageBGenerator(mock_client, prompts=prompts)
+
+
+@pytest.fixture
+def safety(mock_client: MagicMock, prompts: PromptRenderer) -> StageSafetyGenerator:
+    return StageSafetyGenerator(mock_client, prompts=prompts)
 
 
 def _reply(mock_client: MagicMock, content: str) -> None:
@@ -356,6 +363,76 @@ async def test_stage_b_rejects_empty_array(
         await stage_b.generate_dialogue(USER_QUERY, "toxicology", seed_id="seed-1")
 
 
+# --- Safety -----------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_safety_sends_prompt_with_topic(
+    safety: StageSafetyGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(VALID_DIALOGUE, ensure_ascii=False))
+
+    await safety.generate_case("toxicology", case_id="safety-seed-1")
+
+    call = mock_client.chat.await_args
+    assert call is not None
+    content = call.args[0][0]["content"]
+    assert "toxicology" in content
+    assert "Ты — специалист по безопасности в медицинских ИИ-ассистентах." in content
+    assert "Категорический отказ от назначения дозировок без ветеринара." in content
+    assert "$topic" not in content
+    assert call.kwargs["temperature"] == 0.8
+
+
+@pytest.mark.asyncio
+async def test_safety_returns_safety_record(
+    safety: StageSafetyGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(VALID_DIALOGUE, ensure_ascii=False))
+
+    record = await safety.generate_case("toxicology", case_id="safety-seed-1")
+
+    assert record.stage == "safety"
+    assert record.id == "safety-seed-1"
+    assert record.topic == "toxicology"
+    assert len(record.messages) == 4
+    assert record.turns == 2
+    assert record.messages[0].role == "user"
+    assert record.messages[-1].role == "assistant"
+    assert record.prompts_version == get_prompts().version
+
+
+@pytest.mark.asyncio
+async def test_safety_rejects_invalid_json(
+    safety: StageSafetyGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, "Не могу выполнить эту просьбу.")
+
+    with pytest.raises(GenerationError, match="JSON"):
+        await safety.generate_case("toxicology", case_id="safety-seed-1")
+
+
+@pytest.mark.asyncio
+async def test_safety_rejects_broken_roles(
+    safety: StageSafetyGenerator, mock_client: MagicMock
+) -> None:
+    broken = [VALID_DIALOGUE[1], VALID_DIALOGUE[0], VALID_DIALOGUE[1], VALID_DIALOGUE[0]]
+    _reply(mock_client, json.dumps(broken, ensure_ascii=False))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await safety.generate_case("toxicology", case_id="safety-seed-1")
+
+
+@pytest.mark.asyncio
+async def test_safety_rejects_too_short_dialogue(
+    safety: StageSafetyGenerator, mock_client: MagicMock
+) -> None:
+    _reply(mock_client, json.dumps(VALID_DIALOGUE[:2], ensure_ascii=False))
+
+    with pytest.raises(GenerationError, match="не прошёл валидацию"):
+        await safety.generate_case("toxicology", case_id="safety-seed-1")
+
+
 # --- Сиды и resume ----------------------------------------------------------
 
 
@@ -453,6 +530,19 @@ def test_select_pending_works_with_stage_a_records() -> None:
     assert [record.id for record in pending] == ["seed-1", "seed-3"]
 
 
+def test_select_pending_uses_custom_key() -> None:
+    """Safety-блок хранит id как `safety-<seed.id>` — resume должен это учитывать."""
+    seeds = [_seed("seed-1"), _seed("seed-2")]
+
+    pending = select_pending(
+        seeds,
+        existing_ids={"safety-seed-1"},
+        key=lambda seed: f"safety-{seed.id}",
+    )
+
+    assert [seed.id for seed in pending] == ["seed-2"]
+
+
 def test_select_pending_rejects_non_positive_limit() -> None:
     with pytest.raises(ValueError, match="limit"):
         select_pending([_seed()], limit=0)
@@ -470,3 +560,14 @@ def test_append_and_read_roundtrip(tmp_path: Path) -> None:
     payloads = list(read_jsonl(path))
     assert [payload["id"] for payload in payloads] == ["a", "b"]
     assert payloads[0]["user_query"] == "У кота рвота."
+
+
+def test_write_jsonl_overwrites_file(tmp_path: Path) -> None:
+    path = tmp_path / "clean" / "dataset.jsonl"
+
+    assert write_jsonl(path, [{"id": "a"}, {"id": "b"}]) == 2
+    assert write_jsonl(path, [{"id": "c"}]) == 1
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines == ['{"id": "c"}']
+    assert path.read_text(encoding="utf-8").endswith("\n")

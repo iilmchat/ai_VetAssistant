@@ -1,15 +1,15 @@
-"""Генераторы Шагов A и B (T-003, T-004)."""
+"""Генераторы Шагов A, B и Safety-блока (T-003, T-004, T-005)."""
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 from pydantic import ValidationError
 
 from configs.prompts import PromptRenderer, get_prompts
-from data_pipeline.llm_client import TeacherClient
+from data_pipeline.llm_client import ChatResult, TeacherClient
 from data_pipeline.schemas import (
     DialogueRecord,
     Message,
@@ -97,6 +97,41 @@ def parse_dialogue_json(text: str) -> list[Any]:
 
     snippet = " ".join(cleaned.split())[:200]
     raise GenerationError(f"ответ учителя не содержит JSON-массива сообщений: {snippet!r}")
+
+
+def _build_dialogue_record(
+    raw_messages: list[Any],
+    *,
+    record_id: str,
+    topic: Topic,
+    stage: Literal["B", "safety"],
+    result: ChatResult,
+    prompts_version: int,
+) -> DialogueRecord:
+    """Собрать и провалидировать `DialogueRecord` из сырых реплик.
+
+    Raises:
+        GenerationError: реплики или структура диалога не прошли схему.
+    """
+    try:
+        messages = [Message.model_validate(item) for item in raw_messages]
+        return DialogueRecord(
+            id=record_id,
+            stage=stage,
+            topic=topic,
+            messages=messages,
+            model=result.model,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            total_tokens=result.total_tokens,
+            latency_s=result.latency_s,
+            attempts=result.attempts,
+            prompts_version=prompts_version,
+        )
+    except ValidationError as exc:
+        raise GenerationError(
+            f"диалог для {record_id!r} не прошёл валидацию: {_describe_validation_error(exc)}"
+        ) from exc
 
 
 class StageAGenerator:
@@ -254,29 +289,94 @@ class StageBGenerator:
         )
 
         raw_messages = parse_dialogue_json(result.content)
-        try:
-            messages = [Message.model_validate(item) for item in raw_messages]
-            record = DialogueRecord(
-                id=seed_id,
-                topic=topic,
-                messages=messages,
-                model=result.model,
-                prompt_tokens=result.prompt_tokens,
-                completion_tokens=result.completion_tokens,
-                total_tokens=result.total_tokens,
-                latency_s=result.latency_s,
-                attempts=result.attempts,
-                prompts_version=self.prompts_version,
-            )
-        except ValidationError as exc:
-            raise GenerationError(
-                f"диалог для сида {seed_id!r} не прошёл валидацию: "
-                f"{_describe_validation_error(exc)}"
-            ) from exc
+        record = _build_dialogue_record(
+            raw_messages,
+            record_id=seed_id,
+            topic=topic,
+            stage="B",
+            result=result,
+            prompts_version=self.prompts_version,
+        )
 
-        if _normalize(messages[0].content) != _normalize(user_query):
+        if _normalize(record.messages[0].content) != _normalize(user_query):
             logger.debug(
                 "Шаг B: первый вопрос диалога отличается от вопроса Шага A (seed={})", seed_id
             )
 
         return record
+
+
+class StageSafetyGenerator:
+    """Генерирует провокационные диалоги для проверки Safety-правил.
+
+    Владелец пытается вынудить ассистента нарушить правила (дозировка
+    человеческого препарата, диагноз без осмотра, «домашнее средство»
+    вместо неотложной помощи), а ассистент должен отказать и эскалировать.
+
+    Пример::
+
+        generator = StageSafetyGenerator(client)
+        record = await generator.generate_case("toxicology", case_id="safety-seed-msd-003")
+    """
+
+    def __init__(
+        self,
+        client: TeacherClient,
+        *,
+        prompts: PromptRenderer | None = None,
+        temperature: float = 0.8,
+        max_tokens: int = 2048,
+    ) -> None:
+        """Создать генератор.
+
+        Args:
+            client: клиент учителя (T-002).
+            prompts: библиотека промптов; по умолчанию — `configs/prompts.yaml`.
+            temperature: провокации должны быть разнообразными, но связными.
+            max_tokens: 4–8 реплик с запасом.
+        """
+        if not 0.0 <= temperature <= 2.0:
+            raise ValueError("temperature должна быть в диапазоне 0..2")
+        if max_tokens < 1:
+            raise ValueError("max_tokens должен быть >= 1")
+
+        self._client = client
+        self._prompts = prompts if prompts is not None else get_prompts()
+        self._temperature = temperature
+        self._max_tokens = max_tokens
+
+    @property
+    def prompts_version(self) -> int:
+        """Версия библиотеки промптов (попадает в метаданные записи)."""
+        return self._prompts.version
+
+    async def generate_case(self, topic: Topic, *, case_id: str) -> DialogueRecord:
+        """Сгенерировать Safety-кейс по теме.
+
+        Args:
+            topic: тема из таксономии.
+            case_id: id кейса (используется `--resume` и попадает в запись).
+
+        Raises:
+            GenerationError: ответ не является JSON-массивом, реплики не прошли
+                схему или нарушена структура диалога (роли, длина).
+            openai.OpenAIError: ошибка API (после исчерпания ретраев).
+        """
+        prompt = self._prompts.render_safety(topic=topic)
+        logger.debug("Safety: id={} topic={} промпт={} символов", case_id, topic, len(prompt))
+
+        result = await self._client.chat(
+            [{"role": "user", "content": prompt}],
+            temperature=self._temperature,
+            max_tokens=self._max_tokens,
+        )
+
+        raw_messages = parse_dialogue_json(result.content)
+        return _build_dialogue_record(
+            raw_messages,
+            record_id=case_id,
+            topic=topic,
+            stage="safety",
+            result=result,
+            prompts_version=self.prompts_version,
+        )

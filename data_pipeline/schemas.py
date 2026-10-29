@@ -99,10 +99,14 @@ class Message(BaseModel):
 
 
 class DialogueRecord(LLMMetadata):
-    """Результат Шага B: многотурный диалог владельца и ассистента."""
+    """Многотурный диалог владельца и ассистента.
+
+    ``stage`` различает источник: ``"B"`` — обычный кейс из сидов,
+    ``"safety"`` — провокационный кейс Safety-блока.
+    """
 
     id: str = Field(min_length=1, description="id исходного сида (совпадает с Шагом A)")
-    stage: Literal["B"] = "B"
+    stage: Literal["B", "safety"] = "B"
     topic: Topic
     messages: list[Message] = Field(
         min_length=MIN_DIALOGUE_MESSAGES, max_length=MAX_DIALOGUE_MESSAGES

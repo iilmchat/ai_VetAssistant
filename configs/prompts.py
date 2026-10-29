@@ -1,9 +1,9 @@
-"""Загрузчик библиотеки промптов (T-003, T-004).
+"""Загрузчик библиотеки промптов (T-003, T-004, T-005).
 
 Промпты живут в `configs/prompts.yaml`, чтобы менять их без правки кода.
 Подстановка значений — через :class:`string.Template` (`$name`), а не
-`str.format`: шаблон Шага B содержит JSON-пример с фигурными скобками,
-который `format` попытался бы интерпретировать.
+`str.format`: шаблоны Шага B и Safety содержат JSON-пример с фигурными
+скобками, который `format` попытался бы интерпретировать.
 
 Загрузчик валидирует структуру через Pydantic и проверяет, что в шаблоне
 есть все обязательные плейсхолдеры и нет опечаток в них.
@@ -24,6 +24,9 @@ STAGE_A_PLACEHOLDERS: tuple[str, ...] = ("topic", "seed_text")
 
 #: Плейсхолдеры, которые обязаны присутствовать в шаблоне Шага B.
 STAGE_B_PLACEHOLDERS: tuple[str, ...] = ("topic", "user_query")
+
+#: Плейсхолдеры, которые обязаны присутствовать в Safety-шаблоне.
+STAGE_SAFETY_PLACEHOLDERS: tuple[str, ...] = ("topic",)
 
 DEFAULT_PROMPTS_PATH = Path(__file__).resolve().parent / "prompts.yaml"
 
@@ -90,6 +93,17 @@ class StageBPrompt(StagePrompt):
         return Template(self.template).substitute(topic=topic, user_query=user_query)
 
 
+class StageSafetyPrompt(StagePrompt):
+    """Шаблон Safety-блока: провокационный диалог про нарушение правил."""
+
+    required_placeholders: ClassVar[tuple[str, ...]] = STAGE_SAFETY_PLACEHOLDERS
+    step_name: ClassVar[str] = "Safety"
+
+    def render(self, *, topic: str) -> str:
+        """Подставить тему кейса в шаблон."""
+        return Template(self.template).substitute(topic=topic)
+
+
 class PromptLibrary(BaseModel):
     """Корневой документ `prompts.yaml`."""
 
@@ -98,6 +112,7 @@ class PromptLibrary(BaseModel):
     version: int = Field(ge=1)
     stage_a: StageAPrompt
     stage_b: StageBPrompt
+    stage_safety: StageSafetyPrompt
 
 
 class PromptRenderer:
@@ -121,6 +136,11 @@ class PromptRenderer:
         """Шаблон Шага B."""
         return self._library.stage_b
 
+    @property
+    def stage_safety(self) -> StageSafetyPrompt:
+        """Шаблон Safety-блока."""
+        return self._library.stage_safety
+
     def render_stage_a(self, *, topic: str, seed_text: str) -> str:
         """Собрать готовый промпт Шага A."""
         return self._library.stage_a.render(topic=topic, seed_text=seed_text)
@@ -128,6 +148,10 @@ class PromptRenderer:
     def render_stage_b(self, *, topic: str, user_query: str) -> str:
         """Собрать готовый промпт Шага B."""
         return self._library.stage_b.render(topic=topic, user_query=user_query)
+
+    def render_safety(self, *, topic: str) -> str:
+        """Собрать готовый промпт Safety-блока."""
+        return self._library.stage_safety.render(topic=topic)
 
 
 def load_prompts(path: Path | None = None) -> PromptRenderer:

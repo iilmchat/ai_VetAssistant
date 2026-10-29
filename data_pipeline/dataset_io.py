@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
@@ -108,14 +108,35 @@ def append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
         handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def write_jsonl(path: Path, records: Iterable[Mapping[str, Any]]) -> int:
+    """Перезаписать JSONL (UTF-8, LF). Возвращает число записей."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            count += 1
+    return count
+
+
 def select_pending(
     records: Sequence[RecordT],
     *,
     existing_ids: Collection[str] = (),
     limit: int | None = None,
+    key: Callable[[RecordT], str] | None = None,
 ) -> list[RecordT]:
-    """Отбросить уже обработанные записи (`--resume`) и применить `--limit`."""
+    """Отбросить уже обработанные записи (`--resume`) и применить `--limit`.
+
+    Args:
+        records: входные записи (сиды, результаты Шага A).
+        existing_ids: id, уже присутствующие в выходном JSONL.
+        limit: максимум записей к обработке.
+        key: как вычислить id записи; по умолчанию — ``record.id``.
+            Нужен Safety-блоку, где id кейса — ``safety-<id сида>``.
+    """
     if limit is not None and limit < 1:
         raise ValueError("limit должен быть >= 1")
-    pending = [record for record in records if record.id not in existing_ids]
+    key_fn: Callable[[RecordT], str] = key if key is not None else lambda record: record.id
+    pending = [record for record in records if key_fn(record) not in existing_ids]
     return pending[:limit] if limit is not None else pending

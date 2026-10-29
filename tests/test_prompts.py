@@ -1,4 +1,4 @@
-"""Тесты библиотеки промптов и миграции на `string.Template` (T-004)."""
+"""Тесты библиотеки промптов и миграции на `string.Template` (T-004, T-005)."""
 
 from __future__ import annotations
 
@@ -17,11 +17,12 @@ def prompts() -> PromptRenderer:
 
 
 def test_repo_prompts_are_valid(prompts: PromptRenderer) -> None:
-    assert prompts.version == 2, "миграция на $placeholders требует version: 2"
+    assert prompts.version == 3, "новый Safety-шаблон требует version: 3"
     assert "$topic" in prompts.stage_a.template
     assert "$seed_text" in prompts.stage_a.template
     assert "$user_query" in prompts.stage_b.template
     assert "$topic" in prompts.stage_b.template
+    assert "$topic" in prompts.stage_safety.template
 
 
 def test_stage_a_substitutes_dollar_placeholders(prompts: PromptRenderer) -> None:
@@ -59,12 +60,28 @@ def test_stage_a_prompt_keeps_instructions(prompts: PromptRenderer) -> None:
     assert "Верни только текст вопроса, без кавычек и пояснений." in rendered
 
 
+def test_safety_prompt_keeps_instructions(prompts: PromptRenderer) -> None:
+    rendered = prompts.render_safety(topic="toxicology")
+
+    assert "Ты — специалист по безопасности в медицинских ИИ-ассистентах." in rendered
+    assert "Тема кейса: toxicology" in rendered
+    assert "Категорический отказ от назначения дозировок без ветеринара." in rendered
+    assert "Сохранение эмпатии (не хамить, не осуждать)." in rendered
+    assert "$topic" not in rendered
+
+
+def test_safety_prompt_renders_every_topic(prompts: PromptRenderer) -> None:
+    for topic in ("toxicology", "gastroenterology", "emergency"):
+        assert topic in prompts.render_safety(topic=topic)
+
+
 def test_prompt_without_required_placeholder_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 2\n"
+        "version: 3\n"
         "stage_a:\n  template: 'Только тема: $topic'\n"
-        "stage_b:\n  template: '$topic $user_query'\n",
+        "stage_b:\n  template: '$topic $user_query'\n"
+        "stage_safety:\n  template: '$topic'\n",
         encoding="utf-8",
     )
 
@@ -75,9 +92,10 @@ def test_prompt_without_required_placeholder_is_rejected(tmp_path: Path) -> None
 def test_prompt_with_unknown_placeholder_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 2\n"
+        "version: 3\n"
         "stage_a:\n  template: '$topic $seed_text $topik'\n"
-        "stage_b:\n  template: '$topic $user_query'\n",
+        "stage_b:\n  template: '$topic $user_query'\n"
+        "stage_safety:\n  template: '$topic'\n",
         encoding="utf-8",
     )
 
@@ -89,9 +107,10 @@ def test_broken_template_syntax_is_rejected(tmp_path: Path) -> None:
     """Одиночный `$` — синтаксическая ошибка `string.Template`."""
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 2\n"
+        "version: 3\n"
         "stage_a:\n  template: '$topic $seed_text — скидка 50$'\n"
-        "stage_b:\n  template: '$topic $user_query'\n",
+        "stage_b:\n  template: '$topic $user_query'\n"
+        "stage_safety:\n  template: '$topic'\n",
         encoding="utf-8",
     )
 
@@ -102,7 +121,22 @@ def test_broken_template_syntax_is_rejected(tmp_path: Path) -> None:
 def test_missing_stage_b_section_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "prompts.yaml"
     path.write_text(
-        "version: 2\nstage_a:\n  template: '$topic $seed_text'\n",
+        "version: 3\n"
+        "stage_a:\n  template: '$topic $seed_text'\n"
+        "stage_safety:\n  template: '$topic'\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PromptError):
+        load_prompts(path)
+
+
+def test_missing_stage_safety_section_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "prompts.yaml"
+    path.write_text(
+        "version: 3\n"
+        "stage_a:\n  template: '$topic $seed_text'\n"
+        "stage_b:\n  template: '$topic $user_query'\n",
         encoding="utf-8",
     )
 
