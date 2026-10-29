@@ -28,7 +28,7 @@ from tenacity import (
 )
 from tenacity.wait import wait_base
 
-from configs import Settings, get_settings
+from configs.settings import ProviderConfig
 
 #: Сообщение чата в упрощённом виде: ``{"role": ..., "content": ...}``.
 Message = Mapping[str, str]
@@ -76,21 +76,27 @@ class ChatResult:
     total_tokens: int
     latency_s: float
     attempts: int
+    finish_reason: str | None = None
 
 
 class TeacherClient:
-    """Async-обёртка над OpenAI-совместимым API учителя.
+    """Async-обёртка над OpenAI-совместимым API одного провайдера.
+
+    Конфигурация передаётся снаружи (`ProviderConfig`), поэтому клиент не
+    зависит от глобальных настроек и легко переключается между primary и
+    fallback (T-008).
 
     Пример::
 
-        async with TeacherClient() as client:
+        provider = get_provider("primary")
+        async with TeacherClient(provider) as client:
             result = await client.chat([{"role": "user", "content": "Привет"}])
             logger.info(result.content)
     """
 
     def __init__(
         self,
-        settings: Settings | None = None,
+        provider: ProviderConfig,
         *,
         client: AsyncOpenAI | None = None,
         max_attempts: int = 3,
@@ -100,7 +106,7 @@ class TeacherClient:
         """Создать клиент.
 
         Args:
-            settings: настройки; по умолчанию берутся из `.env` через `get_settings()`.
+            provider: конфигурация провайдера (ключ, base_url, модель).
             client: готовый `AsyncOpenAI` (для тестов и переиспользования соединений).
             max_attempts: общее число попыток на один запрос (>= 1).
             timeout_s: таймаут одного HTTP-запроса в секундах.
@@ -109,7 +115,7 @@ class TeacherClient:
         if max_attempts < 1:
             raise ValueError("max_attempts должен быть >= 1")
 
-        self._settings = settings if settings is not None else get_settings()
+        self._provider = provider
         self._max_attempts = max_attempts
         self._wait = (
             wait_strategy
@@ -120,18 +126,23 @@ class TeacherClient:
         self._client = client if client is not None else self._build_client(timeout_s)
 
     def _build_client(self, timeout_s: float) -> AsyncOpenAI:
-        """Собрать SDK-клиент из настроек (ретраи SDK отключены — см. модуль)."""
+        """Собрать SDK-клиент из конфигурации провайдера."""
         return AsyncOpenAI(
-            api_key=self._settings.teacher_api_key.get_secret_value(),
-            base_url=self._settings.teacher_base_url,
+            api_key=self._provider.api_key.get_secret_value(),
+            base_url=self._provider.base_url,
             timeout=timeout_s,
             max_retries=0,
         )
 
     @property
+    def provider(self) -> ProviderConfig:
+        """Конфигурация провайдера, с которой работает клиент."""
+        return self._provider
+
+    @property
     def model(self) -> str:
-        """Идентификатор модели-учителя из конфигурации."""
-        return self._settings.teacher_model
+        """Идентификатор модели провайдера."""
+        return self._provider.model
 
     async def __aenter__(self) -> TeacherClient:
         return self
@@ -168,7 +179,7 @@ class TeacherClient:
             raise ValueError("messages не может быть пустым")
 
         request: dict[str, Any] = {
-            "model": self._settings.teacher_model,
+            "model": self._provider.model,
             "messages": cast("list[ChatCompletionMessageParam]", [dict(m) for m in messages]),
         }
         if temperature is not None:
@@ -217,11 +228,23 @@ class TeacherClient:
             raise TeacherAPIError("Учитель вернул ответ без choices")
 
         content = completion.choices[0].message.content or ""
-        model = completion.model or self._settings.teacher_model
+        finish_reason = completion.choices[0].finish_reason
+        model = completion.model or self._provider.model
 
         usage = completion.usage
         if usage is None:
             logger.warning("Провайдер не вернул usage: токены неизвестны (model={})", model)
+
+        # Reasoning-модели (например, deepseek-flash) тратят max_tokens на
+        # скрытые reasoning-токены. Если лимит исчерпан до ответа, content пуст,
+        # а finish_reason == "length" — без этой проверки ошибка выглядела бы
+        # как «модель вернула пустоту».
+        if not content and finish_reason == "length":
+            raise TeacherAPIError(
+                "Провайдер израсходовал max_tokens на reasoning и вернул пустой ответ; "
+                "увеличьте max_tokens или отключите reasoning у модели "
+                f"(model={model}, completion_tokens={usage.completion_tokens if usage else 0})"
+            )
 
         result = ChatResult(
             content=content,
@@ -231,16 +254,18 @@ class TeacherClient:
             total_tokens=usage.total_tokens if usage is not None else 0,
             latency_s=latency_s,
             attempts=attempts,
+            finish_reason=finish_reason,
         )
 
         logger.info(
             "Учитель ответил: model={} prompt_tokens={} completion_tokens={} "
-            "total_tokens={} latency={:.2f}s attempts={}",
+            "total_tokens={} latency={:.2f}s attempts={} finish={}",
             result.model,
             result.prompt_tokens,
             result.completion_tokens,
             result.total_tokens,
             result.latency_s,
             result.attempts,
+            result.finish_reason,
         )
         return result

@@ -27,7 +27,7 @@ from openai import OpenAIError
 from pydantic import ValidationError
 
 from configs.prompts import PromptError, PromptRenderer, get_prompts
-from configs.settings import PROJECT_ROOT
+from configs.settings import PROJECT_ROOT, get_provider
 from data_pipeline.cli import configure_logging, positive_int
 from data_pipeline.dataset_io import (
     append_jsonl,
@@ -109,7 +109,7 @@ async def _generate(
     prompts: PromptRenderer,
 ) -> int:
     """Сгенерировать Safety-кейсы и дописать их в JSONL. Возвращает код выхода."""
-    async with TeacherClient() as client:
+    async with TeacherClient(get_provider()) as client:
         generator = StageSafetyGenerator(client, prompts=prompts)
         for index, seed in enumerate(seeds, start=1):
             case_id = safety_case_id(seed.id)

@@ -140,7 +140,7 @@ async def test_stage_a_sends_rendered_prompt(
     assert "$topic" not in content
     assert "$seed_text" not in content
     assert call.kwargs["temperature"] == 0.9
-    assert call.kwargs["max_tokens"] == 300
+    assert call.kwargs["max_tokens"] == 2048
 
 
 @pytest.mark.asyncio

@@ -178,7 +178,7 @@ class LLMJudge:
 
     Пример::
 
-        async with TeacherClient() as client:
+        async with TeacherClient(get_provider("primary")) as client:
             judge = LLMJudge(client)
             verdict = await judge.evaluate_reasoning(record, response)
     """

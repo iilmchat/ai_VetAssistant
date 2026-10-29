@@ -28,7 +28,7 @@ from openai.types.chat import ChatCompletion
 from pydantic import SecretStr
 from tenacity import wait_none
 
-from configs import Settings
+from configs.settings import ProviderConfig
 from data_pipeline import llm_client
 from data_pipeline.llm_client import (
     ChatResult,
@@ -41,13 +41,13 @@ BASE_URL = "https://api.example.com/v1"
 MODEL = "teacher-test"
 
 
-def _settings() -> Settings:
-    """Настройки без чтения реального `.env`."""
-    return Settings(  # type: ignore[call-arg]
-        _env_file=None,
-        teacher_api_key=SecretStr("sk-test"),
-        teacher_base_url=BASE_URL,
-        teacher_model=MODEL,
+def _provider(model: str = MODEL, base_url: str = BASE_URL) -> ProviderConfig:
+    """Конфигурация провайдера без чтения реального `.env` (dependency injection)."""
+    return ProviderConfig(
+        name="primary",
+        api_key=SecretStr("sk-test"),
+        base_url=base_url,
+        model=model,
     )
 
 
@@ -56,6 +56,7 @@ def _completion(
     *,
     prompt_tokens: int = 11,
     completion_tokens: int = 7,
+    finish_reason: str = "stop",
 ) -> ChatCompletion:
     """Собрать настоящий объект SDK без сети — так тесты не расходятся с типами."""
     return ChatCompletion.model_validate(
@@ -68,7 +69,7 @@ def _completion(
                 {
                     "index": 0,
                     "message": {"role": "assistant", "content": content},
-                    "finish_reason": "stop",
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": {
@@ -99,7 +100,7 @@ def mock_client() -> Iterator[MagicMock]:
 def client(mock_client: MagicMock) -> TeacherClient:
     """`TeacherClient` на замоканном SDK, без пауз между ретраями."""
     return TeacherClient(
-        settings=_settings(),
+        _provider(),
         client=mock_client,
         max_attempts=3,
         wait_strategy=wait_none(),
@@ -127,6 +128,7 @@ async def test_chat_returns_content_and_usage(
     assert result.total_tokens == 18
     assert result.attempts == 1
     assert result.latency_s >= 0.0
+    assert result.finish_reason == "stop"
 
     _create_mock(mock_client).assert_awaited_once()
     call = _create_mock(mock_client).await_args
@@ -222,6 +224,32 @@ async def test_does_not_retry_client_errors(
 
 
 @pytest.mark.asyncio
+async def test_empty_content_after_length_raises_clear_error(
+    client: TeacherClient, mock_client: MagicMock
+) -> None:
+    """Reasoning-модель потратила max_tokens на размышления — нужен понятный сигнал."""
+    _create_mock(mock_client).return_value = _completion(
+        content="", completion_tokens=2048, finish_reason="length"
+    )
+
+    with pytest.raises(TeacherAPIError, match=r"max_tokens.*reasoning"):
+        await client.chat([{"role": "user", "content": "Привет"}])
+
+
+@pytest.mark.asyncio
+async def test_empty_content_with_stop_is_allowed(
+    client: TeacherClient, mock_client: MagicMock
+) -> None:
+    """Пустой content при finish_reason=stop — валидный ответ, решают генераторы."""
+    _create_mock(mock_client).return_value = _completion(content="", finish_reason="stop")
+
+    result = await client.chat([{"role": "user", "content": "Привет"}])
+
+    assert result.content == ""
+    assert result.finish_reason == "stop"
+
+
+@pytest.mark.asyncio
 async def test_raises_after_attempts_exhausted(
     client: TeacherClient, mock_client: MagicMock
 ) -> None:
@@ -304,7 +332,7 @@ def test_sdk_client_is_built_without_builtin_retries(
     factory = MagicMock()
     monkeypatch.setattr(llm_client, "AsyncOpenAI", factory)
 
-    TeacherClient(settings=_settings(), timeout_s=42.0)
+    TeacherClient(_provider(), timeout_s=42.0)
 
     call = factory.call_args
     assert call is not None
@@ -315,6 +343,34 @@ def test_sdk_client_is_built_without_builtin_retries(
     assert kwargs["timeout"] == 42.0
 
 
+@pytest.mark.asyncio
+async def test_custom_provider_model_is_forwarded(mock_client: MagicMock) -> None:
+    """Клиент использует модель переданного провайдера, а не глобальный конфиг."""
+    client = TeacherClient(
+        _provider(model="another-model"),
+        client=mock_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+    )
+    create = _create_mock(mock_client)
+    create.return_value = _completion()
+
+    await client.chat([{"role": "user", "content": "Привет"}])
+
+    call = create.await_args
+    assert call is not None
+    assert call.kwargs["model"] == "another-model"
+
+
+def test_client_exposes_provider_config(mock_client: MagicMock) -> None:
+    provider = _provider()
+
+    client = TeacherClient(provider, client=mock_client, max_attempts=1)
+
+    assert client.provider is provider
+    assert client.model == MODEL
+
+
 def test_max_attempts_must_be_positive(mock_client: MagicMock) -> None:
     with pytest.raises(ValueError, match="max_attempts"):
-        TeacherClient(settings=_settings(), client=mock_client, max_attempts=0)
+        TeacherClient(_provider(), client=mock_client, max_attempts=0)

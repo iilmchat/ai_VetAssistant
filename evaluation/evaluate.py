@@ -34,7 +34,7 @@ from loguru import logger
 from openai import OpenAIError
 from pydantic import TypeAdapter, ValidationError
 
-from configs.settings import PROJECT_ROOT
+from configs.settings import PROJECT_ROOT, get_provider
 from data_pipeline.cli import configure_logging
 from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 from evaluation.judge import Judge, JudgeError, LLMJudge, OfflineJudge
@@ -333,7 +333,7 @@ async def _run(
 ) -> int:
     """Выбрать судью (live/offline) и запустить оценку."""
     if args.live:
-        async with TeacherClient() as client:
+        async with TeacherClient(get_provider()) as client:
             return await _evaluate_and_report(args, records, answers, LLMJudge(client))
 
     logger.warning(

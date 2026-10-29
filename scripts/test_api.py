@@ -1,15 +1,16 @@
 #!/usr/bin/env python
-"""Смоук-тест слоя абстракции учителя (T-002).
+"""Смоук-тест слоя абстракции учителя (T-002, T-008).
 
 Проверяет два сценария:
 
-* ``--dry-run`` — только читает `.env` через `get_settings()`, API не вызывается;
-* без флагов — делает один реальный запрос к учителю и печатает ответ и токены.
+* ``--dry-run`` — только читает `.env` через `get_provider()`, API не вызывается;
+* без флагов — делает один реальный запрос к выбранному провайдеру.
 
 Запуск::
 
     python scripts/test_api.py --dry-run
-    python scripts/test_api.py
+    python scripts/test_api.py --provider primary
+    python scripts/test_api.py --provider fallback
 """
 
 from __future__ import annotations
@@ -22,7 +23,12 @@ from loguru import logger
 from openai import OpenAIError
 from pydantic import ValidationError
 
-from configs import get_settings
+from configs.settings import (
+    PROVIDER_NAMES,
+    ProviderName,
+    ProviderNotConfiguredError,
+    get_provider,
+)
 from data_pipeline.cli import configure_logging
 from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 
@@ -34,6 +40,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Проверка доступа к API учителя (OpenAI-совместимый endpoint).",
         epilog=f"Тестовый запрос: {TEST_PROMPT!r}",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=PROVIDER_NAMES,
+        default="primary",
+        help="какой провайдер проверять (по умолчанию primary)",
     )
     parser.add_argument(
         "--dry-run",
@@ -52,26 +64,29 @@ def _describe_validation_error(exc: ValidationError) -> str:
     return ", ".join(names) if names else "неизвестно"
 
 
-def _check_settings() -> int:
-    """Проверить, что обязательные ключи читаются из `.env`."""
+def _check_settings(provider_name: ProviderName) -> int:
+    """Проверить, что выбранный провайдер читается из `.env`."""
     try:
-        settings = get_settings()
+        provider = get_provider(provider_name)
     except ValidationError as exc:
         logger.error("Настройки неполные. Проверьте .env: {}", _describe_validation_error(exc))
-        logger.error("Подсказка: скопируйте .env.example в .env и заполните TEACHER_*")
+        logger.error("Подсказка: скопируйте .env.example в .env и заполните TEACHER_PRIMARY_*")
+        return 1
+    except ProviderNotConfiguredError as exc:
+        logger.error("{}", exc)
         return 1
 
-    logger.info("Settings OK")
-    logger.info("base_url={}", settings.teacher_base_url)
-    logger.info("model={}", settings.teacher_model)
+    logger.info("Provider OK: {}", provider.name)
+    logger.info("base_url={}", provider.base_url)
+    logger.info("model={}", provider.model)
     logger.info("api_key=*** (задан)")
     return 0
 
 
-async def _request_teacher() -> int:
+async def _request_teacher(provider_name: ProviderName) -> int:
     """Сделать один реальный запрос и напечатать ответ и токены."""
-    async with TeacherClient() as client:
-        logger.info("Запрос к учителю: model={}", client.model)
+    async with TeacherClient(get_provider(provider_name)) as client:
+        logger.info("Запрос к {}: model={}", client.provider.name, client.model)
         result = await client.chat([{"role": "user", "content": TEST_PROMPT}])
 
     logger.info("Ответ учителя:\n{}", result.content)
@@ -91,14 +106,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Точка входа CLI. Возвращает код выхода процесса."""
     args = parse_args(argv)
     configure_logging()
+    provider_name: ProviderName = args.provider
 
     if args.dry_run:
-        return _check_settings()
+        return _check_settings(provider_name)
 
     try:
-        return asyncio.run(_request_teacher())
+        return asyncio.run(_request_teacher(provider_name))
     except ValidationError as exc:
         logger.error("Настройки неполные. Проверьте .env: {}", _describe_validation_error(exc))
+        return 1
+    except ProviderNotConfiguredError as exc:
+        logger.error("{}", exc)
         return 1
     except TeacherAPIError as exc:
         logger.error("Некорректный ответ учителя: {}", exc)

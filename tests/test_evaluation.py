@@ -12,7 +12,7 @@ from openai import AsyncOpenAI
 from pydantic import SecretStr
 
 from configs.prompts import get_prompts
-from configs.settings import PROJECT_ROOT, Settings
+from configs.settings import PROJECT_ROOT, ProviderConfig
 from data_pipeline.llm_client import ChatResult, TeacherClient
 from evaluation.evaluate import (
     EvalDataError,
@@ -642,16 +642,17 @@ async def test_llm_judge_with_mocked_async_openai() -> None:
     completion.model = "judge-test"
     completion.usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
 
-    settings = Settings(
-        teacher_api_key=SecretStr("test-key"),
-        teacher_base_url="http://127.0.0.1:1/v1",
-        teacher_model="judge-test",
+    provider = ProviderConfig(
+        name="primary",
+        api_key=SecretStr("test-key"),
+        base_url="http://127.0.0.1:1/v1",
+        model="judge-test",
     )
 
     with patch.object(
         async_client.chat.completions, "create", new=AsyncMock(return_value=completion)
     ):
-        teacher = TeacherClient(settings=settings, client=async_client, max_attempts=1)
+        teacher = TeacherClient(provider, client=async_client, max_attempts=1)
         judge = LLMJudge(teacher, prompts=get_prompts())
         verdict = await judge.evaluate_reasoning(_mcq_record(), "B) Обратиться к ветеринару")
 
@@ -746,6 +747,9 @@ def test_cli_live_uses_judge(
     report = tmp_path / "eval_report.json"
 
     class _FakeTeacher:
+        def __init__(self, provider: ProviderConfig) -> None:
+            self.provider = provider
+
         async def __aenter__(self) -> _FakeTeacher:
             return self
 
@@ -756,6 +760,15 @@ def test_cli_live_uses_judge(
             return _chat_result('{"score": 5, "reason": "отлично"}')
 
     monkeypatch.setattr("evaluation.evaluate.TeacherClient", _FakeTeacher)
+    monkeypatch.setattr(
+        "evaluation.evaluate.get_provider",
+        lambda name="primary": ProviderConfig(
+            name="primary",
+            api_key=SecretStr("sk-fake"),
+            base_url="http://127.0.0.1:1/v1",
+            model="fake-judge",
+        ),
+    )
 
     exit_code = main(
         [

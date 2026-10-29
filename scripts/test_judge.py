@@ -26,6 +26,7 @@ from openai import OpenAIError
 from pydantic import ValidationError
 
 from configs.prompts import PromptError, get_prompts
+from configs.settings import get_provider
 from data_pipeline.cli import configure_logging
 from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 from evaluation.evaluate import (
@@ -45,7 +46,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Разобрать аргументы командной строки."""
     parser = argparse.ArgumentParser(
         description="Прогнать один ответ через LLM-Judge и увидеть JSON-вердикт.",
-        epilog="Ключи API берутся из .env (TEACHER_API_KEY/TEACHER_BASE_URL/TEACHER_MODEL).",
+        epilog=(
+            "Ключи API берутся из .env "
+            "(TEACHER_PRIMARY_API_KEY/TEACHER_PRIMARY_BASE_URL/TEACHER_PRIMARY_MODEL)."
+        ),
     )
     parser.add_argument(
         "--dataset",
@@ -112,7 +116,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     assert response is not None  # проверено выше; нужно для mypy
     try:
-        async with TeacherClient() as client:
+        async with TeacherClient(get_provider()) as client:
             judge = LLMJudge(client, prompts=prompts)
             verdict = await judge.evaluate_reasoning(record, response)
     except (OpenAIError, TeacherAPIError, JudgeError) as exc:

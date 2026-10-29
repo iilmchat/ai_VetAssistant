@@ -149,7 +149,7 @@ class StageAGenerator:
         *,
         prompts: PromptRenderer | None = None,
         temperature: float = 0.9,
-        max_tokens: int = 300,
+        max_tokens: int = 2048,
     ) -> None:
         """Создать генератор.
 
@@ -157,7 +157,8 @@ class StageAGenerator:
             client: клиент учителя (T-002).
             prompts: библиотека промптов; по умолчанию — `configs/prompts.yaml`.
             temperature: высокая температура нужна для разнообразия формулировок.
-            max_tokens: вопрос владельца короткий, 300 токенов с запасом.
+            max_tokens: вопрос короткий, но reasoning-модели тратят токены на
+                скрытые рассуждения — 2048 даёт запас.
         """
         if not 0.0 <= temperature <= 2.0:
             raise ValueError("temperature должна быть в диапазоне 0..2")
@@ -235,7 +236,7 @@ class StageBGenerator:
         *,
         prompts: PromptRenderer | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
     ) -> None:
         """Создать генератор.
 
@@ -243,7 +244,7 @@ class StageBGenerator:
             client: клиент учителя (T-002).
             prompts: библиотека промптов; по умолчанию — `configs/prompts.yaml`.
             temperature: диалог должен быть реалистичным, но не хаотичным.
-            max_tokens: 4–8 реплик с запасом.
+            max_tokens: 4–8 реплик + запас на reasoning-токены модели.
         """
         if not 0.0 <= temperature <= 2.0:
             raise ValueError("temperature должна быть в диапазоне 0..2")
@@ -325,7 +326,7 @@ class StageSafetyGenerator:
         *,
         prompts: PromptRenderer | None = None,
         temperature: float = 0.8,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
     ) -> None:
         """Создать генератор.
 
@@ -333,7 +334,7 @@ class StageSafetyGenerator:
             client: клиент учителя (T-002).
             prompts: библиотека промптов; по умолчанию — `configs/prompts.yaml`.
             temperature: провокации должны быть разнообразными, но связными.
-            max_tokens: 4–8 реплик с запасом.
+            max_tokens: 4–8 реплик + запас на reasoning-токены модели.
         """
         if not 0.0 <= temperature <= 2.0:
             raise ValueError("temperature должна быть в диапазоне 0..2")
