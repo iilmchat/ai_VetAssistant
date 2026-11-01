@@ -1,0 +1,47 @@
+# Конфигурация SFT/QLoRA для Qwen3-8B (T-015).
+# Значения соответствуют Design_v1.md §4; меняйте осознанно и фиксируйте
+# вместе с git-коммитом и хешем датасета.
+
+base_model: Qwen/Qwen3-8B
+method: qlora
+load_in_4bit: true
+
+datasets:
+  train: data/train.jsonl
+  val: data/val.jsonl
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+training:
+  epochs: 2
+  lr: 2.0e-4
+  lr_scheduler: cosine
+  warmup_ratio: 0.03
+  per_device_batch_size: 2
+  grad_accum: 8
+  max_seq_len: 4096
+  bf16: true
+  neftune_alpha: 5
+  packing: false
+  logging_steps: 10
+  eval_steps: 50
+  save_steps: 50
+  save_total_limit: 2
+  seed: 3407
+  optim: adamw_8bit
+  report_to: none
+
+output_dir: outputs/sft_qwen3_8b
+merged_dir: outputs/sft_qwen3_8b/merged
+merge: false

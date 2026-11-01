@@ -64,6 +64,12 @@ strict = true
 warn_unused_ignores = true
 show_error_codes = true
 
+[[tool.mypy.overrides]]
+# Training-стек ставится только на GPU-сервере (requirements-train.txt);
+# локальные dry-run/тесты не должны требовать этих пакетов.
+module = ["unsloth", "unsloth.*", "trl", "trl.*", "datasets", "datasets.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
