@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import SecretStr
 
+from configs.settings import GigaChatConfig
 from data_pipeline.dataset_io import read_jsonl, write_jsonl
 from scripts.build_dataset import (
+    _generate,
     build_dataset,
     main,
+    parse_args,
     prepare_safety_seeds,
     split_train_val,
     topic_distribution,
@@ -245,6 +249,50 @@ def test_prepare_safety_seeds_rejects_zero(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="safety_count"):
         prepare_safety_seeds(seeds_path, tmp_path / "subset.jsonl", count=0)
+
+
+def test_generate_forces_gigachat_concurrency_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """build_dataset пробрасывает в run_bulk concurrency=1 для GigaChat."""
+    seeds_path = _write_seeds_file(tmp_path / "seeds.jsonl", count=2)
+    provider = GigaChatConfig(
+        client_id=SecretStr("gc-client"),
+        client_secret=SecretStr("gc-secret"),
+    )
+    args = parse_args(
+        [
+            "--provider",
+            "gigachat",
+            "--seeds",
+            str(seeds_path),
+            "--safety-seeds",
+            str(tmp_path / "safety_seeds.jsonl"),
+            "--safety-count",
+            "2",
+            "--concurrency",
+            "8",
+            "--bulk-output",
+            str(tmp_path / "bulk.jsonl"),
+            "--safety-output",
+            str(tmp_path / "safety.jsonl"),
+        ]
+    )
+    calls: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr("scripts.build_dataset.get_provider", lambda name: provider)
+    monkeypatch.setattr(
+        "scripts.build_dataset._run_script",
+        lambda script, cli_args: calls.append((script, list(cli_args))),
+    )
+
+    _generate(args)
+
+    assert [script for script, _ in calls] == ["run_bulk.py", "run_safety.py", "run_safety.py"]
+    bulk_args = calls[0][1]
+    concurrency_index = bulk_args.index("--concurrency")
+    assert bulk_args[concurrency_index + 1] == "1"
+    assert (tmp_path / "safety_seeds.jsonl").exists()
 
 
 # --- CLI --------------------------------------------------------------------

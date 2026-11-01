@@ -10,13 +10,23 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from configs import ProviderNotConfiguredError, Settings
 from configs.settings import (
     FALLBACK_ENV_VARS,
+    GIGACHAT_BASE_URL,
+    GIGACHAT_ENV_VARS,
+    GIGACHAT_MODEL,
+    GIGACHAT_OAUTH_URL,
+    GIGACHAT_SCOPE,
+    PROVIDER_NAMES,
     REQUIRED_ENV_VARS,
+    GigaChatConfig,
+    ProviderConfig,
     get_provider,
+    resolve_concurrency,
+    thinking_mode_for_model,
 )
 
 ENV_EXAMPLE = Path(__file__).resolve().parents[1] / ".env.example"
@@ -35,7 +45,7 @@ def _read_env_example() -> dict[str, str]:
 
 
 def _clear_provider_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in REQUIRED_ENV_VARS + FALLBACK_ENV_VARS:
+    for key in REQUIRED_ENV_VARS + FALLBACK_ENV_VARS + GIGACHAT_ENV_VARS:
         monkeypatch.delenv(key, raising=False)
 
 
@@ -49,6 +59,11 @@ def _set_fallback_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEACHER_FALLBACK_API_KEY", "sk-fallback")
     monkeypatch.setenv("TEACHER_FALLBACK_BASE_URL", "https://fallback.example.com/v1")
     monkeypatch.setenv("TEACHER_FALLBACK_MODEL", "fallback-model")
+
+
+def _set_gigachat_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GIGACHAT_CLIENT_ID", "gc-client")
+    monkeypatch.setenv("GIGACHAT_CLIENT_SECRET", "gc-secret")
 
 
 def _settings() -> Settings:
@@ -93,6 +108,7 @@ def test_settings_reads_primary_provider(monkeypatch: pytest.MonkeyPatch) -> Non
 
     provider = _settings().provider("primary")
 
+    assert isinstance(provider, ProviderConfig)
     assert provider.name == "primary"
     assert provider.api_key.get_secret_value() == "sk-test"
     assert provider.base_url == "https://api.example.com/v1"
@@ -115,6 +131,7 @@ def test_settings_reads_fallback_provider(monkeypatch: pytest.MonkeyPatch) -> No
 
     provider = _settings().provider("fallback")
 
+    assert isinstance(provider, ProviderConfig)
     assert provider.name == "fallback"
     assert provider.api_key.get_secret_value() == "sk-fallback"
     assert provider.base_url == "https://fallback.example.com/v1"
@@ -168,3 +185,132 @@ def test_settings_fail_fast_without_keys(monkeypatch: pytest.MonkeyPatch) -> Non
 
     with pytest.raises(ValidationError):
         _settings()
+
+
+# --- GigaChat и режим thinking (T-012) --------------------------------------
+
+
+def test_provider_names_include_gigachat() -> None:
+    assert "gigachat" in PROVIDER_NAMES
+
+
+def test_env_example_documents_gigachat_vars() -> None:
+    text = ENV_EXAMPLE.read_text(encoding="utf-8")
+    missing = [key for key in GIGACHAT_ENV_VARS if key not in text]
+    assert not missing, f"В .env.example нет GigaChat-ключей: {missing}"
+    assert GIGACHAT_BASE_URL in text
+    assert GIGACHAT_MODEL in text
+    assert GIGACHAT_OAUTH_URL in text
+    assert GIGACHAT_SCOPE in text
+
+
+def test_settings_reads_gigachat_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_provider_env(monkeypatch)
+    _set_primary_env(monkeypatch)
+    _set_gigachat_env(monkeypatch)
+
+    provider = _settings().provider("gigachat")
+
+    assert isinstance(provider, GigaChatConfig)
+    assert provider.name == "gigachat"
+    assert provider.client_id.get_secret_value() == "gc-client"
+    assert provider.client_secret.get_secret_value() == "gc-secret"
+    assert provider.base_url == GIGACHAT_BASE_URL
+    assert provider.model == GIGACHAT_MODEL
+    assert provider.oauth_url == GIGACHAT_OAUTH_URL
+    assert provider.scope == GIGACHAT_SCOPE
+
+
+def test_gigachat_repr_hides_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_provider_env(monkeypatch)
+    _set_primary_env(monkeypatch)
+    _set_gigachat_env(monkeypatch)
+
+    provider = _settings().provider("gigachat")
+
+    assert "gc-secret" not in repr(provider)
+
+
+def test_gigachat_without_env_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_provider_env(monkeypatch)
+    _set_primary_env(monkeypatch)
+
+    with pytest.raises(ProviderNotConfiguredError) as excinfo:
+        _settings().provider("gigachat")
+
+    message = str(excinfo.value)
+    assert "GIGACHAT_CLIENT_ID" in message
+    assert "GIGACHAT_CLIENT_SECRET" in message
+
+
+def test_gigachat_partial_env_lists_missing_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_provider_env(monkeypatch)
+    _set_primary_env(monkeypatch)
+    monkeypatch.setenv("GIGACHAT_CLIENT_ID", "gc-client")
+
+    with pytest.raises(ProviderNotConfiguredError, match="GIGACHAT_CLIENT_SECRET"):
+        _settings().provider("gigachat")
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("deepseek-flash", "deepseek"),
+        ("DeepSeek-Chat", "deepseek"),
+        ("GigaChat-2-Max", "none"),
+        ("teacher-model", "none"),
+    ],
+)
+def test_thinking_mode_detection(model: str, expected: str) -> None:
+    assert thinking_mode_for_model(model) == expected
+
+
+def test_primary_deepseek_enables_thinking(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("TEACHER_PRIMARY_API_KEY", "sk-test")
+    monkeypatch.setenv("TEACHER_PRIMARY_BASE_URL", "https://api.example.com/v1")
+
+    provider = _settings().provider("primary")
+
+    assert isinstance(provider, ProviderConfig)
+    assert provider.model == "deepseek-flash"
+    assert provider.thinking_mode == "deepseek"
+
+
+def test_non_deepseek_provider_does_not_enable_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_provider_env(monkeypatch)
+    _set_primary_env(monkeypatch)
+
+    provider = _settings().provider("primary")
+
+    assert isinstance(provider, ProviderConfig)
+    assert provider.thinking_mode == "none"
+
+
+def test_resolve_concurrency_limits_gigachat(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_provider_env(monkeypatch)
+    _set_primary_env(monkeypatch)
+    _set_gigachat_env(monkeypatch)
+    settings = _settings()
+    gigachat = settings.provider("gigachat")
+    primary = settings.provider("primary")
+
+    assert resolve_concurrency(gigachat, 10) == 1
+    assert resolve_concurrency(primary, 10) == 10
+    with pytest.raises(ValueError, match="concurrency"):
+        resolve_concurrency(primary, 0)
+
+
+def test_gigachat_config_can_be_built_directly() -> None:
+    provider = GigaChatConfig(
+        client_id=SecretStr("gc-client"),
+        client_secret=SecretStr("gc-secret"),
+    )
+
+    assert provider.name == "gigachat"
+    assert provider.base_url == GIGACHAT_BASE_URL
+    assert provider.model == GIGACHAT_MODEL

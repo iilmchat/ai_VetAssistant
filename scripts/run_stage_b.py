@@ -33,7 +33,7 @@ from data_pipeline.dataset_io import (
     select_pending,
 )
 from data_pipeline.generator import GenerationError, StageBGenerator
-from data_pipeline.llm_client import TeacherClient
+from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 from data_pipeline.schemas import StageARecord
 
 DEFAULT_INPUT = PROJECT_ROOT / "data" / "stage_a_output.jsonl"
@@ -108,7 +108,7 @@ async def _generate(
                 dialogue = await generator.generate_dialogue(
                     record.user_query, record.topic, seed_id=record.id
                 )
-            except (OpenAIError, GenerationError) as exc:
+            except (OpenAIError, GenerationError, TeacherAPIError) as exc:
                 # RULES §6: остановиться, записать ошибку, сообщить Архитектору.
                 logger.error(
                     "[{}/{}] {} — ошибка: {}: {}",

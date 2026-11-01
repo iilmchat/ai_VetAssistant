@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import base64
+import time
 from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -28,7 +30,7 @@ from openai.types.chat import ChatCompletion
 from pydantic import SecretStr
 from tenacity import wait_none
 
-from configs.settings import ProviderConfig
+from configs.settings import GigaChatConfig, ProviderConfig, ThinkingMode
 from data_pipeline import llm_client
 from data_pipeline.llm_client import (
     ChatResult,
@@ -40,16 +42,62 @@ from data_pipeline.llm_client import (
 
 BASE_URL = "https://api.example.com/v1"
 MODEL = "teacher-test"
+GIGACHAT_URL = "https://api.giga.chat/v1"
+GIGACHAT_OAUTH_URL = "https://oauth.example.com/token"
+GIGACHAT_MODEL = "GigaChat-2-Max"
 
 
-def _provider(model: str = MODEL, base_url: str = BASE_URL) -> ProviderConfig:
+def _provider(
+    model: str = MODEL,
+    base_url: str = BASE_URL,
+    thinking_mode: ThinkingMode = "deepseek",
+) -> ProviderConfig:
     """Конфигурация провайдера без чтения реального `.env` (dependency injection)."""
     return ProviderConfig(
         name="primary",
         api_key=SecretStr("sk-test"),
         base_url=base_url,
         model=model,
+        thinking_mode=thinking_mode,
     )
+
+
+def _gigachat_provider() -> GigaChatConfig:
+    """GigaChat-конфигурация с тестовыми OAuth-кредами."""
+    return GigaChatConfig(
+        client_id=SecretStr("gc-client"),
+        client_secret=SecretStr("gc-secret"),
+        base_url=GIGACHAT_URL,
+        model=GIGACHAT_MODEL,
+        oauth_url=GIGACHAT_OAUTH_URL,
+        scope="GIGACHAT_API_PERS",
+    )
+
+
+def _oauth_handler(
+    responses: list[dict[str, Any]] | None = None,
+) -> tuple[Any, list[httpx2.Request]]:
+    """Обработчик MockTransport для OAuth; возвращает (handler, запросы)."""
+    requests: list[httpx2.Request] = []
+    queue = list(responses or [])
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        if queue:
+            payload = queue.pop(0)
+        else:
+            payload = {
+                "access_token": "gc-token-default",
+                "expires_at": (time.time() + 1800) * 1000,
+            }
+        return httpx2.Response(200, request=request, json=payload)
+
+    return handler, requests
+
+
+def _oauth_client(handler: Any) -> httpx2.AsyncClient:
+    """AsyncClient с подменённым HTTP-транспортом (без реального OAuth)."""
+    return httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
 
 
 def _completion(
@@ -390,6 +438,212 @@ async def test_disable_thinking_sends_extra_body(mock_client: MagicMock) -> None
     call = _create_mock(mock_client).await_args
     assert call is not None
     assert call.kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+@pytest.mark.asyncio
+async def test_disable_thinking_is_ignored_for_non_deepseek(
+    mock_client: MagicMock,
+) -> None:
+    """Прочие OpenAI-совместимые провайдеры не должны получать thinking-параметр."""
+    client = TeacherClient(
+        _provider(thinking_mode="none"),
+        client=mock_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+        disable_thinking=True,
+    )
+    _create_mock(mock_client).return_value = _completion()
+
+    await client.chat([{"role": "user", "content": "Привет"}])
+
+    call = _create_mock(mock_client).await_args
+    assert call is not None
+    assert "extra_body" not in call.kwargs
+
+
+@pytest.mark.asyncio
+async def test_gigachat_fetches_oauth_token_and_ignores_thinking(
+    mock_client: MagicMock,
+) -> None:
+    """OAuth-запрос уходит с Basic-кредами, а thinking GigaChat не получает."""
+    handler, requests = _oauth_handler()
+    oauth_client = _oauth_client(handler)
+    client = TeacherClient(
+        _gigachat_provider(),
+        client=mock_client,
+        oauth_client=oauth_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+        disable_thinking=True,
+    )
+    _create_mock(mock_client).return_value = _completion()
+
+    try:
+        await client.chat([{"role": "user", "content": "Привет"}])
+    finally:
+        await client.aclose()
+        await oauth_client.aclose()
+
+    assert len(requests) == 1
+    oauth_request = requests[0]
+    expected_basic = base64.b64encode(b"gc-client:gc-secret").decode("ascii")
+    assert str(oauth_request.url) == GIGACHAT_OAUTH_URL
+    assert oauth_request.headers["Authorization"] == f"Basic {expected_basic}"
+    assert oauth_request.headers["RqUID"]
+    assert oauth_request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert oauth_request.content == b"scope=GIGACHAT_API_PERS"
+
+    create = _create_mock(mock_client)
+    call = create.await_args
+    assert call is not None
+    assert call.kwargs["model"] == GIGACHAT_MODEL
+    assert "extra_body" not in call.kwargs
+    assert mock_client.api_key == "gc-token-default"
+
+
+@pytest.mark.asyncio
+async def test_gigachat_reuses_valid_token(mock_client: MagicMock) -> None:
+    """Повторные запросы не дёргают OAuth, пока токен действует."""
+    handler, requests = _oauth_handler()
+    oauth_client = _oauth_client(handler)
+    client = TeacherClient(
+        _gigachat_provider(),
+        client=mock_client,
+        oauth_client=oauth_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+    )
+    _create_mock(mock_client).return_value = _completion()
+
+    try:
+        await client.chat([{"role": "user", "content": "Первый"}])
+        await client.chat([{"role": "user", "content": "Второй"}])
+    finally:
+        await client.aclose()
+        await oauth_client.aclose()
+
+    assert len(requests) == 1
+    assert mock_client.api_key == "gc-token-default"
+
+
+@pytest.mark.asyncio
+async def test_gigachat_refreshes_token_before_expiry(mock_client: MagicMock) -> None:
+    """Токен с истечением внутри margin обновляется перед следующим запросом."""
+    expiring = int((time.time() + 5) * 1000)
+    fresh = int((time.time() + 1800) * 1000)
+    handler, requests = _oauth_handler(
+        [
+            {"access_token": "gc-token-old", "expires_at": expiring},
+            {"access_token": "gc-token-new", "expires_at": fresh},
+        ]
+    )
+    oauth_client = _oauth_client(handler)
+    client = TeacherClient(
+        _gigachat_provider(),
+        client=mock_client,
+        oauth_client=oauth_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+    )
+    _create_mock(mock_client).return_value = _completion()
+
+    try:
+        await client.chat([{"role": "user", "content": "Первый"}])
+        await client.chat([{"role": "user", "content": "Второй"}])
+    finally:
+        await client.aclose()
+        await oauth_client.aclose()
+
+    assert len(requests) == 2
+    assert mock_client.api_key == "gc-token-new"
+
+
+@pytest.mark.asyncio
+async def test_gigachat_refreshes_token_on_401_and_retries(
+    mock_client: MagicMock,
+) -> None:
+    """Если токен всё же отклонён, клиент обновляет его и повторяет запрос."""
+    handler, requests = _oauth_handler(
+        [
+            {"access_token": "gc-token-old", "expires_at": (time.time() + 1800) * 1000},
+            {"access_token": "gc-token-new", "expires_at": (time.time() + 1800) * 1000},
+        ]
+    )
+    oauth_client = _oauth_client(handler)
+    client = TeacherClient(
+        _gigachat_provider(),
+        client=mock_client,
+        oauth_client=oauth_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+    )
+    create = _create_mock(mock_client)
+    create.side_effect = [_status_error(AuthenticationError, 401), _completion()]
+
+    try:
+        result = await client.chat([{"role": "user", "content": "Привет"}])
+    finally:
+        await client.aclose()
+        await oauth_client.aclose()
+
+    assert result.content == "Привет, я ассистент"
+    assert create.await_count == 2
+    assert len(requests) == 2
+    assert mock_client.api_key == "gc-token-new"
+
+
+@pytest.mark.asyncio
+async def test_gigachat_oauth_error_is_reported(mock_client: MagicMock) -> None:
+    """Ошибка OAuth превращается в понятный TeacherAPIError, а не в трейсбек HTTP."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(500, request=request, json={"error": "oauth down"})
+
+    oauth_client = _oauth_client(handler)
+    client = TeacherClient(
+        _gigachat_provider(),
+        client=mock_client,
+        oauth_client=oauth_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+    )
+
+    try:
+        with pytest.raises(TeacherAPIError, match="OAuth"):
+            await client.chat([{"role": "user", "content": "Привет"}])
+    finally:
+        await client.aclose()
+        await oauth_client.aclose()
+
+    _create_mock(mock_client).assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_gigachat_oauth_response_without_token_is_reported(
+    mock_client: MagicMock,
+) -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            request=request,
+            json={"expires_at": (time.time() + 1800) * 1000},
+        )
+
+    oauth_client = _oauth_client(handler)
+    client = TeacherClient(
+        _gigachat_provider(),
+        client=mock_client,
+        oauth_client=oauth_client,
+        max_attempts=1,
+        wait_strategy=wait_none(),
+    )
+
+    try:
+        with pytest.raises(TeacherAPIError, match="access_token"):
+            await client.chat([{"role": "user", "content": "Привет"}])
+    finally:
+        await client.aclose()
+        await oauth_client.aclose()
 
 
 @pytest.mark.asyncio

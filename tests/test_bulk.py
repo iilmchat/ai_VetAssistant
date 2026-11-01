@@ -14,7 +14,7 @@ import pytest
 from openai import APIConnectionError, APIStatusError
 from pydantic import SecretStr
 
-from configs.settings import ProviderConfig
+from configs.settings import GigaChatConfig, ProviderConfig
 from data_pipeline.dataset_io import read_jsonl, write_jsonl
 from data_pipeline.llm_client import ChatResult
 from data_pipeline.schemas import DialogueRecord
@@ -37,6 +37,15 @@ def _provider() -> ProviderConfig:
         api_key=SecretStr("sk-fake"),
         base_url="http://127.0.0.1:1/v1",
         model="fake-model",
+    )
+
+
+def _gigachat_provider() -> GigaChatConfig:
+    return GigaChatConfig(
+        client_id=SecretStr("gc-client"),
+        client_secret=SecretStr("gc-secret"),
+        base_url="http://127.0.0.1:1/v1",
+        model="GigaChat-2-Max",
     )
 
 
@@ -129,6 +138,7 @@ class _FakeClient:
 def test_bulk_output_path_uses_provider_name() -> None:
     assert bulk_output_path("primary").name == "dialogues_bulk_primary.jsonl"
     assert bulk_output_path("fallback").name == "dialogues_bulk_fallback.jsonl"
+    assert bulk_output_path("gigachat").name == "dialogues_bulk_gigachat.jsonl"
 
 
 @pytest.mark.asyncio
@@ -143,6 +153,35 @@ async def test_semaphore_limits_parallel_chains(tmp_path: Path) -> None:
     assert client.max_active == 2  # ровно лимит, не больше
     records = [DialogueRecord.model_validate(row) for row in read_jsonl(tmp_path / "out.jsonl")]
     assert len(records) == 6
+
+
+def test_gigachat_forces_concurrency_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Бесплатный GigaChat принимает один запрос: CLI-лимит не должен обходить это."""
+    seeds = _write_seeds(tmp_path / "seeds.jsonl", count=4)
+    output = tmp_path / "bulk.jsonl"
+    client: Any = _FakeClient(delay=0.01)
+    monkeypatch.setattr("scripts.run_bulk.TeacherClient", lambda provider, **kwargs: client)
+    monkeypatch.setattr("scripts.run_bulk.get_provider", lambda name: _gigachat_provider())
+
+    exit_code = main(
+        [
+            "--provider",
+            "gigachat",
+            "--seeds",
+            str(seeds),
+            "--output",
+            str(output),
+            "--concurrency",
+            "4",
+        ]
+    )
+
+    assert exit_code == 0
+    assert client.max_active == 1
+    assert len(list(read_jsonl(output))) == 4
 
 
 @pytest.mark.asyncio

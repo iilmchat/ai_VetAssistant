@@ -20,6 +20,7 @@ classifiers = [
 # Рантайм-зависимости пайплайна (T-001).
 dependencies = [
     "openai>=1.40.0",
+    "httpx2>=2.16.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
     "pyyaml>=6.0.0",

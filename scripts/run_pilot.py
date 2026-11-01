@@ -40,7 +40,7 @@ from data_pipeline.dataset_io import (
     write_jsonl,
 )
 from data_pipeline.generator import GenerationError, StageAGenerator, StageBGenerator
-from data_pipeline.llm_client import TeacherClient
+from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 from data_pipeline.schemas import SeedRecord
 
 DEFAULT_SEEDS = PROJECT_ROOT / "data" / "seeds_bulk.jsonl"
@@ -148,7 +148,7 @@ async def _run_pilot(
                 dialogue = await stage_b.generate_dialogue(
                     stage_a_record.user_query, seed.topic, seed_id=seed.id
                 )
-            except (OpenAIError, GenerationError) as exc:
+            except (OpenAIError, GenerationError, TeacherAPIError) as exc:
                 errors += 1
                 logger.error(
                     "[{}/{}] {} — {}: {}",

@@ -36,6 +36,7 @@ from configs.settings import (
     ProviderName,
     ProviderNotConfiguredError,
     get_provider,
+    resolve_concurrency,
 )
 from data_pipeline.cli import configure_logging, positive_int
 from data_pipeline.dataset_io import (
@@ -46,7 +47,7 @@ from data_pipeline.dataset_io import (
     write_jsonl,
 )
 from data_pipeline.generator import GenerationError, StageAGenerator, StageBGenerator
-from data_pipeline.llm_client import TeacherClient, is_fatal_provider_error
+from data_pipeline.llm_client import TeacherAPIError, TeacherClient, is_fatal_provider_error
 from data_pipeline.schemas import SeedRecord
 
 DEFAULT_SEEDS = PROJECT_ROOT / "data" / "seeds_bulk.jsonl"
@@ -132,7 +133,7 @@ async def generate_bulk(
                 errors += 1
                 logger.error("{} — APIStatusError {}: {}", seed.id, exc.status_code, exc)
                 return
-            except (OpenAIError, GenerationError) as exc:
+            except (OpenAIError, GenerationError, TeacherAPIError) as exc:
                 errors += 1
                 logger.error("{} — {}: {}", seed.id, type(exc).__name__, exc)
                 return
@@ -246,16 +247,23 @@ async def _run(
 ) -> int:
     """Запустить генерацию и напечатать статистику."""
     provider = get_provider(provider_name)
+    effective_concurrency = resolve_concurrency(provider, concurrency)
+    if effective_concurrency != concurrency:
+        logger.warning(
+            "GigaChat: concurrency принудительно ограничена до {} (запрошено {})",
+            effective_concurrency,
+            concurrency,
+        )
     logger.info(
         "Провайдер: {} | model={} | base_url={} | concurrency={}",
         provider.name,
         provider.model,
         provider.base_url,
-        concurrency,
+        effective_concurrency,
     )
 
     async with TeacherClient(provider, disable_thinking=True) as client:
-        stats = await generate_bulk(seeds, output, client, concurrency=concurrency)
+        stats = await generate_bulk(seeds, output, client, concurrency=effective_concurrency)
 
     logger.info(
         "Итог bulk: обработано {}, успешно {}, ошибок {}, время {:.2f} с, токенов {}",

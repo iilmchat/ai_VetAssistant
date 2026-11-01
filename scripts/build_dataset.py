@@ -34,7 +34,12 @@ from typing import Any
 
 from loguru import logger
 
-from configs.settings import PROJECT_ROOT
+from configs.settings import (
+    PROJECT_ROOT,
+    PROVIDER_NAMES,
+    get_provider,
+    resolve_concurrency,
+)
 from data_pipeline.cli import configure_logging
 from data_pipeline.dataset_io import read_jsonl, read_seed_records, write_jsonl
 from data_pipeline.filter import filter_dataset
@@ -223,6 +228,14 @@ def _run_script(script: str, args: Sequence[str]) -> None:
 
 def _generate(args: argparse.Namespace) -> None:
     """Сгенерировать bulk- и safety-диалоги через дочерние скрипты."""
+    provider = get_provider(args.provider)
+    concurrency = resolve_concurrency(provider, args.concurrency)
+    if concurrency != args.concurrency:
+        logger.warning(
+            "GigaChat: concurrency принудительно ограничена до {} (запрошено {})",
+            concurrency,
+            args.concurrency,
+        )
     prepare_safety_seeds(args.seeds, args.safety_seeds, args.safety_count)
 
     _run_script(
@@ -235,7 +248,7 @@ def _generate(args: argparse.Namespace) -> None:
             "--output",
             str(args.bulk_output),
             "--concurrency",
-            str(args.concurrency),
+            str(concurrency),
             "--resume",
         ],
     )
@@ -291,7 +304,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--provider",
-        choices=("primary", "fallback"),
+        choices=PROVIDER_NAMES,
         default="primary",
         help="провайдер генерации (по умолчанию primary)",
     )

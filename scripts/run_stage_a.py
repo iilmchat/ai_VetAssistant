@@ -33,7 +33,7 @@ from data_pipeline.dataset_io import (
     select_pending,
 )
 from data_pipeline.generator import GenerationError, StageAGenerator
-from data_pipeline.llm_client import TeacherClient
+from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 from data_pipeline.schemas import SeedRecord
 
 DEFAULT_SEEDS = PROJECT_ROOT / "data" / "seeds.jsonl"
@@ -106,7 +106,7 @@ async def _generate(
         for index, seed in enumerate(seeds, start=1):
             try:
                 record = await generator.generate_query(seed.topic, seed.seed_text, seed_id=seed.id)
-            except (OpenAIError, GenerationError) as exc:
+            except (OpenAIError, GenerationError, TeacherAPIError) as exc:
                 # RULES §6: остановиться, записать ошибку, сообщить Архитектору.
                 logger.error(
                     "[{}/{}] {} — ошибка: {}: {}",
