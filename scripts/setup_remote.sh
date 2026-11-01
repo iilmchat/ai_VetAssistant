@@ -65,7 +65,7 @@ log "1/8. Установка системных пакетов"
 export DEBIAN_FRONTEND=noninteractive
 "${SUDO[@]}" apt-get update
 "${SUDO[@]}" apt-get install -y --no-install-recommends \
-    git python3-pip python3-venv ca-certificates curl
+    git python3-pip python3-venv ca-certificates curl make
 
 log "2/8. Получение репозитория"
 if [[ -d "$PROJECT_DIR" ]]; then
