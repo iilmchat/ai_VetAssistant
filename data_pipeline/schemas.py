@@ -37,7 +37,10 @@ class SeedRecord(BaseModel):
 
     id: str = Field(min_length=1, description="Уникальный идентификатор сида")
     topic: Topic = Field(description="Тема из таксономии")
-    seed_text: str = Field(min_length=20, description="Факт из MSD Vet Manual, 1–2 предложения")
+    seed_text: str = Field(
+        min_length=5,
+        description="Факт из MSD Vet Manual или реальный вопрос PetQA, 1–2 предложения",
+    )
 
     @field_validator("id", "seed_text")
     @classmethod

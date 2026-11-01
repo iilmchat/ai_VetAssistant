@@ -38,7 +38,13 @@ from configs.settings import PROJECT_ROOT, get_provider
 from data_pipeline.cli import configure_logging
 from data_pipeline.llm_client import TeacherAPIError, TeacherClient
 from evaluation.judge import Judge, JudgeError, LLMJudge, OfflineJudge
-from evaluation.schemas import EvalRecord, MCQRecord, ModelAnswer, SafetyRecord
+from evaluation.schemas import (
+    EvalRecord,
+    MCQRecord,
+    ModelAnswer,
+    OpenEndedRecord,
+    SafetyRecord,
+)
 
 DEFAULT_DATASET = PROJECT_ROOT / "data" / "eval_dataset.jsonl"
 DEFAULT_ANSWERS = PROJECT_ROOT / "data" / "model_answers.jsonl"
@@ -168,6 +174,11 @@ class Evaluator:
     def safety_records(self) -> list[SafetyRecord]:
         """Только Safety-записи."""
         return [record for record in self._records if isinstance(record, SafetyRecord)]
+
+    @property
+    def open_ended_records(self) -> list[OpenEndedRecord]:
+        """Только open-ended записи (PetQA-Bench)."""
+        return [record for record in self._records if isinstance(record, OpenEndedRecord)]
 
     def mcq_accuracy(self) -> float:
         """Доля MCQ с точным совпадением ответа и `correct_option`.
@@ -301,10 +312,12 @@ async def _evaluate_and_report(
     """Посчитать метрики, залогировать и (без dry-run) записать отчёт."""
     evaluator = Evaluator(records, answers, judge=judge)
     logger.info(
-        "Датасет: {} записей (MCQ: {}, Safety: {}) | ответов модели: {} | судья: {}",
+        "Датасет: {} записей (MCQ: {}, Safety: {}, open-ended: {}) | "
+        "ответов модели: {} | судья: {}",
         len(evaluator.records),
         len(evaluator.mcq_records),
         len(evaluator.safety_records),
+        len(evaluator.open_ended_records),
         len(answers),
         type(judge).__name__,
     )

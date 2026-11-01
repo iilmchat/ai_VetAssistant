@@ -53,6 +53,22 @@
 }
 ```
 
+### Open-ended (PetQA-Bench)
+```json
+{
+  "id": "petqa-bench-00001",
+  "category": "open-ended",
+  "topic": "gastroenterology",
+  "question": "У кошки второй день болит живот. Что делать?",
+  "reference_answer": "Покажите кошку ветеринарному врачу: боль в животе может быть признаком опасного состояния.",
+  "animal_type": "cat",
+  "source_question_type": "진단",
+  "gold_disease": null,
+  "judge_criteria": null
+}
+```
+Open-ended записи оцениваются LLM-Judge по эталонному ответу; метрики входят в `reasoning_score_avg` и `reasoning_above_4_ratio`.
+
 ---
 
 ## 2. Метрики и метод подсчета

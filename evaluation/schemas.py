@@ -4,7 +4,8 @@
 
 * `mcq` — вопрос с вариантами и эталонной буквой;
 * `safety` — провокационный запрос с критериями отказа/эскалации;
-* `multi_turn` — контекст диалога, который модель должна продолжить.
+* `multi_turn` — контекст диалога, который модель должна продолжить;
+* `open-ended` — свободный вопрос с эталонным ответом (PetQA-Bench).
 
 `EvalRecord` — discriminated union по полю `category`: Pydantic сам выбирает
 нужную модель при парсинге JSONL.
@@ -130,9 +131,39 @@ class MultiTurnRecord(_EvalBase):
         return stripped
 
 
+class OpenEndedRecord(_EvalBase):
+    """Свободный вопрос с эталонным ответом (PetQA-Bench, T-011)."""
+
+    category: Literal["open-ended"]
+    question: str = Field(min_length=1)
+    reference_answer: str = Field(min_length=1)
+    animal_type: Literal["dog", "cat"] | None = None
+    source_question_type: str | None = None
+    gold_disease: str | None = None
+    judge_criteria: str | None = None
+
+    @field_validator("question", "reference_answer")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("текстовое поле не может быть пустым")
+        return stripped
+
+    @field_validator("judge_criteria")
+    @classmethod
+    def _strip_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("judge_criteria не может быть пустым")
+        return stripped
+
+
 #: Дискриминированный union: Pydantic выбирает модель по полю `category`.
 EvalRecord = Annotated[
-    MCQRecord | SafetyRecord | MultiTurnRecord,
+    MCQRecord | SafetyRecord | MultiTurnRecord | OpenEndedRecord,
     Field(discriminator="category"),
 ]
 

@@ -31,6 +31,9 @@ STAGE_SAFETY_PLACEHOLDERS: tuple[str, ...] = ("topic",)
 #: Плейсхолдеры, которые обязаны присутствовать в шаблоне судьи.
 JUDGE_PLACEHOLDERS: tuple[str, ...] = ("criteria", "response")
 
+#: Плейсхолдеры шаблона перевода PetQA (T-011).
+PETQA_TRANSLATE_PLACEHOLDERS: tuple[str, ...] = ("question", "answer", "topics")
+
 DEFAULT_PROMPTS_PATH = Path(__file__).resolve().parent / "prompts.yaml"
 
 
@@ -118,6 +121,21 @@ class StageJudgePrompt(StagePrompt):
         return Template(self.template).substitute(criteria=criteria, response=response)
 
 
+class PetQATranslatePrompt(StagePrompt):
+    """Шаблон перевода вопроса PetQA и классификации темы (T-011)."""
+
+    required_placeholders: ClassVar[tuple[str, ...]] = PETQA_TRANSLATE_PLACEHOLDERS
+    step_name: ClassVar[str] = "перевода PetQA"
+
+    def render(self, *, question: str, answer: str, topics: str) -> str:
+        """Подставить вопрос, эталонный ответ и список тем."""
+        return Template(self.template).substitute(
+            question=question,
+            answer=answer,
+            topics=topics,
+        )
+
+
 class PromptLibrary(BaseModel):
     """Корневой документ `prompts.yaml`."""
 
@@ -128,6 +146,7 @@ class PromptLibrary(BaseModel):
     stage_b: StageBPrompt
     stage_safety: StageSafetyPrompt
     stage_judge: StageJudgePrompt
+    petqa_translate: PetQATranslatePrompt | None = None
 
 
 class PromptRenderer:
@@ -161,6 +180,14 @@ class PromptRenderer:
         """Шаблон LLM-Judge."""
         return self._library.stage_judge
 
+    @property
+    def petqa_translate(self) -> PetQATranslatePrompt:
+        """Шаблон перевода PetQA (обязателен для T-011)."""
+        prompt = self._library.petqa_translate
+        if prompt is None:
+            raise PromptError("в prompts.yaml отсутствует секция petqa_translate")
+        return prompt
+
     def render_stage_a(self, *, topic: str, seed_text: str) -> str:
         """Собрать готовый промпт Шага A."""
         return self._library.stage_a.render(topic=topic, seed_text=seed_text)
@@ -176,6 +203,10 @@ class PromptRenderer:
     def render_judge(self, *, criteria: str, response: str) -> str:
         """Собрать готовый промпт судьи."""
         return self._library.stage_judge.render(criteria=criteria, response=response)
+
+    def render_petqa_translate(self, *, question: str, answer: str, topics: str) -> str:
+        """Собрать промпт перевода вопроса PetQA."""
+        return self.petqa_translate.render(question=question, answer=answer, topics=topics)
 
 
 def load_prompts(path: Path | None = None) -> PromptRenderer:
