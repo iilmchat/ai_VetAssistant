@@ -5,7 +5,12 @@
 # Скрипт рассчитан на Ubuntu 24.04 / образ «Unsloth VM» с CUDA и PyTorch.
 # Запуск (из любого каталога):
 #   bash setup_remote.sh
+#   GITHUB_TOKEN=github_pat_... bash setup_remote.sh
 #   REPO_URL=https://github.com/iilmchat/ai_VetAssistant.git bash setup_remote.sh
+#
+# Для приватного GitHub-репозитория задайте GITHUB_TOKEN (Personal Access
+# Token с правом чтения репозитория). Токен не печатается в логах; после
+# клонирования origin сбрасывается на URL без токена.
 #
 # S3-ключи Selectel передаются через переменные окружения S3_ACCESS_KEY_ID и
 # S3_SECRET_ACCESS_KEY. Если они не заданы, скрипт запросит их интерактивно.
@@ -14,7 +19,12 @@
 # =============================================================================
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/iilmchat/ai_VetAssistant.git}"
+DEFAULT_REPO_URL="https://github.com/iilmchat/ai_VetAssistant.git"
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    CLONE_URL="https://${GITHUB_TOKEN}@github.com/iilmchat/ai_VetAssistant.git"
+else
+    CLONE_URL="${REPO_URL:-$DEFAULT_REPO_URL}"
+fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PROJECT_DIR="$HOME/ai_VetAssistant"
 # Если скрипт запущен из уже склонированного репозитория, не клонируем второй раз.
@@ -58,16 +68,20 @@ export DEBIAN_FRONTEND=noninteractive
     git python3-pip python3-venv ca-certificates curl
 
 log "2/8. Получение репозитория"
-if [[ -d "$PROJECT_DIR/.git" ]]; then
-    log "Репозиторий уже существует: $PROJECT_DIR; обновляю main"
-    git -C "$PROJECT_DIR" fetch --prune origin
-    git -C "$PROJECT_DIR" checkout main
-    git -C "$PROJECT_DIR" pull --ff-only origin main
+if [[ -d "$PROJECT_DIR" ]]; then
+    # Сценарий scp/rsync: каталог уже доставлен на сервер, клонирование не нужно.
+    log "Папка уже существует: $PROJECT_DIR; пропускаю git clone"
 elif [[ -e "$PROJECT_DIR" ]]; then
-    die "путь $PROJECT_DIR существует, но это не git-репозиторий"
+    die "путь $PROJECT_DIR существует, но это не каталог"
 else
-    log "Клонирую $REPO_URL → $PROJECT_DIR"
-    git clone "$REPO_URL" "$PROJECT_DIR"
+    log "Клонирую репозиторий в $PROJECT_DIR"
+    if ! GIT_TERMINAL_PROMPT=0 git clone "$CLONE_URL" "$PROJECT_DIR"; then
+        die "не удалось клонировать репозиторий; проверьте GITHUB_TOKEN и доступ к $DEFAULT_REPO_URL"
+    fi
+    # Не оставляем токен в .git/config на сервере.
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        git -C "$PROJECT_DIR" remote set-url origin "$DEFAULT_REPO_URL"
+    fi
 fi
 
 cd "$PROJECT_DIR"
