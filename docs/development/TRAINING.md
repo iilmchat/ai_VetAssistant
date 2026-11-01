@@ -233,7 +233,39 @@ nvidia-smi
 pkill -f train_sft.py
 ```
 
-## 9. Диагностика
+## 9. Конвертация в GGUF
+
+Скрипт `scripts/convert_to_gguf.py` конвертирует merged-модель из
+`models/merged-model` в GGUF Q4_K_M и Q5_K_M. Его можно запускать локально
+(Windows/Linux с Python, Git и CMake) или на сервере после завершения
+обучения.
+
+```bash
+python scripts/convert_to_gguf.py
+```
+
+Скрипт автоматически:
+
+- клонирует официальный `llama.cpp` в `models/llama.cpp`, если его ещё нет;
+- устанавливает зависимости из `llama.cpp/requirements.txt`;
+- запускает `convert_hf_to_gguf.py` с `--outtype f16`;
+- собирает `llama-quantize` через CMake, если бинарника нет;
+- создаёт в `models/gguf/`:
+  - `qwen3-8b-vet-f16.gguf`;
+  - `qwen3-8b-vet-Q4_K_M.gguf`;
+  - `qwen3-8b-vet-Q5_K_M.gguf`.
+
+Проверка логики без запуска тяжёлых процессов:
+
+```bash
+python scripts/convert_to_gguf.py --dry-run
+```
+
+Для Windows нужны CMake и Visual Studio Build Tools (C++); для Ubuntu —
+`build-essential` и `cmake` (setup-скрипт ставит build-essential отдельно).
+Пути можно переопределить: `--model-dir`, `--output-dir`, `--llama-dir`.
+
+## 10. Диагностика
 
 - **`apt-get: Permission denied`** — запускайте от `root` или через пользователя
   с `sudo`.
