@@ -61,13 +61,39 @@ else
     SUDO=(sudo)
 fi
 
-log "1/8. Установка системных пакетов"
+log "1/11. Установка git"
 export DEBIAN_FRONTEND=noninteractive
 "${SUDO[@]}" apt-get update
-"${SUDO[@]}" apt-get install -y --no-install-recommends \
-    git python3-pip python3-venv ca-certificates curl make
+"${SUDO[@]}" apt-get install -y --no-install-recommends git
 
-log "2/8. Получение репозитория"
+log "2/11. Базовые системные пакеты"
+"${SUDO[@]}" apt-get install -y --no-install-recommends \
+    python3-pip python3-venv ca-certificates curl make
+
+log "3/11. Зависимости сборки и заголовки Python для Triton"
+"${SUDO[@]}" apt-get install -y --no-install-recommends \
+    build-essential zlib1g-dev libxml2-dev
+PYTHON_VERSION="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+PYTHON_INCLUDE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("include"))')"
+if [[ -f "$PYTHON_INCLUDE/Python.h" ]]; then
+    log "Заголовки Python уже установлены: $PYTHON_INCLUDE"
+else
+    PYTHON_DEV_PACKAGE=""
+    for candidate in "python${PYTHON_VERSION}-dev" "libpython${PYTHON_VERSION}-dev"; do
+        if apt-cache show "$candidate" >/dev/null 2>&1; then
+            PYTHON_DEV_PACKAGE="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$PYTHON_DEV_PACKAGE" ]]; then
+        log "Пакет python${PYTHON_VERSION}-dev не найден; пробую python3-dev"
+        PYTHON_DEV_PACKAGE="python3-dev"
+    fi
+    log "Устанавливаю заголовки Python: $PYTHON_DEV_PACKAGE"
+    "${SUDO[@]}" apt-get install -y --no-install-recommends "$PYTHON_DEV_PACKAGE"
+fi
+
+log "4/11. Получение репозитория"
 if [[ -d "$PROJECT_DIR" ]]; then
     # Сценарий scp/rsync: каталог уже доставлен на сервер, клонирование не нужно.
     log "Папка уже существует: $PROJECT_DIR; пропускаю git clone"
@@ -88,7 +114,7 @@ cd "$PROJECT_DIR"
 [[ -f pyproject.toml ]] || die "в $PROJECT_DIR нет pyproject.toml — это не проект VetAssistant"
 [[ -f requirements-train.txt ]] || die "не найден requirements-train.txt"
 
-log "3/8. Создание виртуального окружения"
+log "5/11. Создание виртуального окружения"
 if [[ ! -x .venv/bin/python ]]; then
     python3 -m venv .venv
 else
@@ -98,13 +124,18 @@ fi
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 
-log "4/8. Установка зависимостей обучения"
+log "6/11. Установка зависимостей обучения"
 pip install -r requirements-train.txt
 
-log "5/8. Установка DVC с поддержкой S3"
+# Старый xformers из образа Unsloth конфликтует с PyTorch 2.14 и мешает
+# встроенному PyTorch-attention. Принудительно удаляем его.
+log "7/11. Удаление несовместимого xformers"
+pip uninstall -y xformers || true
+
+log "8/11. Установка DVC с поддержкой S3"
 pip install "dvc[s3]"
 
-log "6/8. Настройка DVC-remote ${DVC_REMOTE_NAME}"
+log "9/11. Настройка DVC-remote ${DVC_REMOTE_NAME}"
 if dvc remote list | grep -qE "^${DVC_REMOTE_NAME}[[:space:]]"; then
     dvc remote modify "$DVC_REMOTE_NAME" url "$DVC_REMOTE_URL"
 else
@@ -114,7 +145,7 @@ dvc remote modify "$DVC_REMOTE_NAME" endpointurl "$DVC_ENDPOINT_URL"
 dvc remote modify "$DVC_REMOTE_NAME" region "$DVC_REGION"
 dvc remote default "$DVC_REMOTE_NAME"
 
-log "7/8. Настройка S3-ключей (локально, без попадания в Git)"
+log "10/11. Настройка S3-ключей (локально, без попадания в Git)"
 if [[ -f .dvc/config.local ]] \
     && grep -q "access_key_id" .dvc/config.local \
     && grep -q "secret_access_key" .dvc/config.local; then
@@ -136,7 +167,7 @@ else
     chmod 600 .dvc/config.local
 fi
 
-log "8/8. Загрузка данных из S3 (dvc pull)"
+log "11/11. Загрузка данных из S3 (dvc pull)"
 dvc pull
 
 log "Проверка окружения"

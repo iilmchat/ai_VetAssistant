@@ -7,19 +7,23 @@
 
 Скрипт идемпотентен и выполняет:
 
-1. Устанавливает системные пакеты: `git`, `python3-pip`, `python3-venv`,
+1. Устанавливает `git` и системные пакеты: `python3-pip`, `python3-venv`,
    `ca-certificates`, `curl`, `make`.
-2. Клонирует репозиторий по `GITHUB_TOKEN`/`REPO_URL` или использует уже
+2. Ставит зависимости сборки `build-essential`, `zlib1g-dev`, `libxml2-dev`
+   и заголовочные файлы Python для Triton. Версия Python определяется
+   динамически (`python3.14-dev` / `libpython3.14-dev`, fallback `python3-dev`).
+3. Клонирует репозиторий по `GITHUB_TOKEN`/`REPO_URL` или использует уже
    существующий каталог (например, скопированный через `scp`).
-3. Создает и активирует `.venv`.
-4. Устанавливает `requirements-train.txt` и `dvc[s3]`.
-5. Настраивает DVC-remote `selectel`:
+4. Создает и активирует `.venv`.
+5. Устанавливает `requirements-train.txt`, затем удаляет несовместимый
+   `xformers` из образа Unsloth, и ставит `dvc[s3]`.
+6. Настраивает DVC-remote `selectel`:
    - URL: `s3://vetassistant-data/dvc`;
    - endpoint: `https://s3.ru-7.storage.selcloud.ru`;
    - регион: `ru-7`.
-6. Записывает S3-ключи **только** в `.dvc/config.local` (права `600`,
+7. Записывает S3-ключи **только** в `.dvc/config.local` (права `600`,
    файл игнорируется Git).
-7. Выполняет `dvc pull` и проверяет доступность CUDA/PyTorch.
+8. Выполняет `dvc pull` и проверяет доступность CUDA/PyTorch.
 
 ## 2. Подготовка S3-ключей
 
@@ -183,6 +187,8 @@ make smoke
 source ~/ai_VetAssistant/.venv/bin/activate
 cd ~/ai_VetAssistant
 python scripts/train_sft.py --config configs/train_sft.yaml
+# или короткая команда:
+make train
 ```
 
 После завершения LoRA-адаптер будет в `outputs/sft_qwen3_8b/adapter`.
@@ -190,11 +196,44 @@ python scripts/train_sft.py --config configs/train_sft.yaml
 
 ```bash
 python scripts/merge_lora.py --config configs/train_sft.yaml
+# или:
+make merge
 ```
 
 Результат: `outputs/sft_qwen3_8b/merged`.
 
-## 8. Диагностика
+## 8. Фоновый запуск на сервере
+
+Обучение занимает 2–3 часа, поэтому запускайте его через `nohup`, чтобы
+процесс пережил закрытие SSH-сессии:
+
+```bash
+cd ~/ai_VetAssistant
+source .venv/bin/activate
+nohup python scripts/train_sft.py > train.log 2>&1 &
+```
+
+Проверить, что процесс жив:
+
+```bash
+tail -f train.log
+```
+
+`Ctrl+C` в этом режиме останавливает только `tail`, обучение продолжается.
+Дополнительно можно проверить процесс и GPU:
+
+```bash
+pgrep -af train_sft.py
+nvidia-smi
+```
+
+Остановить обучение при необходимости:
+
+```bash
+pkill -f train_sft.py
+```
+
+## 9. Диагностика
 
 - **`apt-get: Permission denied`** — запускайте от `root` или через пользователя
   с `sudo`.
