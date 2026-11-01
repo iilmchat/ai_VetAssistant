@@ -168,7 +168,8 @@ python scripts/merge_lora.py --dry-run
 Unsloth. На сервере после установки зависимостей полезен короткий smoke-прогон:
 
 ```bash
-python scripts/train_sft.py --limit 20 --max-steps 10
+make smoke
+# эквивалент: python scripts/train_sft.py --limit 20 --max-steps 10
 ```
 
 Он проверяет весь GPU-пайплайн (загрузка Qwen3-8B, tokenizer, SFTTrainer,
