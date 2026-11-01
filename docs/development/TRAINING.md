@@ -69,20 +69,34 @@ ssh root@<server-ip>
 
 ### Вариант A: репозиторий уже склонирован
 
+Для приватного репозитория клонируйте его с токеном, затем запустите
+установку (скрипт увидит существующий каталог и пропустит clone):
+
 ```bash
+git clone "https://${GITHUB_TOKEN}@github.com/iilmchat/ai_VetAssistant.git" \
+  ~/ai_VetAssistant
 cd ~/ai_VetAssistant
 bash scripts/setup_remote.sh
 ```
 
 ### Вариант B: чистая машина
 
-Скопируйте скрипт на сервер и запустите — он сам клонирует проект:
+Скопируйте скрипт на сервер и запустите — он сам клонирует проект. Для
+приватного репозитория скачайте скрипт с токеном:
 
 ```bash
 curl -fsSL \
+  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
   https://raw.githubusercontent.com/iilmchat/ai_VetAssistant/main/scripts/setup_remote.sh \
   -o /tmp/setup_remote.sh
 bash /tmp/setup_remote.sh
+```
+
+Либо просто передайте файл по scp:
+
+```bash
+scp scripts/setup_remote.sh root@<server-ip>:/tmp/setup_remote.sh
+ssh root@<server-ip> "bash /tmp/setup_remote.sh"
 ```
 
 По умолчанию проект будет развернут в `~/ai_VetAssistant`. Другие параметры
@@ -132,9 +146,14 @@ python scripts/sync_data.py pull
 Они проверяют конфиг, JSONL-диалоги и показывают ChatML-превью:
 
 ```powershell
+# Если venv активирован:
 python scripts/train_sft.py --dry-run
 python scripts/train_sft.py --dry-run --limit 3 --preview-count 2
 python scripts/merge_lora.py --dry-run
+
+# Если venv не активирован (Windows):
+.\.venv\Scripts\python.exe scripts\train_sft.py --dry-run
+.\.venv\Scripts\python.exe scripts\merge_lora.py --dry-run
 ```
 
 Что проверяет `train_sft.py --dry-run`:
