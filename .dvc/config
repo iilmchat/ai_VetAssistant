@@ -1,0 +1,6 @@
+[core]
+    remote = selectel
+['remote "selectel"']
+    url = s3://vetassistant-data/dvc
+    endpointurl = https://s3.ru-7.storage.selcloud.ru
+    region = ru-7

@@ -33,7 +33,39 @@
    ```
 
 ## 🛠️ Стек
-- **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF).
+- **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
 - **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py).
 - **Оценка:** `evaluate.py` + API LLM-Judge.
+
+## 💾 Работа с данными (DVC)
+
+Тяжёлые сгенерированные данные (диалоги, train/val, PetQA, отчёты) хранятся
+в S3 Selectel и **не коммитятся в Git**. В Git попадают только `.dvc`-файлы
+с хешами и конфигурация remote.
+
+- Remote: `selectel` → `s3://vetassistant-data/dvc`
+- Endpoint: `https://s3.ru-7.storage.selcloud.ru`, регион `ru-7`
+- Ключи доступа заданы локально через `dvc remote modify --local` и хранятся
+  в `.dvc/config.local` (файл в `.gitignore`).
+
+Синхронизация:
+
+```bash
+python scripts/sync_data.py push   # загрузить данные в S3
+python scripts/sync_data.py pull   # скачать данные из S3
+```
+
+Добавление новых тяжёлых файлов:
+
+```bash
+dvc add data/<file>.jsonl
+git add data/<file>.jsonl.dvc
+git commit -m "chore(data): track <file> with DVC"
+git push
+python scripts/sync_data.py push
+```
+
+Для воспроизведения на новой машине: склонировать репозиторий, установить
+dev-зависимости, настроить `selectel`-креды локально и выполнить
+`python scripts/sync_data.py pull`.

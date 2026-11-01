@@ -42,3 +42,18 @@
 3. **Тесты/Проверки:** какие команды запущены и их вывод (например, `pytest: 5 passed`).
 4. **Проблемы:** если были блокеры, как обошли (или не обошли).
 5. **Следующий шаг:** ссылка на следующий T-NNN.
+
+## 8. Работа с данными (DVC)
+
+- Тяжёлые данные (`data/*.jsonl`, отчёты) не коммитятся в Git; для них
+  используются `.dvc`-файлы. Исключения — небольшие курируемые файлы,
+  явно разрешённые в `.gitignore` (`data/seeds.jsonl`, `data/eval_dataset.jsonl`,
+  `data/model_answers.jsonl`).
+- В Git коммитятся `.dvc/config`, `.dvc/.gitignore` и `data/*.dvc`; локальные
+  креды S3 — только в `.dvc/config.local` (игнорируется Git).
+- Remote по умолчанию: `selectel` (`s3://vetassistant-data/dvc`, регион `ru-7`,
+  endpoint `https://s3.ru-7.storage.selcloud.ru`).
+- Синхронизация: `python scripts/sync_data.py push` / `pull`.
+- После изменения данных: `dvc add <path>`, `git add <path>.dvc`, коммит,
+  `git push`, затем `python scripts/sync_data.py push`. Секреты в Git,
+  README, логи и сообщения не попадают.

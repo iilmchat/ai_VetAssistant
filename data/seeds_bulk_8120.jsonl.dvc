@@ -1,0 +1,5 @@
+outs:
+- md5: 8639af2639f79b3486c3412d2637c6a5
+  size: 1521991
+  hash: md5
+  path: seeds_bulk_8120.jsonl

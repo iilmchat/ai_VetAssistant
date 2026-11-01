@@ -1,0 +1,5 @@
+outs:
+- md5: a888f30369c574c01cb2f3eca65d794e
+  size: 5163246
+  hash: md5
+  path: petqa_ru_questions.jsonl

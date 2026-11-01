@@ -37,6 +37,8 @@ dev = [
     "ruff>=0.5.0",
     "mypy>=1.10.0",
     "types-pyyaml>=6.0.12",
+    "dvc>=3.67.0",
+    "dvc-s3>=3.3.0",
 ]
 
 [tool.hatch.build.targets.wheel]
