@@ -10,7 +10,10 @@ import requests
 from app.settings import UISettings
 from app.tools import SET_REMINDER_TOOL
 from app.ui_client import (
+    api_base_url,
     build_payload,
+    fetch_appointments,
+    fetch_reminders,
     parse_sse_event,
     parse_sse_line,
     stream_chat,
@@ -35,6 +38,49 @@ class _FakeResponse:
 
     def iter_lines(self) -> Any:
         return iter(self._lines)
+
+
+class _FakeJsonResponse:
+    """Заглушка requests.Response для GET-эндпоинтов."""
+
+    def __init__(self, payload: Any) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> Any:
+        return self._payload
+
+
+def test_api_base_url_strips_chat_suffix() -> None:
+    assert api_base_url("http://api:8000/v1/chat/completions") == "http://api:8000"
+    assert api_base_url("http://api:8000") == "http://api:8000"
+    assert api_base_url("http://api:8000/v1/chat/completions/") == "http://api:8000"
+
+
+def test_fetch_appointments_and_reminders(monkeypatch: pytest.MonkeyPatch) -> None:
+    urls: list[str] = []
+
+    def fake_get(url: str, *, timeout: float) -> _FakeJsonResponse:
+        urls.append(url)
+        if url.endswith("/appointments"):
+            return _FakeJsonResponse(
+                [{"id": 1, "pet_name": "Барсик", "date": "2026-11-04", "time": "15:00"}]
+            )
+        return _FakeJsonResponse([{"id": 1, "text": "Дать таблетку", "time": "20:00"}])
+
+    monkeypatch.setattr("app.ui_client.requests.get", fake_get)
+
+    appointments = fetch_appointments("http://api:8000/v1/chat/completions")
+    reminders = fetch_reminders("http://api:8000/v1/chat/completions")
+
+    assert appointments[0]["pet_name"] == "Барсик"
+    assert reminders[0]["text"] == "Дать таблетку"
+    assert urls == [
+        "http://api:8000/v1/appointments",
+        "http://api:8000/v1/reminders",
+    ]
 
 
 def test_ui_settings_read_api_url_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
 
-from app.database import list_appointments, list_reminders
+from app.database import Database, list_appointments, list_reminders
 from app.tools import (
     AVAILABLE_TOOLS,
     BOOK_APPOINTMENT_TOOL,
@@ -22,6 +23,14 @@ from app.tools import (
     parse_tool_calls,
     with_tools_instruction,
 )
+
+
+@pytest.fixture
+async def database(tmp_path: Path) -> AsyncIterator[Database]:
+    db = Database(f"sqlite+aiosqlite:///{(tmp_path / 'tools.db').as_posix()}")
+    await db.create_tables()
+    yield db
+    await db.dispose()
 
 
 def test_default_tools_have_expected_names_and_required_fields() -> None:
@@ -163,46 +172,52 @@ def test_tools_instruction_is_empty_without_tools() -> None:
     assert with_tools_instruction(messages, []) == messages
 
 
-def test_execute_tool_book_appointment(tmp_path: Path) -> None:
-    result = execute_tool(
-        "book_appointment",
-        '{"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}',
-        db_path=tmp_path / "tools.db",
-    )
+async def test_execute_tool_book_appointment(database: Database) -> None:
+    async with database.session() as session:
+        result = await execute_tool(
+            "book_appointment",
+            '{"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}',
+            session=session,
+        )
 
     assert result["status"] == "success"
     assert "Записали Мурзика" in result["message"]
-    appointments = list_appointments(tmp_path / "tools.db")
+    async with database.session() as session:
+        appointments = await list_appointments(session)
     assert len(appointments) == 1
     assert appointments[0].date == "2026-11-04"
 
 
-def test_execute_tool_set_reminder(tmp_path: Path) -> None:
-    result = execute_tool(
-        "set_reminder",
-        {"time": "20:00", "text": "Дать таблетку"},
-        db_path=tmp_path / "tools.db",
-    )
+async def test_execute_tool_set_reminder(database: Database) -> None:
+    async with database.session() as session:
+        result = await execute_tool(
+            "set_reminder",
+            {"time": "20:00", "text": "Дать таблетку"},
+            session=session,
+        )
 
     assert result["status"] == "success"
     assert "Дать таблетку" in result["message"]
-    reminders = list_reminders(tmp_path / "tools.db")
+    async with database.session() as session:
+        reminders = await list_reminders(session)
     assert len(reminders) == 1
     assert reminders[0].time == "20:00"
 
 
-def test_execute_tool_rejects_unknown_name(tmp_path: Path) -> None:
-    with pytest.raises(ToolExecutionError, match="неизвестный инструмент"):
-        execute_tool("delete_database", {}, db_path=tmp_path / "tools.db")
+async def test_execute_tool_rejects_unknown_name(database: Database) -> None:
+    async with database.session() as session:
+        with pytest.raises(ToolExecutionError, match="неизвестный инструмент"):
+            await execute_tool("delete_database", {}, session=session)
 
 
-def test_execute_tool_rejects_missing_arguments(tmp_path: Path) -> None:
-    with pytest.raises(ToolExecutionError, match="pet_name"):
-        execute_tool(
-            "book_appointment",
-            {"date": "2026-11-04", "time": "10:00"},
-            db_path=tmp_path / "tools.db",
-        )
+async def test_execute_tool_rejects_missing_arguments(database: Database) -> None:
+    async with database.session() as session:
+        with pytest.raises(ToolExecutionError, match="pet_name"):
+            await execute_tool(
+                "book_appointment",
+                {"date": "2026-11-04", "time": "10:00"},
+                session=session,
+            )
 
 
 def test_parse_tool_arguments_rejects_invalid_json() -> None:

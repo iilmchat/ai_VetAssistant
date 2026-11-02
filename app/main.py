@@ -14,16 +14,18 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from functools import lru_cache
-from pathlib import Path
 from typing import Annotated, Any, Literal, Protocol, cast
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
+from app.database import Database, list_appointments, list_reminders
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
@@ -117,6 +119,27 @@ class ChatCompletionResponse(BaseModel):
     usage: Usage
 
 
+class AppointmentRead(BaseModel):
+    """Запись на приём для GET /v1/appointments."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    pet_name: str
+    date: str
+    time: str
+
+
+class ReminderRead(BaseModel):
+    """Напоминание для GET /v1/reminders."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    text: str
+    time: str
+
+
 class ChatModel(Protocol):
     """Минимальный интерфейс llama-cpp-python, нужный API."""
 
@@ -160,7 +183,32 @@ def get_model() -> ChatModel:
         raise HTTPException(status_code=503, detail="Модель недоступна") from exc
 
 
-app = FastAPI(title="VetAssistant API", version="0.2.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Создать таблицы при старте и закрыть пул БД при остановке."""
+    settings = get_app_settings()
+    database = Database(settings.database_url)
+    application.state.db = database
+    await database.create_tables()
+    logger.info(
+        "БД готова: {}",
+        database.engine.url.render_as_string(hide_password=True),
+    )
+    try:
+        yield
+    finally:
+        await database.dispose()
+
+
+app = FastAPI(title="VetAssistant API", version="0.2.0", lifespan=lifespan)
+
+
+def get_database(request: Request) -> Database:
+    """FastAPI-зависимость: БД, созданная в lifespan."""
+    database = getattr(request.app.state, "db", None)
+    if not isinstance(database, Database):
+        raise HTTPException(status_code=503, detail="База данных недоступна")
+    return database
 
 
 def build_messages(messages: Sequence[ChatMessage]) -> list[dict[str, str]]:
@@ -200,14 +248,18 @@ def _generation_kwargs(request: ChatCompletionRequest) -> dict[str, Any]:
     return kwargs
 
 
-def _generate_once(
+async def _generate_once(
     model: ChatModel,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
 ) -> ChatCompletionResponse:
     """Один вызов модели с приведением ответа к формату OpenAI."""
-    result = model.create_chat_completion(messages=messages, **_generation_kwargs(request))
+    result = await run_in_threadpool(
+        model.create_chat_completion,
+        messages=messages,
+        **_generation_kwargs(request),
+    )
     choices = result.get("choices") or []
     if not choices:
         raise HTTPException(status_code=502, detail="Модель вернула пустой ответ")
@@ -252,54 +304,55 @@ def _generate_once(
     )
 
 
-def _execute_tool_calls(
+async def _execute_tool_calls(
     tool_calls: Sequence[ToolCall],
     *,
-    db_path: Path | None,
+    database: Database,
 ) -> list[dict[str, Any]]:
     """Выполнить вызовы и сформировать сообщения с ролью ``tool``."""
     messages: list[dict[str, Any]] = []
-    for tool_call in tool_calls:
-        name = tool_call.function.name
-        try:
-            result = execute_tool(
-                name,
-                tool_call.function.arguments,
-                db_path=db_path,
-            )
-        except ToolExecutionError as exc:
-            logger.warning("Agent: инструмент {} не выполнен — {}", name, exc)
-            result = {"status": "error", "message": str(exc)}
-        except Exception as exc:
-            logger.exception("Agent: ошибка выполнения инструмента {}", name)
-            result = {
-                "status": "error",
-                "message": f"Ошибка выполнения инструмента {name}: {exc}",
-            }
+    async with database.session() as session:
+        for tool_call in tool_calls:
+            name = tool_call.function.name
+            try:
+                result = await execute_tool(
+                    name,
+                    tool_call.function.arguments,
+                    session=session,
+                )
+            except ToolExecutionError as exc:
+                logger.warning("Agent: инструмент {} не выполнен — {}", name, exc)
+                result = {"status": "error", "message": str(exc)}
+            except Exception as exc:
+                logger.exception("Agent: ошибка выполнения инструмента {}", name)
+                result = {
+                    "status": "error",
+                    "message": f"Ошибка выполнения инструмента {name}: {exc}",
+                }
 
-        messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "name": name,
-                "content": json.dumps(result, ensure_ascii=False),
-            }
-        )
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": name,
+                    "content": json.dumps(result, ensure_ascii=False),
+                }
+            )
     return messages
 
 
-def _complete(
+async def _complete(
     model: ChatModel,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
     *,
-    db_path: Path | None = None,
+    database: Database,
 ) -> ChatCompletionResponse:
     """Сгенерировать ответ, выполняя tool_calls в agentic loop."""
     working = [dict(message) for message in messages]
     executed: list[ToolCall] = []
-    response = _generate_once(model, working, request, model_name)
+    response = await _generate_once(model, working, request, model_name)
 
     for _ in range(MAX_AGENT_STEPS):
         message = response.choices[0].message
@@ -316,8 +369,8 @@ def _complete(
                 "tool_calls": [tool_call.model_dump() for tool_call in tool_calls],
             }
         )
-        working.extend(_execute_tool_calls(tool_calls, db_path=db_path))
-        response = _generate_once(model, working, request, model_name)
+        working.extend(await _execute_tool_calls(tool_calls, database=database))
+        response = await _generate_once(model, working, request, model_name)
 
     if executed:
         # Оставляем вызовы в ответе как визуальную индикацию для UI.
@@ -330,14 +383,14 @@ def _sse_chunk(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _stream_with_tools(
+async def _stream_with_tools(
     model: ChatModel,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
     *,
-    db_path: Path | None = None,
-) -> Iterator[str]:
+    database: Database,
+) -> AsyncIterator[str]:
     """Отдать SSE-поток после выполнения agentic loop.
 
     Модель вызывается без ``stream``, чтобы корректно разобрать tool_calls
@@ -345,7 +398,13 @@ def _stream_with_tools(
     инструментов остаются в ``delta.tool_calls`` как индикация для UI.
     """
     try:
-        response = _complete(model, messages, request, model_name, db_path=db_path)
+        response = await _complete(
+            model,
+            messages,
+            request,
+            model_name,
+            database=database,
+        )
         message = response.choices[0].message
         delta: dict[str, Any] = {
             "role": "assistant",
@@ -381,35 +440,36 @@ def _stream_with_tools(
     yield "data: [DONE]\n\n"
 
 
-def _stream(
+async def _stream(
     model: ChatModel,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
     *,
-    db_path: Path | None = None,
-) -> Iterator[str]:
+    database: Database,
+) -> AsyncIterator[str]:
     """Отдать ответ потоком SSE в формате OpenAI."""
     if request.tools:
-        yield from _stream_with_tools(
+        async for chunk in _stream_with_tools(
             model,
             messages,
             request,
             model_name,
-            db_path=db_path,
-        )
+            database=database,
+        ):
+            yield chunk
         return
 
     try:
-        stream = model.create_chat_completion(
+        stream = await run_in_threadpool(
+            model.create_chat_completion,
             messages=messages,
             stream=True,
             **_generation_kwargs(request),
         )
-        for chunk in stream:
-            if isinstance(chunk, dict):
-                chunk = {**chunk, "model": model_name}
-            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+        async for chunk in iterate_in_threadpool(stream):
+            payload = {**chunk, "model": model_name} if isinstance(chunk, dict) else chunk
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
     except Exception as exc:
         logger.error("Ошибка потоковой генерации: {}", exc)
         error = {"error": {"message": str(exc), "type": "server_error"}}
@@ -430,10 +490,11 @@ def health() -> dict[str, Any]:
 
 
 @app.post("/v1/chat/completions", response_model=None)
-def chat_completions(
+async def chat_completions(
     request: ChatCompletionRequest,
     model: Annotated[ChatModel, Depends(get_model)],
     knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
+    database: Annotated[Database, Depends(get_database)],
 ) -> ChatCompletionResponse | StreamingResponse:
     """Сгенерировать ответ модели в формате OpenAI Chat Completions."""
     # Быстрый триаж до генерации: не тратим ресурсы LLM на prompt injection
@@ -479,31 +540,54 @@ def chat_completions(
                 messages,
                 request,
                 model_name,
-                db_path=settings.database_path,
+                database=database,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    return _complete(
+    return await _complete(
         model,
         messages,
         request,
         model_name,
-        db_path=settings.database_path,
+        database=database,
     )
 
 
+@app.get("/v1/appointments", response_model=list[AppointmentRead])
+async def get_appointments(
+    database: Annotated[Database, Depends(get_database)],
+) -> list[AppointmentRead]:
+    """Вернуть все записи на приём."""
+    async with database.session() as session:
+        appointments = await list_appointments(session)
+    return [AppointmentRead.model_validate(item) for item in appointments]
+
+
+@app.get("/v1/reminders", response_model=list[ReminderRead])
+async def get_reminders(
+    database: Annotated[Database, Depends(get_database)],
+) -> list[ReminderRead]:
+    """Вернуть все напоминания."""
+    async with database.session() as session:
+        reminders = await list_reminders(session)
+    return [ReminderRead.model_validate(item) for item in reminders]
+
+
 @app.post("/v1/tools/execute")
-def execute_tool_endpoint(request: ToolExecutionRequest) -> dict[str, str]:
-    """Выполнить инструмент и сохранить результат в SQLite."""
-    settings = get_app_settings()
+async def execute_tool_endpoint(
+    request: ToolExecutionRequest,
+    database: Annotated[Database, Depends(get_database)],
+) -> dict[str, str]:
+    """Выполнить инструмент и сохранить результат в БД."""
     logger.info("Tool execute: name={} arguments={}", request.name, request.arguments)
-    try:
-        return execute_tool(
-            request.name,
-            request.arguments,
-            db_path=settings.database_path,
-        )
-    except ToolExecutionError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    async with database.session() as session:
+        try:
+            return await execute_tool(
+                request.name,
+                request.arguments,
+                session=session,
+            )
+        except ToolExecutionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc

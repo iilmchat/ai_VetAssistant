@@ -226,6 +226,13 @@
 - **Оценка:** 2
 - **Статус:** выполнено: SQLite, реальное выполнение, loop на 2+ вызова модели, изолированные тесты БД и API; `pytest` 484 passed, `ruff`/`mypy` чисто.
 
+### [x] T-033. PostgreSQL, async SQLAlchemy и чтение записей
+- **Зависит от:** T-032
+- **Что:** PostgreSQL 16 в Docker Compose с volume; async SQLAlchemy 2.0 (`asyncpg`/`aiosqlite`), модели `Appointment`/`Reminder`, `create_all` в lifespan; `GET /v1/appointments`, `GET /v1/reminders`; Streamlit expander «Мои записи»; тесты на async SQLite.
+- **DoD:** Docker-стек поднимает PostgreSQL, API создаёт таблицы при старте, записи сохраняются между перезапусками, read-эндпоинты и UI работают; тесты не требуют Postgres.
+- **Оценка:** 2
+- **Статус:** выполнено: PostgreSQL-сервис и volume, async SQLAlchemy, read-эндпоинты, UI «Мои записи», async-тесты; проверено на реальном PostgreSQL 16; `pytest` 487 passed, `ruff`/`mypy` чисто.
+
 ---
 
 ## Backlog

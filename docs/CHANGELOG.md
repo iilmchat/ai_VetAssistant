@@ -18,8 +18,16 @@
   и возвращает финальный текст; в финальном ответе вызовы остаются как
   индикация для UI (T-032).
 - SQLite-хранилище `app/database.py`: таблицы `appointments` и `reminders`,
-  реальное выполнение `book_appointment` и `set_reminder`, настройка
-  `VET_API_DATABASE_PATH` (T-032).
+  реальное выполнение `book_appointment` и `set_reminder` (T-032; в T-033
+  заменено на async SQLAlchemy/PostgreSQL).
+- PostgreSQL 16 в Docker Compose (`db`), volume `postgres_data`, healthcheck
+  и переменные `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` (T-033).
+- Async SQLAlchemy 2.0: модели `Appointment`/`Reminder`, `asyncpg` для
+  PostgreSQL и `aiosqlite` для локальных тестов; создание таблиц в lifespan
+  FastAPI (T-033).
+- Эндпоинты `GET /v1/appointments` и `GET /v1/reminders` (T-033).
+- Streamlit: expander **«Мои записи»** с карточками приёмов и напоминаний
+  (T-033).
 - Реальный RAG: `scripts/download_msd.py` скачивает статьи MSD Vet Manual
   в `data/knowledge/real/`; `scripts/ingest_knowledge.py` рекурсивно читает
   TXT и PDF через `pypdf` (T-030).

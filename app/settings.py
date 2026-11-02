@@ -26,6 +26,11 @@ DEFAULT_UI_API_URL = "http://127.0.0.1:8000/v1/chat/completions"
 #: Таймаут HTTP-запроса UI к API по умолчанию.
 DEFAULT_UI_TIMEOUT_S = 300.0
 
+#: Локальная async-SQLite БД по умолчанию; Docker Compose переопределяет на PostgreSQL.
+DEFAULT_DATABASE_URL = (
+    f"sqlite+aiosqlite:///{(PROJECT_ROOT / 'data' / 'vetassistant.db').as_posix()}"
+)
+
 
 class AppSettings(BaseSettings):
     """Параметры загрузки GGUF-модели и генерации."""
@@ -62,9 +67,10 @@ class AppSettings(BaseSettings):
         description="Модель эмбеддингов sentence-transformers",
     )
     rag_top_k: int = Field(default=3, ge=1, le=10, description="Сколько чанков извлекать")
-    database_path: Path = Field(
-        default=PROJECT_ROOT / "data" / "vetassistant.db",
-        description="SQLite-БД для записей и напоминаний",
+    database_url: str = Field(
+        default=DEFAULT_DATABASE_URL,
+        min_length=1,
+        description="SQLAlchemy async URL (PostgreSQL/asyncpg или SQLite/aiosqlite)",
     )
 
 

@@ -1,139 +1,110 @@
-"""SQLite-хранилище для инструментов VetAssistant (T-032).
+"""Async SQLAlchemy-хранилище для инструментов VetAssistant (T-033).
 
-Таблицы создаются лениво при первом обращении. Каждая операция открывает
-отдельное соединение, поэтому модуль безопасно использовать из sync-эндпоинтов
-FastAPI и тестов.
+В Docker используется PostgreSQL 16 + asyncpg; локально и в тестах — async
+SQLite через aiosqlite. Таблицы создаются в lifespan FastAPI через
+``Base.metadata.create_all``.
 """
 
 from __future__ import annotations
 
-import sqlite3
-from dataclasses import dataclass
-from pathlib import Path
+from sqlalchemy import String, select
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from configs.settings import PROJECT_ROOT
-
-DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "vetassistant.db"
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS appointments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pet_name TEXT NOT NULL,
-    date TEXT NOT NULL,
-    time TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS reminders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    text TEXT NOT NULL,
-    time TEXT NOT NULL
-);
-"""
+from app.settings import DEFAULT_DATABASE_URL
 
 
-@dataclass(frozen=True)
-class Appointment:
+class Base(DeclarativeBase):
+    """Базовый класс ORM-моделей."""
+
+
+class Appointment(Base):
     """Запись на приём."""
 
-    id: int
-    pet_name: str
-    date: str
-    time: str
+    __tablename__ = "appointments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    pet_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    date: Mapped[str] = mapped_column(String(32), nullable=False)
+    time: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
-@dataclass(frozen=True)
-class Reminder:
-    """Созданное напоминание."""
+class Reminder(Base):
+    """Напоминание."""
 
-    id: int
-    text: str
-    time: str
+    __tablename__ = "reminders"
 
-
-def resolve_db_path(path: Path | None = None) -> Path:
-    """Вернуть путь к БД (или путь по умолчанию)."""
-    return path if path is not None else DEFAULT_DB_PATH
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    text: Mapped[str] = mapped_column(String(500), nullable=False)
+    time: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
-def _connect(path: Path) -> sqlite3.Connection:
-    """Открыть соединение SQLite, создав родительскую папку."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path, timeout=10)
-    connection.row_factory = sqlite3.Row
-    return connection
+class Database:
+    """Async-движок и фабрика сессий SQLAlchemy."""
+
+    def __init__(self, url: str = DEFAULT_DATABASE_URL) -> None:
+        self.url = url
+        self.engine: AsyncEngine = create_async_engine(url, future=True)
+        self.session_factory = async_sessionmaker(
+            self.engine,
+            expire_on_commit=False,
+        )
+
+    async def create_tables(self) -> None:
+        """Создать таблицы, если их ещё нет."""
+        async with self.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+    def session(self) -> AsyncSession:
+        """Открыть новую сессию (используйте ``async with``)."""
+        return self.session_factory()
+
+    async def dispose(self) -> None:
+        """Закрыть пул соединений."""
+        await self.engine.dispose()
 
 
-def init_db(path: Path | None = None) -> Path:
-    """Создать таблицы, если их ещё нет."""
-    db_path = resolve_db_path(path)
-    with _connect(db_path) as connection:
-        connection.executescript(SCHEMA)
-    return db_path
-
-
-def book_appointment(
+async def book_appointment(
+    session: AsyncSession,
     *,
     pet_name: str,
     date: str,
     time: str,
-    path: Path | None = None,
 ) -> Appointment:
     """Сохранить запись на приём и вернуть её."""
-    db_path = init_db(path)
-    with _connect(db_path) as connection:
-        cursor = connection.execute(
-            "INSERT INTO appointments (pet_name, date, time) VALUES (?, ?, ?)",
-            (pet_name, date, time),
-        )
-        appointment_id = int(cursor.lastrowid or 0)
-    return Appointment(id=appointment_id, pet_name=pet_name, date=date, time=time)
+    appointment = Appointment(pet_name=pet_name, date=date, time=time)
+    session.add(appointment)
+    await session.commit()
+    await session.refresh(appointment)
+    return appointment
 
 
-def set_reminder(
+async def set_reminder(
+    session: AsyncSession,
     *,
     text: str,
     time: str,
-    path: Path | None = None,
 ) -> Reminder:
     """Сохранить напоминание и вернуть его."""
-    db_path = init_db(path)
-    with _connect(db_path) as connection:
-        cursor = connection.execute(
-            "INSERT INTO reminders (text, time) VALUES (?, ?)",
-            (text, time),
-        )
-        reminder_id = int(cursor.lastrowid or 0)
-    return Reminder(id=reminder_id, text=text, time=time)
+    reminder = Reminder(text=text, time=time)
+    session.add(reminder)
+    await session.commit()
+    await session.refresh(reminder)
+    return reminder
 
 
-def list_appointments(path: Path | None = None) -> list[Appointment]:
-    """Вернуть все записи на приём (для проверок и отладки)."""
-    db_path = init_db(path)
-    with _connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT id, pet_name, date, time FROM appointments ORDER BY id"
-        ).fetchall()
-    return [
-        Appointment(
-            id=int(row["id"]),
-            pet_name=str(row["pet_name"]),
-            date=str(row["date"]),
-            time=str(row["time"]),
-        )
-        for row in rows
-    ]
+async def list_appointments(session: AsyncSession) -> list[Appointment]:
+    """Вернуть все записи на приём."""
+    result = await session.execute(select(Appointment).order_by(Appointment.id))
+    return list(result.scalars().all())
 
 
-def list_reminders(path: Path | None = None) -> list[Reminder]:
-    """Вернуть все напоминания (для проверок и отладки)."""
-    db_path = init_db(path)
-    with _connect(db_path) as connection:
-        rows = connection.execute("SELECT id, text, time FROM reminders ORDER BY id").fetchall()
-    return [
-        Reminder(
-            id=int(row["id"]),
-            text=str(row["text"]),
-            time=str(row["time"]),
-        )
-        for row in rows
-    ]
+async def list_reminders(session: AsyncSession) -> list[Reminder]:
+    """Вернуть все напоминания."""
+    result = await session.execute(select(Reminder).order_by(Reminder.id))
+    return list(result.scalars().all())

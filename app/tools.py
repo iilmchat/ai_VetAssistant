@@ -14,10 +14,10 @@ import json
 import re
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
-from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import book_appointment as create_appointment
 from app.database import set_reminder as create_reminder
@@ -191,11 +191,11 @@ def _pet_name_accusative(name: str) -> str:
     return f"{name}а"
 
 
-def execute_tool(
+async def execute_tool(
     name: str,
     arguments: str | dict[str, Any] | None = None,
     *,
-    db_path: Path | None = None,
+    session: AsyncSession,
 ) -> dict[str, str]:
     """Выполнить инструмент и вернуть статус и человекочитаемое сообщение.
 
@@ -205,11 +205,11 @@ def execute_tool(
     parsed = parse_tool_arguments(arguments)
 
     if name == "book_appointment":
-        appointment = create_appointment(
+        appointment = await create_appointment(
+            session,
             pet_name=_required_string(parsed, "pet_name"),
             date=_required_string(parsed, "date"),
             time=_required_string(parsed, "time"),
-            path=db_path,
         )
         return {
             "status": "success",
@@ -220,10 +220,10 @@ def execute_tool(
         }
 
     if name == "set_reminder":
-        reminder = create_reminder(
+        reminder = await create_reminder(
+            session,
             text=_required_string(parsed, "text"),
             time=_required_string(parsed, "time"),
-            path=db_path,
         )
         return {
             "status": "success",

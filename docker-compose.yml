@@ -8,6 +8,24 @@ x-app: &app
   restart: unless-stopped
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: vetassistant-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vetassistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vetassistant}
+      POSTGRES_DB: ${POSTGRES_DB:-vetassistant}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -U ${POSTGRES_USER:-vetassistant} -d ${POSTGRES_DB:-vetassistant}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     <<: *app
     container_name: vetassistant-api
@@ -18,6 +36,9 @@ services:
       - --port=8000
     ports:
       - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       # Модель GGUF и ChromaDB берутся с хоста, а не копируются в образ.
       - ./data:/app/data
@@ -30,7 +51,7 @@ services:
       VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
       VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
       VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
-      VET_API_DATABASE_PATH: ${VET_API_DATABASE_PATH:-/app/data/vetassistant.db}
+      VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-vetassistant}:${POSTGRES_PASSWORD:-vetassistant}@db:5432/${POSTGRES_DB:-vetassistant}}
     healthcheck:
       test:
         - CMD
@@ -75,3 +96,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+volumes:
+  postgres_data:

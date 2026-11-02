@@ -6,7 +6,7 @@
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
 
 **Статус:** ✅ Стабильный релиз **v0.2.0** (2026-11-03); 🚧 **v0.3.0** в разработке
-**В разработке v0.3.0:** Function Calling и реальный RAG по статьям MSD Vet Manual
+**В разработке v0.3.0:** Function Calling, Agentic Loop, PostgreSQL и реальный RAG по MSD Vet Manual
 **CI/CD:** GitHub Actions — линтеры, тесты и Docker-сборка (бейдж выше)
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -186,6 +186,7 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 - история сообщений в `st.session_state`;
 - слайдер `temperature` (0.0–1.0, по умолчанию 0.7);
 - переключатель Function Calling и бейджи вызова инструментов;
+- раскрывающийся список **«Мои записи»** с приёмами и напоминаниями;
 - кнопка «Очистить историю чата».
 
 Если API выключен, UI покажет сообщение
@@ -255,8 +256,8 @@ regex-роутер `app/router.py`:
 В Streamlit включите в сайдбаре
 **«Разрешить модели использовать инструменты (Function Calling)»**. Если
 модель вернула `tool_calls`, API автоматически выполнит инструмент, сохранит
-результат в SQLite (`data/vetassistant.db`), отправит его обратно модели и
-вернёт финальный текст. В чате останется бейдж
+результат в PostgreSQL (в Docker) или async SQLite (локально), отправит его
+обратно модели и вернёт финальный текст. В чате останется бейдж
 **🛠️ Вызван инструмент: …** с параметрами — как визуальная индикация.
 
 Прямой запрос к API передаёт OpenAI-совместимый массив `tools`:
@@ -293,8 +294,19 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/tools/execute `
 ```
 
 Ответ: `{"status": "success", "message": "Записали Мурзика на 2026-11-04 в 10:00"}`.
-Записи и напоминания хранятся в таблицах `appointments` и `reminders`
-файла `data/vetassistant.db`.
+Записи и напоминания хранятся в таблицах `appointments` и `reminders`.
+В Docker используется PostgreSQL 16, локально — async SQLite
+(`data/vetassistant.db`).
+
+Чтение данных:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/appointments
+Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders
+```
+
+В Streamlit откройте в сайдбаре **«Мои записи»** — там показываются карточки
+ближайших приёмов и напоминаний.
 
 > В финальном ответе agentic loop `tool_calls` остаются как визуальная
 > индикация для UI. Они уже выполнены; `finish_reason` при наличии финального
@@ -324,7 +336,7 @@ ChromaDB и Streamlit).
    docker compose run --rm api python scripts/ingest_knowledge.py
    ```
 
-3. Соберите и запустите оба сервиса:
+3. Соберите и запустите весь стек (`db` + `api` + `ui`):
 
    ```powershell
    docker compose up --build
@@ -341,18 +353,23 @@ ChromaDB и Streamlit).
    ```
 
 Контейнеры монтируют локальную папку `./data` в `/app/data`, поэтому модель
-GGUF и ChromaDB не копируются в образ и остаются доступны API. UI внутри
-Compose обращается к API по имени сервиса `http://api:8000`.
+GGUF и ChromaDB не копируются в образ и остаются доступны API. PostgreSQL
+хранит данные в именованном volume `postgres_data`, поэтому записи и
+напоминания сохраняются между перезапусками. UI внутри Compose обращается к
+API по имени сервиса `http://api:8000`.
 
 Основные переменные окружения можно задать в `.env` (Compose подхватит их
 для подстановки):
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
+| `POSTGRES_USER` | `vetassistant` | Пользователь PostgreSQL |
+| `POSTGRES_PASSWORD` | `vetassistant` | Пароль PostgreSQL |
+| `POSTGRES_DB` | `vetassistant` | Имя базы данных |
+| `VET_API_DATABASE_URL` | `postgresql+asyncpg://...@db:5432/...` | URL БД для SQLAlchemy |
 | `VET_API_MODEL_PATH` | `/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf` | Путь к GGUF внутри контейнера |
 | `VET_API_N_CTX` | `8192` | Размер контекста llama.cpp |
 | `VET_API_N_GPU_LAYERS` | `0` | Слоёв на GPU (0 — CPU) |
-| `VET_API_DATABASE_PATH` | `/app/data/vetassistant.db` | SQLite-БД записей и напоминаний |
 | `VET_UI_API_URL` | `http://api:8000/v1/chat/completions` | Адрес API для UI |
 | `VET_UI_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах UI |
 
@@ -367,6 +384,7 @@ Compose обращается к API по имени сервиса `http://api:8
 - **Инференс:** FastAPI + `llama-cpp-python`, OpenAI-совместимый API и SSE.
 - **RAG:** ChromaDB + sentence-transformers, TXT/PDF, реальные статьи MSD Vet Manual.
 - **Function Calling:** `book_appointment`, `set_reminder`, OpenAI-совместимые `tools`.
+- **База данных:** PostgreSQL 16 + async SQLAlchemy 2.0/asyncpg; SQLite/aiosqlite для локальных тестов.
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
 - **Развёртывание:** Docker Compose, FastAPI + Streamlit UI.

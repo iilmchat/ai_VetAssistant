@@ -14,9 +14,17 @@ import streamlit as st
 
 from app.settings import get_ui_settings
 from app.tools import AVAILABLE_TOOLS, ToolCall
-from app.ui_client import stream_chat_events
+from app.ui_client import fetch_appointments, fetch_reminders, stream_chat_events
 
 ERROR_API_DOWN = "Сервер ветеринара спит, включите uvicorn"
+
+
+def _short_date(value: str) -> str:
+    """Показать ISO-дату как ДД.ММ, иначе вернуть как есть."""
+    parts = value.split("-")
+    if len(parts) == 3:
+        return f"{parts[2]}.{parts[1]}"
+    return value
 
 
 def _init_session() -> None:
@@ -53,6 +61,34 @@ def main() -> None:
             value=False,
             help="Запись на приём и создание напоминаний через tool_calls.",
         )
+        with st.expander("Мои записи", expanded=False):
+            if st.button("Обновить", key="refresh_records", use_container_width=True):
+                st.rerun()
+            try:
+                appointments = fetch_appointments(
+                    settings.api_url,
+                    timeout=settings.timeout_s,
+                )
+                reminders = fetch_reminders(
+                    settings.api_url,
+                    timeout=settings.timeout_s,
+                )
+            except (requests.RequestException, ValueError):
+                st.caption("Не удалось загрузить записи: API недоступен.")
+            else:
+                if not appointments and not reminders:
+                    st.caption("Пока нет записей и напоминаний.")
+                for appointment in appointments:
+                    pet_name = str(appointment.get("pet_name", "—"))
+                    date = _short_date(str(appointment.get("date", "—")))
+                    time = str(appointment.get("time", "—"))
+                    with st.container(border=True):
+                        st.markdown(f"🐾 **{pet_name}** — {date} в {time}")
+                for reminder in reminders:
+                    text = str(reminder.get("text", "—"))
+                    time = str(reminder.get("time", "—"))
+                    with st.container(border=True):
+                        st.markdown(f"⏰ **{text}** — {time}")
         st.divider()
         st.caption(f"API: `{settings.api_url}`")
         st.caption(f"Модель: `{settings.model_id}`")

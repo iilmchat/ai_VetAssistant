@@ -20,6 +20,15 @@ DEFAULT_API_URL = DEFAULT_UI_API_URL
 DEFAULT_TIMEOUT_S = DEFAULT_UI_TIMEOUT_S
 
 
+def api_base_url(api_url: str = DEFAULT_API_URL) -> str:
+    """Получить базовый URL API из полного URL chat/completions."""
+    normalized = api_url.rstrip("/")
+    suffix = "/v1/chat/completions"
+    if normalized.endswith(suffix):
+        return normalized[: -len(suffix)]
+    return normalized
+
+
 @dataclass(frozen=True)
 class ChatStreamEvent:
     """Событие SSE: текст и/или вызов инструмента."""
@@ -181,3 +190,31 @@ def stream_chat(
     ):
         if event.content is not None:
             yield event.content
+
+
+def _get_json_list(url: str, *, timeout: float) -> list[dict[str, Any]]:
+    """GET-запрос, возвращающий список объектов."""
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    payload: Any = response.json()
+    if not isinstance(payload, list):
+        return []
+    return [item for item in payload if isinstance(item, dict)]
+
+
+def fetch_appointments(
+    api_url: str = DEFAULT_API_URL,
+    *,
+    timeout: float = DEFAULT_TIMEOUT_S,
+) -> list[dict[str, Any]]:
+    """Получить записи на приём через ``GET /v1/appointments``."""
+    return _get_json_list(f"{api_base_url(api_url)}/v1/appointments", timeout=timeout)
+
+
+def fetch_reminders(
+    api_url: str = DEFAULT_API_URL,
+    *,
+    timeout: float = DEFAULT_TIMEOUT_S,
+) -> list[dict[str, Any]]:
+    """Получить напоминания через ``GET /v1/reminders``."""
+    return _get_json_list(f"{api_base_url(api_url)}/v1/reminders", timeout=timeout)

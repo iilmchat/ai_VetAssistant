@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.database import list_appointments, list_reminders
 from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION
 from app.settings import DEFAULT_MODEL_ID, get_app_settings
@@ -146,22 +145,25 @@ def fake_model() -> FakeModel:
 
 
 @pytest.fixture
-def tool_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Изолированная SQLite-БД для тестов инструментов."""
-    path = tmp_path / "tools.db"
-    monkeypatch.setenv("VET_API_DATABASE_PATH", str(path))
-    get_app_settings.cache_clear()
-    yield path
-    get_app_settings.cache_clear()
+def db_url(tmp_path: Path) -> str:
+    """Изолированная async SQLite-БД для каждого API-теста."""
+    return f"sqlite+aiosqlite:///{(tmp_path / 'api.db').as_posix()}"
 
 
 @pytest.fixture
-def client(fake_model: FakeModel) -> Iterator[TestClient]:
+def client(
+    fake_model: FakeModel,
+    db_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[TestClient]:
+    monkeypatch.setenv("VET_API_DATABASE_URL", db_url)
+    get_app_settings.cache_clear()
     app.dependency_overrides[get_model] = lambda: fake_model
     app.dependency_overrides[get_knowledge_base] = lambda: None
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+    get_app_settings.cache_clear()
 
 
 def test_chat_completion_returns_openai_shape(client: TestClient, fake_model: FakeModel) -> None:
@@ -474,7 +476,7 @@ def test_emergency_instruction_is_not_added_for_normal_message(
 
 
 def test_agent_loop_executes_tool_and_returns_final_text(
-    client: TestClient, fake_model: FakeModel, tool_db: Path
+    client: TestClient, fake_model: FakeModel
 ) -> None:
     fake_model.responses = [
         _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
@@ -516,14 +518,16 @@ def test_agent_loop_executes_tool_and_returns_final_text(
     assert tool_messages[0]["tool_call_id"] == "call_1"
     assert "Записали Мурзика" in tool_messages[0]["content"]
 
-    appointments = list_appointments(tool_db)
+    appointments_response = client.get("/v1/appointments")
+    assert appointments_response.status_code == 200
+    appointments = appointments_response.json()
     assert len(appointments) == 1
-    assert appointments[0].pet_name == "Мурзик"
-    assert appointments[0].date == "2026-11-04"
+    assert appointments[0]["pet_name"] == "Мурзик"
+    assert appointments[0]["date"] == "2026-11-04"
 
 
 def test_agent_loop_parses_text_tool_call_and_persists_reminder(
-    client: TestClient, fake_model: FakeModel, tool_db: Path
+    client: TestClient, fake_model: FakeModel
 ) -> None:
     fake_model.responses = [
         {
@@ -555,10 +559,12 @@ def test_agent_loop_parses_text_tool_call_and_persists_reminder(
 
     assert response.status_code == 200
     assert response.json()["choices"][0]["message"]["content"] == "Напоминание на 20:00 создано."
-    reminders = list_reminders(tool_db)
+    reminders_response = client.get("/v1/reminders")
+    assert reminders_response.status_code == 200
+    reminders = reminders_response.json()
     assert len(reminders) == 1
-    assert reminders[0].text == "Дать таблетку"
-    assert reminders[0].time == "20:00"
+    assert reminders[0]["text"] == "Дать таблетку"
+    assert reminders[0]["time"] == "20:00"
 
 
 def test_tool_syntax_is_not_parsed_without_tools(
@@ -590,7 +596,7 @@ def test_tool_syntax_is_not_parsed_without_tools(
 
 
 def test_streaming_agent_loop_returns_final_text_and_tool_badge(
-    client: TestClient, fake_model: FakeModel, tool_db: Path
+    client: TestClient, fake_model: FakeModel
 ) -> None:
     fake_model.responses = [
         _tool_response(
@@ -623,10 +629,10 @@ def test_streaming_agent_loop_returns_final_text_and_tool_badge(
     assert first_delta["tool_calls"][0]["id"] == "call_stream"
     assert first_delta["tool_calls"][0]["function"]["name"] == "set_reminder"
     assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
-    assert len(list_reminders(tool_db)) == 1
+    assert len(client.get("/v1/reminders").json()) == 1
 
 
-def test_tool_execute_persists_appointment(client: TestClient, tool_db: Path) -> None:
+def test_tool_execute_persists_appointment(client: TestClient) -> None:
     response = client.post(
         "/v1/tools/execute",
         json={
@@ -639,12 +645,17 @@ def test_tool_execute_persists_appointment(client: TestClient, tool_db: Path) ->
     data = response.json()
     assert data["status"] == "success"
     assert "Записали Мурзика" in data["message"]
-    appointments = list_appointments(tool_db)
+    appointments = client.get("/v1/appointments").json()
     assert len(appointments) == 1
-    assert appointments[0].pet_name == "Мурзик"
+    assert appointments[0]["pet_name"] == "Мурзик"
 
 
-def test_tool_execute_rejects_unknown_tool(client: TestClient, tool_db: Path) -> None:
+def test_read_endpoints_are_empty_by_default(client: TestClient) -> None:
+    assert client.get("/v1/appointments").json() == []
+    assert client.get("/v1/reminders").json() == []
+
+
+def test_tool_execute_rejects_unknown_tool(client: TestClient) -> None:
     response = client.post(
         "/v1/tools/execute",
         json={"name": "drop_database", "arguments": {}},
