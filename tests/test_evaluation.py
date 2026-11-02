@@ -1211,3 +1211,25 @@ def test_parse_args_defaults() -> None:
     assert args.answers == ANSWERS_PATH
     assert args.live is False
     assert args.dry_run is False
+
+
+def test_parse_args_local_api_defaults_and_overrides() -> None:
+    args = parse_args(["--local-api"])
+    assert args.base_url == "http://127.0.0.1:8000/v1"
+    assert args.model_id == "qwen3-8b-vet"
+
+    judge_args = parse_args(["--local-api", "--judge"])
+    assert judge_args.judge_base_url == "http://127.0.0.1:8000/v1"
+    assert judge_args.judge_model_id == "qwen3-8b-vet"
+
+    overridden = parse_args(
+        [
+            "--local-api",
+            "--base-url",
+            "http://example.test/v1",
+            "--model-id",
+            "custom-model",
+        ]
+    )
+    assert overridden.base_url == "http://example.test/v1"
+    assert overridden.model_id == "custom-model"

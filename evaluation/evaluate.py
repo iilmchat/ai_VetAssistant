@@ -68,6 +68,10 @@ DEFAULT_GENERATED_ANSWERS = PROJECT_ROOT / "data" / "eval_answers.jsonl"
 DEFAULT_REPORT = PROJECT_ROOT / "eval_report.json"
 DEFAULT_JUDGE_OUTPUT = PROJECT_ROOT / "data" / "judge_verdicts.jsonl"
 
+#: Локальный FastAPI-сервер VetAssistant (T-022) как OpenAI-совместимый endpoint.
+DEFAULT_LOCAL_API_URL = "http://127.0.0.1:8000/v1"
+DEFAULT_LOCAL_API_MODEL = "qwen3-8b-vet"
+
 #: LM Studio принимает любой непустой api_key; значение нужно только SDK.
 DEFAULT_LOCAL_API_KEY = "lm-studio"
 DEFAULT_MODEL_MAX_TOKENS = 1024
@@ -611,6 +615,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="идентификатор модели на endpoint, например gguf@q4_k_m",
     )
     parser.add_argument(
+        "--local-api",
+        action="store_true",
+        help=(
+            "использовать локальный FastAPI VetAssistant "
+            f"({DEFAULT_LOCAL_API_URL}, модель {DEFAULT_LOCAL_API_MODEL}); "
+            "--base-url/--model-id переопределяют значения"
+        ),
+    )
+    parser.add_argument(
         "--api-key",
         default=DEFAULT_LOCAL_API_KEY,
         metavar="KEY",
@@ -712,7 +725,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="посчитать метрики, но не записывать файл отчёта",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.local_api:
+        args.base_url = args.base_url or DEFAULT_LOCAL_API_URL
+        args.model_id = args.model_id or DEFAULT_LOCAL_API_MODEL
+        if args.judge:
+            args.judge_base_url = args.judge_base_url or args.base_url
+            args.judge_model_id = args.judge_model_id or args.model_id
+    return args
 
 
 async def _evaluate_and_report(
