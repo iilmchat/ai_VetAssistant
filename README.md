@@ -4,13 +4,29 @@
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
 
-**Статус:** 🚧 Подготовка релиза **v0.2.0** (предыдущий релиз — v0.1.0)
+**Статус:** ✅ Стабильный релиз **v0.2.0** (2026-11-03)
+**CI/CD:** GitHub Actions — линтеры, тесты и Docker-сборка (бейдж выше)
+**Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
 **API:** FastAPI, OpenAI-совместимый `POST /v1/chat/completions`
 **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
-## 🏁 Релиз v0.1.0
+## 🏁 Релиз v0.2.0
+
+- **Streamlit UI** с потоковым выводом, историей чата и настройкой RAG.
+- **RAG на ChromaDB**: локальная база знаний MSD Vet Manual и
+  мультиязычная модель эмбеддингов.
+- **Router & Triage**: мгновенная детекция экстренных симптомов и
+  prompt injection до вызова LLM; F1 = **1.0000** на бенчмарке.
+- **Docker-дистрибутив**: FastAPI и Streamlit UI одной командой
+  `docker compose up --build`, модель и ChromaDB монтируются из `data/`.
+- **CI/CD**: GitHub Actions проверяет `ruff`, `mypy`, `pytest` (447 тестов)
+  и собирает Docker-образ на каждый push/PR в `main`.
+- Подробности: [CHANGELOG.md](docs/CHANGELOG.md),
+  [EVAL_ROUTER.md](docs/development/reports/EVAL_ROUTER.md).
+
+## 🏁 Предыдущий релиз v0.1.0
 
 - Дообучена **Qwen3-8B Vet** (QLoRA SFT, GGUF Q4_K_M); `train_loss=0.5922`,
   `eval_loss=0.483`.
@@ -36,6 +52,7 @@
 | [**synthetic_prompts.md**](docs/synthetic_prompts.md) | Библиотека промптов для двухшаговой генерации (Шаг A + Шаг B) и Safety-кейсов. |
 | [**eval_harness.md**](docs/eval_harness.md) | Структура бенчмарка, JSONL-схемы, метрики (MCQ, Safety, Multi-turn) и код `evaluate.py`. |
 | [**TRAINING.md**](docs/development/TRAINING.md) | Развертывание на GPU-сервере Selectel и запуск обучения. |
+| [**BRANCH_PROTECTION.md**](docs/development/BRANCH_PROTECTION.md) | Настройка защиты `main`: PR, обязательные CI-проверки. |
 | [**RULES.md**](docs/development/RULES.md) | **Обязательно к прочтению.** Правила коммитов, код-стайла и отчетности для агента. |
 | [**TODO.md**](TODO.md) | Пошаговый план работ с зависимостями и Definition of Done. |
 

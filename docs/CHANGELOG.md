@@ -4,13 +4,13 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [0.2.0] — 2026-11-02
+## [0.2.0] — 2026-11-03
 
-> Статус: release candidate. Финальная фиксация — после smoke-теста
-> Docker-стека (`docker compose up --build`).
+> Официальный стабильный релиз. Тег: `v0.2.0`.
+> CI: GitHub Actions, прогон `41527072842` — success.
 
-Второй релиз: Streamlit UI, локальная RAG-база знаний, Router & Triage
-и Docker-стек для запуска всего приложения одной командой.
+Второй релиз: Streamlit UI, локальная RAG-база знаний, Router & Triage,
+Docker-стек для запуска всего приложения одной командой и CI/CD-пайплайн.
 
 ### Добавлено
 
@@ -49,9 +49,13 @@
 | Проверка Docker Compose | `docker compose config` — OK |
 | Сборка Docker-образа | `docker compose build api` — OK (3.68 ГБ) |
 | Smoke-тест контейнеров | API `/health` 200, UI `/_stcore/health` — `ok` |
+| Тесты | **447 passed** |
+| CI (GitHub Actions) | **Lint & Test + Docker Build — success** |
 
 ### Планируется
 
+- Function Calling для ассистента.
+- Расширение RAG реальными ветеринарными справочниками.
 - Расширенный Safety-бенчмарк и независимые модели-судьи.
 - Интеграция с внешним веб-приложением.
 
