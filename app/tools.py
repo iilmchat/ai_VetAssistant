@@ -14,9 +14,13 @@ import json
 import re
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.database import book_appointment as create_appointment
+from app.database import set_reminder as create_reminder
 
 ToolName = Literal["book_appointment", "set_reminder"]
 
@@ -130,12 +134,103 @@ class ToolCall(BaseModel):
 
 
 class ToolExecutionRequest(BaseModel):
-    """Тело заглушки ``POST /v1/tools/execute``."""
+    """Тело запроса ``POST /v1/tools/execute``."""
 
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(min_length=1)
     arguments: dict[str, Any] | str = Field(default_factory=dict)
+
+
+class ToolExecutionError(ValueError):
+    """Инструмент не найден или получил некорректные аргументы."""
+
+
+def parse_tool_arguments(arguments: str | dict[str, Any] | None) -> dict[str, Any]:
+    """Разобрать аргументы инструмента из JSON-строки или словаря.
+
+    Raises:
+        ToolExecutionError: аргументы не являются JSON-объектом.
+    """
+    if arguments is None:
+        return {}
+    if isinstance(arguments, str):
+        try:
+            parsed: Any = json.loads(arguments)
+        except json.JSONDecodeError as exc:
+            raise ToolExecutionError(f"аргументы инструмента не JSON: {exc}") from exc
+    elif isinstance(arguments, dict):
+        parsed = arguments
+    else:
+        raise ToolExecutionError("аргументы инструмента должны быть JSON-объектом")
+
+    if not isinstance(parsed, dict):
+        raise ToolExecutionError("аргументы инструмента должны быть JSON-объектом")
+    return parsed
+
+
+def _required_string(arguments: dict[str, Any], name: str) -> str:
+    """Взять обязательный непустой строковый аргумент."""
+    value = arguments.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ToolExecutionError(f"не хватает параметра {name}")
+    return value.strip()
+
+
+def _pet_name_accusative(name: str) -> str:
+    """Простая эвристика для фразы «Записали <кличку в винительном>»."""
+    lower = name.lower()
+    if lower.endswith("а"):
+        return f"{name[:-1]}у"
+    if lower.endswith("я"):
+        return f"{name[:-1]}ю"
+    if lower.endswith(("й", "ь")):
+        return f"{name[:-1]}я"
+    if lower.endswith(("о", "е", "ё", "у", "ю", "ы", "и", "э")):
+        return name
+    return f"{name}а"
+
+
+def execute_tool(
+    name: str,
+    arguments: str | dict[str, Any] | None = None,
+    *,
+    db_path: Path | None = None,
+) -> dict[str, str]:
+    """Выполнить инструмент и вернуть статус и человекочитаемое сообщение.
+
+    Raises:
+        ToolExecutionError: неизвестный инструмент или некорректные аргументы.
+    """
+    parsed = parse_tool_arguments(arguments)
+
+    if name == "book_appointment":
+        appointment = create_appointment(
+            pet_name=_required_string(parsed, "pet_name"),
+            date=_required_string(parsed, "date"),
+            time=_required_string(parsed, "time"),
+            path=db_path,
+        )
+        return {
+            "status": "success",
+            "message": (
+                f"Записали {_pet_name_accusative(appointment.pet_name)} "
+                f"на {appointment.date} в {appointment.time}"
+            ),
+        }
+
+    if name == "set_reminder":
+        reminder = create_reminder(
+            text=_required_string(parsed, "text"),
+            time=_required_string(parsed, "time"),
+            path=db_path,
+        )
+        return {
+            "status": "success",
+            "message": f"Напоминание создано: {reminder.text} ({reminder.time})",
+        }
+
+    raise ToolExecutionError(f"неизвестный инструмент: {name}")
 
 
 def build_tools_instruction(tools: Sequence[ToolDefinition]) -> str:

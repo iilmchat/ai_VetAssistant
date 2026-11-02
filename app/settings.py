@@ -62,6 +62,10 @@ class AppSettings(BaseSettings):
         description="Модель эмбеддингов sentence-transformers",
     )
     rag_top_k: int = Field(default=3, ge=1, le=10, description="Сколько чанков извлекать")
+    database_path: Path = Field(
+        default=PROJECT_ROOT / "data" / "vetassistant.db",
+        description="SQLite-БД для записей и напоминаний",
+    )
 
 
 @lru_cache(maxsize=1)

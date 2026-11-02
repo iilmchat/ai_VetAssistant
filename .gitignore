@@ -26,6 +26,8 @@ data/*.jsonl
 !data/router_benchmark.jsonl
 data/*.csv
 data/*.parquet
+data/*.db
+data/*.sqlite3
 
 # --- Артефакты обучения и моделей (готовятся на GPU-сервере) ---
 models/

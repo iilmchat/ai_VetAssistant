@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.database import list_appointments, list_reminders
 from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION
-from app.settings import DEFAULT_MODEL_ID
+from app.settings import DEFAULT_MODEL_ID, get_app_settings
 from app.tools import BOOK_APPOINTMENT_TOOL, SET_REMINDER_TOOL
 
 
@@ -21,9 +23,12 @@ class FakeModel:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
         self.response: dict[str, Any] | None = None
+        self.responses: list[dict[str, Any]] = []
 
     def create_chat_completion(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
+        if self.responses:
+            return self.responses.pop(0)
         if self.response is not None:
             return self.response
         if kwargs.get("stream"):
@@ -117,9 +122,37 @@ def _tool_response(
     }
 
 
+def _final_response(text: str) -> dict[str, Any]:
+    """Фикстура финального текстового ответа после выполнения инструмента."""
+    return {
+        "id": "chatcmpl-final",
+        "object": "chat.completion",
+        "created": 124,
+        "model": "fake",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": text},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
+    }
+
+
 @pytest.fixture
 def fake_model() -> FakeModel:
     return FakeModel()
+
+
+@pytest.fixture
+def tool_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Изолированная SQLite-БД для тестов инструментов."""
+    path = tmp_path / "tools.db"
+    monkeypatch.setenv("VET_API_DATABASE_PATH", str(path))
+    get_app_settings.cache_clear()
+    yield path
+    get_app_settings.cache_clear()
 
 
 @pytest.fixture
@@ -440,12 +473,13 @@ def test_emergency_instruction_is_not_added_for_normal_message(
     assert EMERGENCY_SYSTEM_INSTRUCTION not in fake_model.calls[0]["messages"][0]["content"]
 
 
-def test_native_tool_calls_are_returned_in_openai_format(
-    client: TestClient, fake_model: FakeModel
+def test_agent_loop_executes_tool_and_returns_final_text(
+    client: TestClient, fake_model: FakeModel, tool_db: Path
 ) -> None:
-    fake_model.response = _tool_response(
-        arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}
-    )
+    fake_model.responses = [
+        _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
+        _final_response("Я записал Мурзика на 4 ноября в 10:00."),
+    ]
 
     response = client.post(
         "/v1/chat/completions",
@@ -458,37 +492,58 @@ def test_native_tool_calls_are_returned_in_openai_format(
     assert response.status_code == 200
     data = response.json()
     choice = data["choices"][0]
-    assert choice["finish_reason"] == "tool_calls"
-    assert choice["message"]["content"] is None
+    assert choice["finish_reason"] == "stop"
+    assert choice["message"]["content"] == "Я записал Мурзика на 4 ноября в 10:00."
     tool_call = choice["message"]["tool_calls"][0]
     assert tool_call["id"] == "call_1"
-    assert tool_call["type"] == "function"
     assert tool_call["function"]["name"] == "book_appointment"
-    assert json.loads(tool_call["function"]["arguments"])["pet_name"] == "Мурзик"
 
-    call = fake_model.calls[0]
-    assert call["tool_choice"] == "auto"
-    assert call["tools"][0]["function"]["name"] == "book_appointment"
-    assert "верни ТОЛЬКО JSON" in call["messages"][0]["content"]
+    assert len(fake_model.calls) == 2
+    first_call = fake_model.calls[0]
+    assert first_call["tool_choice"] == "auto"
+    assert first_call["tools"][0]["function"]["name"] == "book_appointment"
+    assert "верни ТОЛЬКО JSON" in first_call["messages"][0]["content"]
+
+    second_messages = fake_model.calls[1]["messages"]
+    assistant_tool_message = next(
+        message
+        for message in second_messages
+        if message["role"] == "assistant" and message.get("tool_calls")
+    )
+    assert assistant_tool_message["tool_calls"][0]["id"] == "call_1"
+    tool_messages = [message for message in second_messages if message["role"] == "tool"]
+    assert len(tool_messages) == 1
+    assert tool_messages[0]["tool_call_id"] == "call_1"
+    assert "Записали Мурзика" in tool_messages[0]["content"]
+
+    appointments = list_appointments(tool_db)
+    assert len(appointments) == 1
+    assert appointments[0].pet_name == "Мурзик"
+    assert appointments[0].date == "2026-11-04"
 
 
-def test_tool_call_from_text_is_parsed(client: TestClient, fake_model: FakeModel) -> None:
-    fake_model.response = {
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": (
-                        '<tool_call>{"name": "set_reminder", "arguments": '
-                        '{"time": "20:00", "text": "Дать таблетку"}}</tool_call>'
-                    ),
-                },
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {},
-    }
+def test_agent_loop_parses_text_tool_call_and_persists_reminder(
+    client: TestClient, fake_model: FakeModel, tool_db: Path
+) -> None:
+    fake_model.responses = [
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            '<tool_call>{"name": "set_reminder", "arguments": '
+                            '{"time": "20:00", "text": "Дать таблетку"}}</tool_call>'
+                        ),
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {},
+        },
+        _final_response("Напоминание на 20:00 создано."),
+    ]
 
     response = client.post(
         "/v1/chat/completions",
@@ -499,9 +554,11 @@ def test_tool_call_from_text_is_parsed(client: TestClient, fake_model: FakeModel
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["choices"][0]["finish_reason"] == "tool_calls"
-    assert data["choices"][0]["message"]["tool_calls"][0]["function"]["name"] == "set_reminder"
+    assert response.json()["choices"][0]["message"]["content"] == "Напоминание на 20:00 создано."
+    reminders = list_reminders(tool_db)
+    assert len(reminders) == 1
+    assert reminders[0].text == "Дать таблетку"
+    assert reminders[0].time == "20:00"
 
 
 def test_tool_syntax_is_not_parsed_without_tools(
@@ -532,14 +589,17 @@ def test_tool_syntax_is_not_parsed_without_tools(
     assert message["content"].startswith('{"name": "set_reminder"')
 
 
-def test_streaming_tool_call_is_returned_as_sse(
-    client: TestClient, fake_model: FakeModel
+def test_streaming_agent_loop_returns_final_text_and_tool_badge(
+    client: TestClient, fake_model: FakeModel, tool_db: Path
 ) -> None:
-    fake_model.response = _tool_response(
-        name="set_reminder",
-        arguments={"time": "20:00", "text": "Дать таблетку"},
-        call_id="call_stream",
-    )
+    fake_model.responses = [
+        _tool_response(
+            name="set_reminder",
+            arguments={"time": "20:00", "text": "Дать таблетку"},
+            call_id="call_stream",
+        ),
+        _final_response("Напоминание на 20:00 создано."),
+    ]
 
     response = client.post(
         "/v1/chat/completions",
@@ -558,17 +618,15 @@ def test_streaming_tool_call_is_returned_as_sse(
     ]
     assert lines[-1] == "[DONE]"
     chunks = [json.loads(line) for line in lines[:-1]]
-    tool_delta = next(
-        chunk["choices"][0]["delta"]["tool_calls"]
-        for chunk in chunks
-        if chunk["choices"][0]["delta"].get("tool_calls")
-    )
-    assert tool_delta[0]["id"] == "call_stream"
-    assert tool_delta[0]["function"]["name"] == "set_reminder"
-    assert chunks[-1]["choices"][0]["finish_reason"] == "tool_calls"
+    first_delta = chunks[0]["choices"][0]["delta"]
+    assert first_delta["content"] == "Напоминание на 20:00 создано."
+    assert first_delta["tool_calls"][0]["id"] == "call_stream"
+    assert first_delta["tool_calls"][0]["function"]["name"] == "set_reminder"
+    assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
+    assert len(list_reminders(tool_db)) == 1
 
 
-def test_tool_execute_stub_returns_success(client: TestClient) -> None:
+def test_tool_execute_persists_appointment(client: TestClient, tool_db: Path) -> None:
     response = client.post(
         "/v1/tools/execute",
         json={
@@ -578,7 +636,22 @@ def test_tool_execute_stub_returns_success(client: TestClient) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "success"}
+    data = response.json()
+    assert data["status"] == "success"
+    assert "Записали Мурзика" in data["message"]
+    appointments = list_appointments(tool_db)
+    assert len(appointments) == 1
+    assert appointments[0].pet_name == "Мурзик"
+
+
+def test_tool_execute_rejects_unknown_tool(client: TestClient, tool_db: Path) -> None:
+    response = client.post(
+        "/v1/tools/execute",
+        json={"name": "drop_database", "arguments": {}},
+    )
+
+    assert response.status_code == 400
+    assert "неизвестный инструмент" in response.json()["detail"].lower()
 
 
 def test_empty_messages_are_rejected(client: TestClient) -> None:

@@ -219,6 +219,13 @@
 - **Оценка:** 0.5
 - **Статус:** выполнено: GitHub Release `v0.2.0 - VetAssistant MVP` опубликован; `release.yml` и бейдж добавлены.
 
+### [x] T-032. Agentic Loop и реальное выполнение инструментов
+- **Зависит от:** T-030
+- **Что:** `app/database.py` (SQLite, `appointments`, `reminders`), реальное выполнение `book_appointment`/`set_reminder`, Agentic Loop в `/v1/chat/completions` с повторным вызовом LLM и ролью `tool`, UI-бейджи как индикация уже выполненных вызовов.
+- **DoD:** инструмент сохраняет данные в SQLite, API автоматически выполняет `tool_calls` и возвращает финальный текст, тесты БД и agentic loop с замоканной LLM.
+- **Оценка:** 2
+- **Статус:** выполнено: SQLite, реальное выполнение, loop на 2+ вызова модели, изолированные тесты БД и API; `pytest` 484 passed, `ruff`/`mypy` чисто.
+
 ---
 
 ## Backlog

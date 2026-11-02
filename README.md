@@ -254,8 +254,10 @@ regex-роутер `app/router.py`:
 
 В Streamlit включите в сайдбаре
 **«Разрешить модели использовать инструменты (Function Calling)»**. Если
-модель вернула `tool_calls`, в чате появится бейдж
-**🛠️ Вызван инструмент: …** с параметрами.
+модель вернула `tool_calls`, API автоматически выполнит инструмент, сохранит
+результат в SQLite (`data/vetassistant.db`), отправит его обратно модели и
+вернёт финальный текст. В чате останется бейдж
+**🛠️ Вызван инструмент: …** с параметрами — как визуальная индикация.
 
 Прямой запрос к API передаёт OpenAI-совместимый массив `tools`:
 
@@ -282,7 +284,7 @@ regex-роутер `app/router.py`:
 }
 ```
 
-Заглушка выполнения инструмента:
+Прямой вызов выполнения инструмента:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/tools/execute `
@@ -290,8 +292,13 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/tools/execute `
   -Body '{"name":"book_appointment","arguments":{"date":"2026-11-04","time":"10:00","pet_name":"Мурзик"}}'
 ```
 
-Ответ: `{"status": "success"}`. Реальная интеграция с календарём и
-напоминаниями появится в следующих итерациях.
+Ответ: `{"status": "success", "message": "Записали Мурзика на 2026-11-04 в 10:00"}`.
+Записи и напоминания хранятся в таблицах `appointments` и `reminders`
+файла `data/vetassistant.db`.
+
+> В финальном ответе agentic loop `tool_calls` остаются как визуальная
+> индикация для UI. Они уже выполнены; `finish_reason` при наличии финального
+> текста равен `stop`.
 
 ## 🐳 Запуск через Docker Compose
 
@@ -345,6 +352,7 @@ Compose обращается к API по имени сервиса `http://api:8
 | `VET_API_MODEL_PATH` | `/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf` | Путь к GGUF внутри контейнера |
 | `VET_API_N_CTX` | `8192` | Размер контекста llama.cpp |
 | `VET_API_N_GPU_LAYERS` | `0` | Слоёв на GPU (0 — CPU) |
+| `VET_API_DATABASE_PATH` | `/app/data/vetassistant.db` | SQLite-БД записей и напоминаний |
 | `VET_UI_API_URL` | `http://api:8000/v1/chat/completions` | Адрес API для UI |
 | `VET_UI_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах UI |
 

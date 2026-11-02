@@ -30,6 +30,7 @@ services:
       VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
       VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
       VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+      VET_API_DATABASE_PATH: ${VET_API_DATABASE_PATH:-/app/data/vetassistant.db}
     healthcheck:
       test:
         - CMD

@@ -14,6 +14,12 @@
   `POST /v1/tools/execute` (T-030).
 - Streamlit UI: переключатель Function Calling и бейджи
   «🛠️ Вызван инструмент: …» с параметрами (T-030).
+- Agentic Loop: API выполняет `tool_calls`, передаёт результат обратно модели
+  и возвращает финальный текст; в финальном ответе вызовы остаются как
+  индикация для UI (T-032).
+- SQLite-хранилище `app/database.py`: таблицы `appointments` и `reminders`,
+  реальное выполнение `book_appointment` и `set_reminder`, настройка
+  `VET_API_DATABASE_PATH` (T-032).
 - Реальный RAG: `scripts/download_msd.py` скачивает статьи MSD Vet Manual
   в `data/knowledge/real/`; `scripts/ingest_knowledge.py` рекурсивно читает
   TXT и PDF через `pypdf` (T-030).

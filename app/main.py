@@ -16,6 +16,7 @@ import time
 import uuid
 from collections.abc import Iterator, Sequence
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Any, Literal, Protocol, cast
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -29,7 +30,9 @@ from app.settings import AppSettings, get_app_settings
 from app.tools import (
     ToolCall,
     ToolDefinition,
+    ToolExecutionError,
     ToolExecutionRequest,
+    execute_tool,
     normalize_native_tool_calls,
     parse_tool_calls,
     with_tools_instruction,
@@ -38,6 +41,7 @@ from app.tools import (
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 0.95
 DEFAULT_MAX_TOKENS = 1024
+MAX_AGENT_STEPS = 3
 
 #: Системная инструкция ветеринарного ассистента (добавляется, если клиент
 #: не передал собственный system message).
@@ -196,13 +200,13 @@ def _generation_kwargs(request: ChatCompletionRequest) -> dict[str, Any]:
     return kwargs
 
 
-def _complete(
+def _generate_once(
     model: ChatModel,
-    messages: Sequence[dict[str, str]],
+    messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
 ) -> ChatCompletionResponse:
-    """Сгенерировать полный ответ и привести его к формату OpenAI."""
+    """Один вызов модели с приведением ответа к формату OpenAI."""
     result = model.create_chat_completion(messages=messages, **_generation_kwargs(request))
     choices = result.get("choices") or []
     if not choices:
@@ -248,6 +252,79 @@ def _complete(
     )
 
 
+def _execute_tool_calls(
+    tool_calls: Sequence[ToolCall],
+    *,
+    db_path: Path | None,
+) -> list[dict[str, Any]]:
+    """Выполнить вызовы и сформировать сообщения с ролью ``tool``."""
+    messages: list[dict[str, Any]] = []
+    for tool_call in tool_calls:
+        name = tool_call.function.name
+        try:
+            result = execute_tool(
+                name,
+                tool_call.function.arguments,
+                db_path=db_path,
+            )
+        except ToolExecutionError as exc:
+            logger.warning("Agent: инструмент {} не выполнен — {}", name, exc)
+            result = {"status": "error", "message": str(exc)}
+        except Exception as exc:
+            logger.exception("Agent: ошибка выполнения инструмента {}", name)
+            result = {
+                "status": "error",
+                "message": f"Ошибка выполнения инструмента {name}: {exc}",
+            }
+
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": name,
+                "content": json.dumps(result, ensure_ascii=False),
+            }
+        )
+    return messages
+
+
+def _complete(
+    model: ChatModel,
+    messages: Sequence[dict[str, Any]],
+    request: ChatCompletionRequest,
+    model_name: str,
+    *,
+    db_path: Path | None = None,
+) -> ChatCompletionResponse:
+    """Сгенерировать ответ, выполняя tool_calls в agentic loop."""
+    working = [dict(message) for message in messages]
+    executed: list[ToolCall] = []
+    response = _generate_once(model, working, request, model_name)
+
+    for _ in range(MAX_AGENT_STEPS):
+        message = response.choices[0].message
+        tool_calls = message.tool_calls or []
+        if not tool_calls:
+            break
+
+        executed.extend(tool_calls)
+        logger.info("Agent: выполняю инструментов: {}", len(tool_calls))
+        working.append(
+            {
+                "role": "assistant",
+                "content": message.content or "",
+                "tool_calls": [tool_call.model_dump() for tool_call in tool_calls],
+            }
+        )
+        working.extend(_execute_tool_calls(tool_calls, db_path=db_path))
+        response = _generate_once(model, working, request, model_name)
+
+    if executed:
+        # Оставляем вызовы в ответе как визуальную индикацию для UI.
+        response.choices[0].message.tool_calls = executed
+    return response
+
+
 def _sse_chunk(payload: dict[str, Any]) -> str:
     """Сериализовать один SSE-чанк."""
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -255,80 +332,48 @@ def _sse_chunk(payload: dict[str, Any]) -> str:
 
 def _stream_with_tools(
     model: ChatModel,
-    messages: Sequence[dict[str, str]],
+    messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
+    *,
+    db_path: Path | None = None,
 ) -> Iterator[str]:
-    """Отдать SSE-поток для запроса с инструментами.
+    """Отдать SSE-поток после выполнения agentic loop.
 
-    Модель вызывается без ``stream``, чтобы корректно разобрать цельный
-    JSON/tool_call. После разбора чанки формируются вручную в формате OpenAI.
+    Модель вызывается без ``stream``, чтобы корректно разобрать tool_calls
+    и выполнить инструменты. Финальный текст отдаётся одним чанком; вызовы
+    инструментов остаются в ``delta.tool_calls`` как индикация для UI.
     """
     try:
-        response = _complete(model, messages, request, model_name)
-        choice = response.choices[0]
-        message = choice.message
+        response = _complete(model, messages, request, model_name, db_path=db_path)
+        message = response.choices[0].message
+        delta: dict[str, Any] = {
+            "role": "assistant",
+            "content": message.content or "",
+        }
         if message.tool_calls:
-            tool_calls = [
+            delta["tool_calls"] = [
                 {"index": index, **tool_call.model_dump()}
                 for index, tool_call in enumerate(message.tool_calls)
             ]
-            yield _sse_chunk(
-                {
-                    "id": response.id,
-                    "object": "chat.completion.chunk",
-                    "created": response.created,
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant",
-                                "content": message.content,
-                                "tool_calls": tool_calls,
-                            },
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-            )
-            yield _sse_chunk(
-                {
-                    "id": response.id,
-                    "object": "chat.completion.chunk",
-                    "created": response.created,
-                    "model": model_name,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
-                }
-            )
-        else:
-            yield _sse_chunk(
-                {
-                    "id": response.id,
-                    "object": "chat.completion.chunk",
-                    "created": response.created,
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant",
-                                "content": message.content or "",
-                            },
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-            )
-            yield _sse_chunk(
-                {
-                    "id": response.id,
-                    "object": "chat.completion.chunk",
-                    "created": response.created,
-                    "model": model_name,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                }
-            )
+        yield _sse_chunk(
+            {
+                "id": response.id,
+                "object": "chat.completion.chunk",
+                "created": response.created,
+                "model": model_name,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+            }
+        )
+        yield _sse_chunk(
+            {
+                "id": response.id,
+                "object": "chat.completion.chunk",
+                "created": response.created,
+                "model": model_name,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+        )
     except Exception as exc:
         logger.error("Ошибка генерации с инструментами: {}", exc)
         error = {"error": {"message": str(exc), "type": "server_error"}}
@@ -338,13 +383,21 @@ def _stream_with_tools(
 
 def _stream(
     model: ChatModel,
-    messages: Sequence[dict[str, str]],
+    messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
+    *,
+    db_path: Path | None = None,
 ) -> Iterator[str]:
     """Отдать ответ потоком SSE в формате OpenAI."""
     if request.tools:
-        yield from _stream_with_tools(model, messages, request, model_name)
+        yield from _stream_with_tools(
+            model,
+            messages,
+            request,
+            model_name,
+            db_path=db_path,
+        )
         return
 
     try:
@@ -421,16 +474,36 @@ def chat_completions(
 
     if request.stream:
         return StreamingResponse(
-            _stream(model, messages, request, model_name),
+            _stream(
+                model,
+                messages,
+                request,
+                model_name,
+                db_path=settings.database_path,
+            ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    return _complete(model, messages, request, model_name)
+    return _complete(
+        model,
+        messages,
+        request,
+        model_name,
+        db_path=settings.database_path,
+    )
 
 
 @app.post("/v1/tools/execute")
-def execute_tool(request: ToolExecutionRequest) -> dict[str, str]:
-    """Заглушка выполнения инструмента: логирует вызов и подтверждает успех."""
+def execute_tool_endpoint(request: ToolExecutionRequest) -> dict[str, str]:
+    """Выполнить инструмент и сохранить результат в SQLite."""
+    settings = get_app_settings()
     logger.info("Tool execute: name={} arguments={}", request.name, request.arguments)
-    return {"status": "success"}
+    try:
+        return execute_tool(
+            request.name,
+            request.arguments,
+            db_path=settings.database_path,
+        )
+    except ToolExecutionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
