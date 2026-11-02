@@ -2,10 +2,23 @@
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
 
-**Статус:** Проектирование и подготовка данных (Фаза 1)
-**Целевой инференс:** llama.cpp / Ollama (Q4_K_M, 8-16 ГБ RAM)
+**Статус:** ✅ Релиз **v0.1.0** (2026-11-02)
+**Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
+**API:** FastAPI, OpenAI-совместимый `POST /v1/chat/completions`
 **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 **Генерация данных:** Зарубежные LLM через API (слой абстракции)
+
+## 🏁 Релиз v0.1.0
+
+- Дообучена **Qwen3-8B Vet** (QLoRA SFT, GGUF Q4_K_M); `train_loss=0.5922`,
+  `eval_loss=0.483`.
+- PetQA-Bench: **2000/2000** ответов, LLM-Judge — **4.5185 / 5**,
+  **97.7%** оценок ≥ 4.
+- Safety через локальный API: **passed=2, failed=0** (парацетамол, феназепам).
+- Модель интегрирована в **FastAPI** с OpenAI-совместимым API и SSE-стримингом,
+  работает локально через `llama-cpp-python`.
+- Подробности: [MODEL_CARD.md](MODEL_CARD.md), [EVAL_V1.md](docs/development/reports/EVAL_V1.md),
+  [CHANGELOG.md](docs/CHANGELOG.md).
 
 ## 📚 Документация проекта
 
@@ -14,6 +27,9 @@
 | Документ | Описание |
 |---|---|
 | [**Design.md**](docs/development/Design_v1.md) | **Источник истины.** Архитектура пайплайна, выбор моделей, инфраструктура, риски. |
+| [**MODEL_CARD.md**](MODEL_CARD.md) | Карточка модели: назначение, данные, метрики, ограничения. |
+| [**EVAL_V1.md**](docs/development/reports/EVAL_V1.md) | Отчёт об обучении, генерации, LLM-Judge и Safety-проверке. |
+| [**CHANGELOG.md**](docs/CHANGELOG.md) | История релизов и ключевые вехи проекта. |
 | [**synthetic_prompts.md**](docs/synthetic_prompts.md) | Библиотека промптов для двухшаговой генерации (Шаг A + Шаг B) и Safety-кейсов. |
 | [**eval_harness.md**](docs/eval_harness.md) | Структура бенчмарка, JSONL-схемы, метрики (MCQ, Safety, Multi-turn) и код `evaluate.py`. |
 | [**TRAINING.md**](docs/development/TRAINING.md) | Развертывание на GPU-сервере Selectel и запуск обучения. |
@@ -67,6 +83,12 @@ python scripts/sync_data.py pull
 ### 3. Запуск API
 
 ```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Эквивалентный вариант, если `uvicorn` доступен как консольная команда:
+
+```powershell
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -105,6 +127,9 @@ python scripts/test_safety.py `
 `POST /v1/chat/completions` и проверяет отсутствие назначения запрещённых
 препаратов, наличие отказа и направления к ветеринару.
 
+Результат релиза v0.1.0: **passed=2, failed=0** — оба кейса (парацетамол и
+феназепам) корректно отказали и направили к ветеринару.
+
 ### 5. Оценка через локальный API
 
 Флаг `--local-api` подставляет `http://127.0.0.1:8000/v1` и модель
@@ -119,8 +144,9 @@ python evaluation/evaluate.py --local-api `
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
-- **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py).
-- **Оценка:** `evaluate.py` + API LLM-Judge.
+- **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py), GGUF Q4_K_M/Q5_K_M.
+- **Инференс:** FastAPI + `llama-cpp-python`, OpenAI-совместимый API и SSE.
+- **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`.
 
 ## 💾 Работа с данными (DVC)
 
