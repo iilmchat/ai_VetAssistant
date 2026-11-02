@@ -1,0 +1,6 @@
+outs:
+- md5: 17b57d6dc2c5d4fbd95eb4d2ac035651.dir
+  size: 10878896896
+  nfiles: 2
+  hash: md5
+  path: gguf
