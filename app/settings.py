@@ -41,6 +41,21 @@ class AppSettings(BaseSettings):
     n_ctx: int = Field(default=8192, ge=512, description="Размер контекста llama.cpp")
     n_threads: int | None = Field(default=None, ge=1, description="Потоки CPU (None — авто)")
     n_gpu_layers: int = Field(default=0, ge=0, description="Слоёв на GPU (0 — только CPU)")
+    chroma_dir: Path = Field(
+        default=PROJECT_ROOT / "data" / "chroma_db",
+        description="Папка локальной ChromaDB",
+    )
+    chroma_collection: str = Field(
+        default="msd_vet_manual",
+        min_length=1,
+        description="Имя коллекции ChromaDB",
+    )
+    embedding_model: str = Field(
+        default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        min_length=1,
+        description="Модель эмбеддингов sentence-transformers",
+    )
+    rag_top_k: int = Field(default=3, ge=1, le=10, description="Сколько чанков извлекать")
 
 
 @lru_cache(maxsize=1)

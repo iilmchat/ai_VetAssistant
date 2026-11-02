@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
 from app.settings import AppSettings, get_app_settings
 
 DEFAULT_TEMPERATURE = 0.2
@@ -58,6 +59,10 @@ class ChatCompletionRequest(BaseModel):
     top_p: float = Field(default=DEFAULT_TOP_P, gt=0.0, le=1.0)
     max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, ge=1)
     stream: bool = False
+    use_rag: bool = Field(
+        default=False,
+        description="Использовать поиск по локальной базе знаний",
+    )
 
 
 class ResponseMessage(BaseModel):
@@ -152,6 +157,14 @@ def _model_name(request: ChatCompletionRequest, settings: AppSettings) -> str:
     return request.model or settings.model_id
 
 
+def _last_user_message(messages: Sequence[ChatMessage]) -> str | None:
+    """Вернуть текст последнего сообщения пользователя."""
+    for message in reversed(messages):
+        if message.role == "user":
+            return message.content
+    return None
+
+
 def _generation_kwargs(request: ChatCompletionRequest) -> dict[str, Any]:
     return {
         "temperature": request.temperature,
@@ -235,11 +248,24 @@ def health() -> dict[str, Any]:
 def chat_completions(
     request: ChatCompletionRequest,
     model: Annotated[ChatModel, Depends(get_model)],
+    knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
 ) -> ChatCompletionResponse | StreamingResponse:
     """Сгенерировать ответ модели в формате OpenAI Chat Completions."""
     settings = get_app_settings()
     model_name = _model_name(request, settings)
     messages = build_messages(request.messages)
+
+    if request.use_rag and knowledge is not None:
+        query = _last_user_message(request.messages)
+        if query:
+            try:
+                chunks = knowledge.search(query, top_k=settings.rag_top_k)
+            except Exception as exc:
+                logger.warning("RAG: поиск не удался — {}", exc)
+                chunks = []
+            if chunks:
+                messages = with_rag_context(messages, chunks)
+                logger.info("RAG: добавлено чанков: {}", len(chunks))
 
     if request.stream:
         return StreamingResponse(

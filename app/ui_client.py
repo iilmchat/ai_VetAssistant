@@ -22,6 +22,7 @@ def build_payload(
     *,
     model_id: str,
     temperature: float,
+    use_rag: bool = False,
 ) -> dict[str, Any]:
     """Собрать тело запроса к OpenAI-совместимому API."""
     return {
@@ -29,6 +30,7 @@ def build_payload(
         "messages": [dict(message) for message in messages],
         "temperature": temperature,
         "stream": True,
+        "use_rag": use_rag,
     }
 
 
@@ -67,6 +69,7 @@ def stream_chat(
     messages: Sequence[dict[str, str]],
     *,
     temperature: float,
+    use_rag: bool = False,
     api_url: str = DEFAULT_API_URL,
     model_id: str = DEFAULT_MODEL_ID,
     timeout: float = DEFAULT_TIMEOUT_S,
@@ -76,7 +79,12 @@ def stream_chat(
     Raises:
         requests.RequestException: сервер недоступен, таймаут или HTTP-ошибка.
     """
-    payload = build_payload(messages, model_id=model_id, temperature=temperature)
+    payload = build_payload(
+        messages,
+        model_id=model_id,
+        temperature=temperature,
+        use_rag=use_rag,
+    )
     with requests.post(
         api_url,
         json=payload,

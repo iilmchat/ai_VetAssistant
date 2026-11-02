@@ -34,11 +34,13 @@ def test_build_payload_contains_stream_and_settings() -> None:
         [{"role": "user", "content": "Кот не ест"}],
         model_id="qwen3-8b-vet",
         temperature=0.7,
+        use_rag=True,
     )
 
     assert payload["model"] == "qwen3-8b-vet"
     assert payload["temperature"] == 0.7
     assert payload["stream"] is True
+    assert payload["use_rag"] is True
     assert payload["messages"] == [{"role": "user", "content": "Кот не ест"}]
 
 
@@ -91,6 +93,7 @@ def test_stream_chat_yields_deltas_and_sends_request(
         stream_chat(
             [{"role": "user", "content": "Кот не ест"}],
             temperature=0.3,
+            use_rag=True,
             api_url="http://test/v1/chat/completions",
             model_id="test-model",
         )
@@ -100,6 +103,7 @@ def test_stream_chat_yields_deltas_and_sends_request(
     assert captured["url"] == "http://test/v1/chat/completions"
     assert captured["json"]["model"] == "test-model"
     assert captured["json"]["temperature"] == 0.3
+    assert captured["json"]["use_rag"] is True
     assert captured["stream"] is True
 
 

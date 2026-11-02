@@ -168,11 +168,41 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 Если API выключен, UI покажет сообщение
 **«Сервер ветеринара спит, включите uvicorn»**.
 
+## 📚 RAG: база знаний MSD Vet Manual
+
+Модель может дополнять ответы проверенными фрагментами локального
+справочника. База хранится в `data/chroma_db/` и не коммитится в Git.
+
+1. Установите зависимости (они уже входят в `pip install -e .`):
+   `chromadb`, `sentence-transformers`. При первом инжесте скачается
+   лёгкая мультиязычная модель эмбеддингов
+   `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
+2. Положите текстовые файлы в `data/knowledge/` (3 демо-файла уже есть).
+3. Постройте индекс:
+
+```powershell
+python scripts/ingest_knowledge.py
+```
+
+Проверить нарезку без создания базы:
+
+```powershell
+python scripts/ingest_knowledge.py --dry-run
+```
+
+4. Запустите API и UI. В сайдбаре включите
+   **«Использовать базу знаний (RAG)»** — UI передаст `use_rag: true`.
+5. Для прямых запросов к API добавьте в JSON `"use_rag": true`.
+
+Если база не создана, пуста или RAG-зависимости не установлены, API
+продолжает работать как раньше — без справочного контекста.
+
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
 - **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py), GGUF Q4_K_M/Q5_K_M.
 - **Инференс:** FastAPI + `llama-cpp-python`, OpenAI-совместимый API и SSE.
+- **RAG:** ChromaDB + sentence-transformers, локальная база знаний.
 - **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`.
 

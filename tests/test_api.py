@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import VET_SYSTEM_PROMPT, app, get_model
+from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model
 from app.settings import DEFAULT_MODEL_ID
 
 
@@ -84,6 +84,7 @@ def fake_model() -> FakeModel:
 @pytest.fixture
 def client(fake_model: FakeModel) -> Iterator[TestClient]:
     app.dependency_overrides[get_model] = lambda: fake_model
+    app.dependency_overrides[get_knowledge_base] = lambda: None
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -152,6 +153,141 @@ def test_custom_model_name_is_returned(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["model"] == "my-custom-model"
+
+
+class FakeKnowledgeBase:
+    """Заглушка ChromaDB-поиска для тестов RAG."""
+
+    def __init__(
+        self,
+        chunks: list[str] | None = None,
+        *,
+        error: Exception | None = None,
+    ) -> None:
+        self.chunks = chunks or []
+        self.error = error
+        self.queries: list[tuple[str, int]] = []
+
+    def search(self, query: str, *, top_k: int = 3) -> list[str]:
+        self.queries.append((query, top_k))
+        if self.error is not None:
+            raise self.error
+        return self.chunks
+
+
+def test_rag_context_is_added_to_system_prompt(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    knowledge = FakeKnowledgeBase(["Парацетамол токсичен для кошек."])
+    app.dependency_overrides[get_knowledge_base] = lambda: knowledge
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Кот съел парацетамол"}],
+            "use_rag": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert knowledge.queries == [("Кот съел парацетамол", 3)]
+    system = fake_model.calls[0]["messages"][0]
+    assert system["role"] == "system"
+    assert VET_SYSTEM_PROMPT in system["content"]
+    assert "Справочная информация из MSD Vet Manual" in system["content"]
+    assert "Парацетамол токсичен для кошек." in system["content"]
+
+
+def test_rag_is_disabled_by_default(client: TestClient, fake_model: FakeModel) -> None:
+    knowledge = FakeKnowledgeBase(["факт из справочника"])
+    app.dependency_overrides[get_knowledge_base] = lambda: knowledge
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Вопрос"}]},
+    )
+
+    assert response.status_code == 200
+    assert knowledge.queries == []
+    assert "Справочная информация" not in fake_model.calls[0]["messages"][0]["content"]
+
+
+def test_rag_empty_results_keep_default_prompt(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    knowledge = FakeKnowledgeBase([])
+    app.dependency_overrides[get_knowledge_base] = lambda: knowledge
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Вопрос"}],
+            "use_rag": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert knowledge.queries
+    assert fake_model.calls[0]["messages"][0]["content"] == VET_SYSTEM_PROMPT
+
+
+def test_rag_search_error_does_not_break_api(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    knowledge = FakeKnowledgeBase(error=RuntimeError("ChromaDB недоступна"))
+    app.dependency_overrides[get_knowledge_base] = lambda: knowledge
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Вопрос"}],
+            "use_rag": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Справочная информация" not in fake_model.calls[0]["messages"][0]["content"]
+
+
+def test_rag_uses_last_user_message(client: TestClient) -> None:
+    knowledge = FakeKnowledgeBase(["факт"])
+    app.dependency_overrides[get_knowledge_base] = lambda: knowledge
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [
+                {"role": "user", "content": "первый вопрос"},
+                {"role": "assistant", "content": "ответ"},
+                {"role": "user", "content": "второй вопрос"},
+            ],
+            "use_rag": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert knowledge.queries[0][0] == "второй вопрос"
+
+
+def test_rag_extends_custom_system_prompt(client: TestClient, fake_model: FakeModel) -> None:
+    knowledge = FakeKnowledgeBase(["Факт из базы."])
+    app.dependency_overrides[get_knowledge_base] = lambda: knowledge
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [
+                {"role": "system", "content": "Отвечай очень кратко."},
+                {"role": "user", "content": "Вопрос"},
+            ],
+            "use_rag": True,
+        },
+    )
+
+    assert response.status_code == 200
+    system = fake_model.calls[0]["messages"][0]["content"]
+    assert system.startswith("Отвечай очень кратко.")
+    assert "Факт из базы." in system
 
 
 def test_streaming_returns_sse_chunks(client: TestClient) -> None:

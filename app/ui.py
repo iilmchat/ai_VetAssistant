@@ -44,6 +44,7 @@ def main() -> None:
         if st.button("Очистить историю чата", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
+        use_rag = st.checkbox("Использовать базу знаний (RAG)", value=True)
         st.divider()
         st.caption(f"API: `{DEFAULT_API_URL}`")
         st.caption(f"Модель: `{DEFAULT_MODEL_ID}`")
@@ -67,6 +68,7 @@ def main() -> None:
             for token in stream_chat(
                 st.session_state.messages,
                 temperature=temperature,
+                use_rag=use_rag,
             ):
                 chunks.append(token)
                 placeholder.markdown("".join(chunks) + "▌")

@@ -83,6 +83,10 @@ Safety-проверка и локальный OpenAI-совместимый API.
   потоковый вывод SSE, слайдер `temperature`, очистка истории и понятная
   ошибка при выключенном FastAPI (T-025).
 - HTTP-клиент UI `app/ui_client.py` с тестами парсинга SSE (T-025).
+- RAG-слой: `scripts/ingest_knowledge.py`, ChromaDB + sentence-transformers,
+  поиск по `data/knowledge/` и контекст «Справочная информация из MSD Vet
+  Manual» в system prompt при `use_rag=true` (T-026).
+- Галочка «Использовать базу знаний (RAG)» в Streamlit-сайдбаре (T-026).
 
 Планируется: расширенный Safety-бенчмарк, независимые модели-судьи,
 Router & Triage (T-013), интеграция с веб-приложением.

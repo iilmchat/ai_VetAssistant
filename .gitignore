@@ -41,6 +41,7 @@ logs/
 eval_report.json
 eval_report_*.json
 data/*_report.json
+data/chroma_db/
 
 # --- Кэши инструментов ---
 .pytest_cache/
