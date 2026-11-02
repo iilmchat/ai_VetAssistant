@@ -8,7 +8,14 @@ import pytest
 import requests
 
 from app.settings import UISettings
-from app.ui_client import build_payload, parse_sse_line, stream_chat
+from app.tools import SET_REMINDER_TOOL
+from app.ui_client import (
+    build_payload,
+    parse_sse_event,
+    parse_sse_line,
+    stream_chat,
+    stream_chat_events,
+)
 
 
 class _FakeResponse:
@@ -57,10 +64,38 @@ def test_build_payload_contains_stream_and_settings() -> None:
     assert payload["messages"] == [{"role": "user", "content": "Кот не ест"}]
 
 
+def test_build_payload_includes_tools() -> None:
+    payload = build_payload(
+        [{"role": "user", "content": "Напомни дать таблетку"}],
+        model_id="qwen3-8b-vet",
+        temperature=0.2,
+        tools=[SET_REMINDER_TOOL],
+    )
+
+    assert payload["tools"] == [SET_REMINDER_TOOL]
+
+
 def test_parse_sse_line_returns_content() -> None:
     line = 'data: {"choices":[{"delta":{"content":"Привет"}}]}'
 
     assert parse_sse_line(line) == "Привет"
+
+
+def test_parse_sse_event_returns_tool_calls() -> None:
+    line = (
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1",'
+        '"type":"function","function":{"name":"set_reminder",'
+        '"arguments":"{\\"time\\":\\"20:00\\",\\"text\\":\\"Дать таблетку\\"}"}}]}}]}'
+    )
+
+    event = parse_sse_event(line)
+
+    assert event is not None
+    assert event.content is None
+    assert len(event.tool_calls) == 1
+    assert event.tool_calls[0].id == "call_1"
+    assert event.tool_calls[0].function.name == "set_reminder"
+    assert "Дать таблетку" in event.tool_calls[0].function.arguments
 
 
 @pytest.mark.parametrize(
@@ -118,6 +153,42 @@ def test_stream_chat_yields_deltas_and_sends_request(
     assert captured["json"]["temperature"] == 0.3
     assert captured["json"]["use_rag"] is True
     assert captured["stream"] is True
+
+
+def test_stream_chat_events_yields_tool_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1",'
+            '"type":"function","function":{"name":"set_reminder",'
+            '"arguments":"{\\"time\\":\\"20:00\\",\\"text\\":\\"Дать таблетку\\"}"}}]}}]}'
+        ).encode(),
+        b"data: [DONE]",
+    ]
+
+    def fake_post(
+        url: str,
+        *,
+        json: dict[str, Any],
+        stream: bool,
+        timeout: float,
+    ) -> _FakeResponse:
+        captured.update(url=url, json=json, stream=stream, timeout=timeout)
+        return _FakeResponse(lines)
+
+    monkeypatch.setattr("app.ui_client.requests.post", fake_post)
+
+    events = list(
+        stream_chat_events(
+            [{"role": "user", "content": "Напомни в 20:00"}],
+            temperature=0.2,
+            tools=[SET_REMINDER_TOOL],
+        )
+    )
+
+    assert len(events) == 1
+    assert events[0].tool_calls[0].function.name == "set_reminder"
+    assert captured["json"]["tools"] == [SET_REMINDER_TOOL]
 
 
 def test_stream_chat_propagates_connection_error(

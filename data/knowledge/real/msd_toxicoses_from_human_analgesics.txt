@@ -1,0 +1,185 @@
+Source: https://www.msdvetmanual.com/toxicology/toxicoses-from-human-analgesics/toxicoses-from-human-analgesics-in-animals
+Title: Toxicoses From Human Analgesics in Animals
+Downloaded: 2026-11-03
+
+Dogs and cats typically are exposed to human analgesics either inadvertently through accidental ingestion or deliberately by well-meaning but unknowledgeable owners.
+Acute ingestions of human analgesics are reported to animal poison control centers daily. Dogs are the species most often involved, followed by cats, ferrets, birds, and other pets.
+With early detection and proper management, the outcome of analgesic ingestion is generally very good.
+Acetaminophen Toxicosis in Animals
+Acetaminophen—also known as paracetamol or
+N
+-acetyl-
+para
+-aminophenol—has largely replaced aspirin and salicylates as an analgesic for humans, primarily because of the decreased risk of gastric ulceration. It is available worldwide in a wide variety of strengths and formulations, including tablets, gel capsules, liquids, and suppositories.
+Acetaminophen is rapidly absorbed from the GI tract. Peak plasma concentrations are usually reached within 1 hour; time to peak plasma concentration can be delayed, however, with extended-release formulations.
+In most species, acetaminophen is metabolized via two major conjugation pathways. Both pathways involve cytochrome P450 metabolism, followed by glucuronidation or sulfation.
+Cats are especially susceptible to acetaminophen toxicosis
+, because they have low glucuronyl transferase activity and therefore have limited capacity for glucuronidation. Acetaminophen is metabolized primarily via sulfation in cats, and when this pathway is saturated, toxic metabolites are produced.
+Methemoglobinemia and hepatotoxicosis characterize acetaminophen toxicosis in cats; acute kidney injury is also possible. Methemoglobinemia turns mucous membranes brown or muddy in color and is usually accompanied by tachycardia, hyperpnea, weakness, and lethargy.
+In cats, acetaminophen toxicosis generally occurs with ingestions of 40–50 mg/kg; some cats, however, have been reported to develop clinical signs at 10 mg/kg.
+Cats develop methemoglobinemia within a few hours, and Heinz body formation follows. Other clinical signs of acetaminophen toxicosis in cats include lethargy, anorexia, listlessness, weakness, vomiting, hypothermia, facial or paw edema, cyanosis, and dyspnea. Icterus and clinical signs of hepatotoxicosis are typically associated with large ingestions.
+In dogs, clinical signs of acute acetaminophen toxicosis are not observed unless the dose exceeds 100 mg/kg. Clinical signs of methemoglobinemia have been reported in dogs at acetaminophen doses > 200 mg/kg. Toxicosis can occur at lower doses with repeated exposure.
+Icterus, hepatotoxicosis, and necrosis are more common with acetaminophen toxicosis in dogs than in cats. Other clinical signs in dogs include anorexia, abdominal pain, vomiting, lethargy, trembling, facial and paw edema, tachycardia, and tachypnea.
+Acute keratoconjunctivitis sicca has been reported in some dogs after acetaminophen ingestion.
+Treatment
+The objectives of treating acetaminophen toxicosis are early decontamination, prevention or treatment of methemoglobinemia and hepatic damage, and provision of supportive care. A Schirmer tear test can confirm keratoconjunctivitis in dogs if indicated. Induction of emesis is useful when performed early. After emesis is complete, administration of a single dose of activated charcoal with a cathartic is helpful.
+Other care includes giving IV fluids to prevent dehydration, treating the electrolyte changes associated with vomiting, and administering antiemetics such as maropitant (1 mg/kg, SC, IV, or PO, every 24 hours as needed) or ondansetron (0.5–1 mg/kg, IV or PO, every 12 hours as needed).
+N
+-acetylcysteine, a sulfur-containing amino acid, is a potential antidote
+because it can decrease the extent of methemoglobinemia and liver damage.
+N
+-acetylcysteine provides sulfhydryl groups, directly binds with acetaminophen metabolites to enhance their elimination, and serves as a glutathione precursor. It is available as a 10% or 20% solution. The loading dose is 140 mg/kg of a 5% sterile solution (diluted in 5% dextrose or sterile water), IV or PO, followed by 70 mg/kg, PO, every 6 hours for an additional five to seven treatments.
+Fluids and blood transfusions should be administered as needed in cases of acetaminophen toxicosis. Ascorbic acid (30 mg/kg, PO or IM, every 6 hours for six to eight doses) or methylene blue (1–1.5 mg/kg of a 1% solution, IV, over several minutes) may further decrease methemoglobin concentrations.
+S
+-Adenosylmethionine (SAMe), and also SAMe combined with silybin, at therapeutic doses have been suggested as adjunct treatments for acetaminophen toxicosis in dogs and cats.
+Cimetidine, an H
+2
+-receptor antagonist with cytochrome P450 (CYP) inhibitory activity, is not recommended as an adjunct treatment for acetaminophen toxicosis in dogs and cats. Cimetidine had been proposed to decrease oxidation of acetaminophen by CYP enzymes to the reactive metabolite
+N
+-acetyl-
+p
+-benzoquinone imine (NAPQI); however, its use has not been shown to be therapeutically effective, and cimetidine is no longer used to treat human acetaminophen toxicosis. Particularly in cats, cimetidine inhibits
+N
+-acetyltransferase (NAT1) activity, thus prolonging methemoglobin formation (
+1
+,
+2
+).
+Patients with acetaminophen toxicosis should also be monitored frequently for evidence of methemoglobinemia, Heinz body anemia, and hemolysis. Liver enzymes should be monitored and rechecked at 24 and 48 hours. The prognosis depends on the amount of acetaminophen ingested and the amount of time before treatment begins.
+Gabapentinoid Toxicoses in Animals
+Gabapentinoids are a class of drugs structurally similar to the inhibitory neurotransmitter gamma-aminobutyric acid (GABA). Both gabapentin and pregabalin are included in this class.
+Even though gabapentinoids are GABA analogues, they have little to no effect at the GABA receptor. The complete mechanism of action is unknown; however, studies show that gabapentinoids act in part by binding voltage-gated calcium channels. This binding decreases the release of the excitatory neurotransmitters norepinephrine, glutamate, and substance P.  Other mechanisms of action are likely in play as well.
+As a group, gabapentinoids have become one of the most widely used and abused human drugs in the US.
+Gabapentin
+Gabapentin was approved by the FDA as an adjunct treatment for partial seizures and postherpetic neuralgia in humans and is used as an analgesic for several other medical conditions. It is available in a variety of strengths and forms, including capsules, tablets, extended-release tablets, and an oral solution.
+Some oral gabapentin solutions contain xylitol at a concentration of 300 mg/mL, which is toxic to dogs at 100 mg/kg, so care must be taken to avoid use of these solutions in dogs. The presence of xylitol may be a problem in very small dogs and in large overdoses.
+In both dogs and cats, gabapentin is well absorbed orally: peak plasma concentration is expected to be reached in 45 minutes to 2 hours. Gabapentin crosses the blood-brain barrier and is distributed to the CNS. Metabolism in dogs is hepatic with renal excretion; 34% is excreted as
+N
+-methyl-gabapentin, and the rest remains unchanged. The elimination half-life is relatively short: 3–4 hours.
+There is no published toxic dose of gabapentin in dogs and cats.
+In humans, clinical signs and symptoms associated with large overdoses of gabapentin include drowsiness, fatigue, ataxia, vision changes, nausea, vomiting, diarrhea, tachycardia, and hypotension. Dogs and cats receiving higher therapeutic doses developed sedation and lethargy, ataxia, and vomiting.
+Treatment
+There is no antidote for gabapentin toxicosis. Induction of emesis or gastric lavage, followed by administration of a single dose of activated charcoal with a cathartic, is recommended for large ingestions.
+Additional treatment is supportive, focusing particularly on the CNS, GI tract, and cardiovascular system.
+IV fluids should be administered as needed for dehydration and to increase excretion.
+Maropitant (1 mg/kg, IV, SC, or PO, every 24 hours) and ondansetron (0.5–1 mg/kg, IV or PO, every 12 hours) are effective antiemetics for vomiting.
+Hemodialysis has been used successfully to treat gabapentin toxicosis in humans but has not been evaluated in animals.
+Pregabalin
+Pregabalin was developed and marketed as a successor to gabapentin. It is approved for the same uses as gabapentin, as well as for fibromyalgia and diabetic neuropathy. Pregabalin is stated to be more potent than gabapentin: as an analgesic, 2–4 times more potent; as an anticonvulsant, 3–10 times more potent.
+Pregabalin is available in capsules, tablets, extended-release tablets, and an oral solution. It is very rapidly absorbed in dogs (0.25–1.11 hours) and cats (0.17–1.38 hours); ingestion of food, however, delays absorption. Peak plasma concentrations in dogs are reached by approximately 1.5 hours.
+Pregabalin crosses the blood-brain barrier and is distributed within the CNS. It undergoes hepatic metabolism in dogs, and approximately 45% is eliminated by the kidneys as
+N
+-methylpregabalin; the rest remains unchanged. The elimination half-life is longer than that of gabapentin: 6.21–7.4 hours in dogs, 8–14.3 hours in cats.
+As with gabapentin, there is no published toxic dose for pregabalin. Most of the clinical signs of pregabalin toxicosis are an extension of the adverse effects; sedation and ataxia are the most commonly reported signs in dogs. Cats dosed at 4 mg/kg, PO, develop moderate sedation.
+Treatment
+There is no antidote for pregabalin toxicosis. Treatment is similar to that for
+gabapentin
+toxicosis. Hemodialysis has been used successfully in large human overdoses but has not been evaluated in animals.
+NSAID Toxicoses in Animals
+NSAIDs are the most common class of human analgesics. Toxicoses due to the ingestion of aspirin, ibuprofen, or naproxen are the most frequently encountered human NSAID toxicoses in animals; celecoxib, diclofenac, indomethacin, and piroxicam toxicoses are infrequently reported.
+NSAIDs inhibit cyclooxygenase (COX) enzymes (COX-1 and COX-2), thereby blocking the synthesis of prostaglandins. Most NSAIDs are thought to act through specific COX enzyme inhibition; however, they likely have additional mechanisms of action.
+The GI tract and kidneys are the most often affected by NSAIDs; effects may vary, however, depending on which specific COX enzyme is inhibited.
+Aspirin
+Aspirin (acetylsalicylic acid, the salicylate ester of acetic acid) is the prototype of salicylate drugs. Aspirin is available in a variety of strengths and formulations, including tablets, capsules, ointments and creams, and suppositories.
+Aspirin decreases prostaglandin and thromboxane synthesis via COX inhibition, uncouples mitochondrial oxidative phosphorylation, and inhibits specific dehydrogenases. Platelets are incapable of synthesizing new COX enzymes, leading to a detrimental effect on platelet aggregation.
+Aspirin is rapidly absorbed from the stomach and proximal small intestine; peak salicylate concentrations are reached 0.5–3 hours after ingestion. Topically applied aspirin can be absorbed systemically; however, the amount of time to reach peak concentrations is unknown.
+Aspirin is readily distributed to extracellular fluids and to the kidneys, liver, lungs, and heart. It is eliminated by hepatic conjugation with glucuronide and glycine. Renal clearance is enhanced by an alkaline urinary pH.
+Acute clinical signs of aspirin toxicosis include listlessness, weakness, anorexia, vomiting with or without blood, hyperthermia, and hyperpnea. Respiratory alkalosis, followed by metabolic acidosis, gastric irritation or ulceration, liver necrosis, coma, seizures, or prolonged bleeding, can occur.
+Tolerance of aspirin between dogs and cats is different because cats are deficient in the glucuronyl transferase enzyme and have a prolonged excretion of aspirin (the half-life in cats is 37.5 hours).
+Cats are very susceptible to aspirin
+; mild adverse effects occurred in cats that were administered a dosage of either 5 mg/cat or 40 mg/cat, PO, every 72 hours for longterm management of arterial thromboembolism (
+3
+).
+Dogs tolerate aspirin better than cats do; however, prolonged use in dogs can lead to gastric ulcers, as various studies have shown:
+Regular aspirin at dosages of 25 mg/kg, PO, every 8 hours resulted in mucosal erosions in 50% of treated dogs after 2 days; however, few effects were observed in dogs receiving buffered or enteric-coated aspirin.
+Four of six dogs that were administered aspirin at 35 mg/kg, PO, every 8 hours developed gastric ulcers by day 30.
+Three of seven dogs that were administered aspirin at 50 mg/kg, PO, every 12 hours showed gastric ulcers after 5–6 weeks.
+Toxicosis occurred in dogs receiving 100–300 mg/kg, PO, every 24 hours for 1–4 weeks.
+Acute aspirin ingestion of 450 mg/kg in dogs can result in GI disturbances, hyperthermia, panting, seizures, or coma.
+Treatment
+Aspirin toxicosis is treated by the induction of emesis, followed by the administration of activated charcoal with a cathartic and supportive care. There is no antidote.
+IV fluids should be given to provide diuresis and to correct dehydration., and IV sodium bicarbonate should be administered in severe cases with metabolic acidosis if the acid-base status can be monitored.
+Maropitant (1 mg/kg, SC, IV, or PO, every 24 hours as needed) and ondansetron (0.5–1 mg/kg, IV or PO, every 12 hours as needed) are indicated when vomiting due to aspirin toxicosis is severe. H
+2
+blockers such as ranitidine and famotidine, or proton pump inhibitors such as omeprazole (0.5–1 mg/kg, PO, every 24 hours as needed), can be administered as antacids.
+Sucralfate (in cats and small dogs: 250–500 mg total dose, divided into equal doses administered every 6, 8, or 12 hours; in large dogs: 1 g total dose, divided into equal doses administered every 6, 8, or 12 hours) can be given for temporary relief of gastric erosions and ulcers due to aspirin toxicosis. Misoprostol (in dogs: 1–3 mcg/kg, PO, every 6–8 hours) has been shown to prevent GI ulcerationthat is due to overdoses of aspirin and other NSAIDs.
+Baseline renal function should be monitored and rechecked at 24, 48, and 72 hours. The prognosis depends on the specific formulation, the amount of aspirin ingested, and the amount of time that has elapsed since ingestion.
+Ibuprofen
+Ibuprofen is available as a nonprescription or prescription drug for humans in various strengths and forms, including tablets, capsules, and a liquid suspension. Ibuprofen is rapidly absorbed orally in dogs: peak plasma concentrations are reached in 30 minutes to 3 hours. Ingestion of food can delay absorption and increase the amount of time to reach peak plasma concentration.
+Ibuprofen is metabolized in the liver to several metabolites, which are excreted mainly in the urine within 24 hours. The major metabolic pathway is conjugation with glucuronic acid, sometimes preceded by oxidation and hydroxylation. The mean elimination half-life is approximately 4.6 hours.
+Use of ibuprofen is no longer recommended in dogs, because it may result in gastric ulcers and perforations. GI irritation or ulceration, GI hemorrhage, and renal damage are the most commonly reported toxic effects of ibuprofen ingestion in dogs. In addition, CNS depression, hypotension, ataxia, cardiac effects, and seizures can occur.
+Ibuprofen has a narrow margin of safety in dogs. Dogs dosed with ibuprofen at 8–16 mg/kg, PO, every 24 hours, for 30 days showed gastric ulceration or erosions, along with other clinical signs of GI disturbances. An acute single ingestion of 100–125 mg/kg can lead to vomiting, diarrhea, nausea, abdominal pain, and anorexia. Renal failure may occur with doses of 175–300 mg/kg. CNS effects (seizures, ataxia, listlessness, coma), in addition to renal and GI signs, can occur at doses > 400 mg/kg. Doses > 600 mg/kg are potentially lethal in dogs.
+Cats are susceptible to ibuprofen toxicosis at approximately half the dose required to cause toxicosis in dogs. Cats are especially susceptible because they have limited glucuronide conjugating capacity.
+Ibuprofen toxicosis is more severe in ferrets than in dogs that consume similar doses. Typical toxic effects of ibuprofen in ferrets involve the CNS, GI, and renal systems.
+Treatment
+Baseline decontamination and treatment of ibuprofen toxicosis are similar to those for
+aspirin toxicosis
+; however, sodium bicarbonate is administered at a dose based on acid-base analysis. Many different dosages are recommended, often without supporting documentation.
+Treatment of a massive ingestion of ibuprofen includes administration of activated charcoal with a cathartic, followed by oral cholestyramine every 6–8 hours for 3 days. IV fat emulsion has been used successfully in both human and animal patients exhibiting neurological signs. There are several different protocols; most typically, 1.5 mL/kg of a 20% emulsion is administered over 5–15 minutes, followed by a CRI of 0.25mL/kg/minute over 1–2 hours. This sequence can be repeated if clinical signs of toxicosis return and the serum is not lipemic.
+Other more recent extracorporeal treatments for very large ingestions of ibuprofen include the use of therapeutic plasma exchange (plasmapheresis), charcoal hemoperfusion, and charcoal hemoperfusion plus hemodialysis.
+Naproxen
+Naproxen is readily available as tablets, gelatin capsules, or a suspension. Oral absorption of naproxen in dogs is rapid: peak plasma concentration is reached in 0.5–3 hours. In dogs, naproxen is eliminated primarily through the bile; in other species, the primary route of elimination is the kidneys.
+The long half-life of naproxen in dogs (74 hours) appears to be due to its extensive enterohepatic recirculation. Several cases of naproxen toxicosis in dogs have been reported:
+Administration of 5.6 mg/kg, PO, every 24 hours, for 7 days resulted in vomiting, tarry feces, pale mucous membranes, and weakness.
+Administration of 11.1 mg/kg, PO, every 24 hours, for 3 days resulted in melena, frequent vomiting, and abdominal pain.
+A single oral dose of 35 mg/kg resulted in listlessness, abdominal pain, vomiting, hematemesis, diarrhea, and melena.
+Because of their limited glucuronide conjugating capacity, cats may be more susceptible to naproxen toxicosis than dogs are.
+Treatment
+Except for the administration of activated charcoal and sodium bicarbonate, baseline treatment of naproxen toxicosis is similar to that for
+aspirin toxicosis
+. Because of enterohepatic recirculation, a single dose of activated charcoal with a cathartic should be followed by oral cholestyramine every 6–8 hours for 3 days. Animals should be monitored for evidence of hypernatremia during this time period.
+Therapeutic plasma exchange (plasmapheresis) has been used successfully to treat several massive naproxen intoxications (
+4
+).
+Tramadol Toxicosis in Animals
+Tramadol is a centrally acting mu opioid agonist and serotonin and norepinephrine reuptake inhibitor that is commonly used in humans to treat acute and chronic pain. It is marketed as tablets, extended-release tablets, effervescent tablets, granules for oral solution, and an oral solution. Tramadol is often combined with acetaminophen, which is another source of potential intoxication, especially in cats.
+Tramadol is generally considered a weak mu agonist; it has one-tenth to one-sixth the potency of morphine. At therapeutic doses, tramadol does not produce the respiratory depression observed with morphine, has no GI motility effects, and results in limited cardiovascular effects. Tramadol may produce seizures when combined with other drugs that lower the seizure threshold.
+Tramadol is rapidly absorbed in dogs (within approximately 1.3 hours), widely distributed, and metabolized in the liver to many metabolites.
+O
+-desmethyltramadol (M1) is an active metabolite with higher affinity and more potency than tramadol itself; however, this is a minor metabolite in dogs.
+N
+-desmethyltramadol (M2) is a major metabolite in dogs but possesses no analgesic activity. The half-life of elimination is short in both dogs (0.5–2 hours) and cats (1.2–2.5 hours).
+In dogs, acute tramadol intoxication is associated with changes in the CNS and GI tract. Common clinical signs include tremors, agitation, vocalization, ataxia, mydriasis, and, rarely, seizures. Cats develop agitation, hypersalivation, and hypertension, all associated with
+serotonin syndrome
+, as well as lethargy, mydriasis, ataxia, hypersalivation, and vomiting. Tachycardia, tremors, vocalization, and clinical signs associated with CNS stimulation have also been reported. Most oral forms of tramadol are unpalatable to cats, which is likely the reason for the hypersalivation.
+Treatment
+There is no antidote for tramadol toxicosis. Emesis induction or gastric lavage followed by administration of a single dose of activated charcoal with a cathartic is recommended for large ingestions. Additional treatment is supportive, focusing on the CNS, GI tract, and cardiovascular system. Patients should be monitored closely for clinical signs of serotonin syndrome.
+Administering IV fluids for dehydration and enhancement of excretion, along with maropitant (1 mg/kg, IV, SC, or PO, every 24 hours) or ondansetron (0.5–1 mg/kg, IV or PO, every 12 hours) for vomiting, is a recommended treatment option for tramadol toxicosis.
+Benzodiazepines may be used to treat agitation and seizures due to tramadol toxicosis. Naloxone may be helpful for large ingestions with respiratory depression; the use of naloxone must be monitored closely, however, because it can increase the potential for seizures.
+Cyproheptadine (in dogs: 1.1 mg/kg, PO, every 4–6 hours as needed until clinical signs of tramadol toxicosis resolve; in cats: 2–4 mg/cat, PO, repeated every 4–6 hours as needed until clinical signs resolve) is an effective adjunct treatment for clinical signs of dysphoria associated with serotonin syndrome.
+Hemodialysis is not a useful treatment option. IV fat emulsion demonstrated a decrease in acute mortality in rabbits and may be a useful treatment option in very large ingestions of tramadol by dogs and cats. There are several different protocols. Most typically, 1.5 mL/kg of a 20% emulsion is administered over 5–15 minutes, followed by a CRI of 0.25 mL/kg/minute over 1–2 hours. This sequence can be repeated if clinical signs of toxicosis return and the serum is not lipemic.
+Key Points
+Ingestion of a human NSAID by small animals is one of the most common poisonings reported to animal poison control centers. Well-meaning but unknowledgeable owners often treat their pets with a human NSAID and do not recognize their error until clinical signs occur.
+Acetaminophen and some NSAIDs are present in many cough and cold products, making accurate product identification essential to successful treatment.
+Gabapentin crosses the blood-brain barrier, resulting in lethargy, sedation, and ataxia at the high end of therapeutic dosing.
+For More Information
+Pet Poison Helpline
+American Society for the Prevention of Cruelty to Animals
+(ASPCA)
+Tegzes J. Human NSAIDs (ibuprofen, naproxen). In Hovda LR, Brutlag AG, Poppenga RH, Epstein SE, eds.
+Blackwell's Five-Minute Veterinary Consult Clinical Companion: Small Animal Toxicology
+. 3rd ed. Wiley-Blackwell; 2024: 319-324.
+Also see pet health content regarding
+poisoning from NSAIDs
+.
+References
+Ebrahimi M, Mousavi SR, Toussi AG, Reihani H, Bagherian F.
+Comparing the therapeutic effectiveness of N-acetylcysteine with the combination of N-acetyl cysteine and cimetidine in acute acetaminophen toxicity: a double-blinded clinical trial
+.
+Electron Physician
+. 2015;7(6):1310-1317. doi:10.14661/1310
+McConkey SE, Grant DM, Cribb AE.
+The role of para-aminophenol in acetaminophen-induced methemoglobinemia in dogs and cats
+.
+J Vet Pharmacol Ther
+. 2009;32(6):585-595. doi:10.1111/j.1365-2885.2009.01080.x
+Smith et al.
+Arterial thromboembolism in cats: acute crisis in 127 cases (1992–2001) and long term management with low dose aspirin in 24 cats
+.
+J Vet Intern Med
+. 2003;17(1):73-83. doi:10.1111/j.1939-1676.2003.tb01326.x
+Butty EM, Suter SE, Chalifoux NV, et al.
+Outcomes of nonsteroidal anti‐inflammatory drug toxicosis treated with therapeutic plasma exchange in 62 dogs
+.
+J Vet Intern Med
+. 2022;36(5):1641-1647. doi:10.1111/jvim.16507

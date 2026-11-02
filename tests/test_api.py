@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION
 from app.settings import DEFAULT_MODEL_ID
+from app.tools import BOOK_APPOINTMENT_TOOL, SET_REMINDER_TOOL
 
 
 class FakeModel:
@@ -19,9 +20,12 @@ class FakeModel:
 
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.response: dict[str, Any] | None = None
 
     def create_chat_completion(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
+        if self.response is not None:
+            return self.response
         if kwargs.get("stream"):
             return iter(
                 [
@@ -75,6 +79,42 @@ class FakeModel:
             ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         }
+
+
+def _tool_response(
+    *,
+    name: str = "book_appointment",
+    arguments: dict[str, Any] | None = None,
+    call_id: str = "call_1",
+) -> dict[str, Any]:
+    """Фикстура ответа модели с нативным tool_call."""
+    return {
+        "id": "chatcmpl-tool",
+        "object": "chat.completion",
+        "created": 123,
+        "model": "fake",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": call_id,
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": json.dumps(arguments or {}, ensure_ascii=False),
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    }
 
 
 @pytest.fixture
@@ -398,6 +438,147 @@ def test_emergency_instruction_is_not_added_for_normal_message(
 
     assert response.status_code == 200
     assert EMERGENCY_SYSTEM_INSTRUCTION not in fake_model.calls[0]["messages"][0]["content"]
+
+
+def test_native_tool_calls_are_returned_in_openai_format(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    fake_model.response = _tool_response(
+        arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}
+    )
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Запиши Мурзика завтра на 10:00"}],
+            "tools": [BOOK_APPOINTMENT_TOOL],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    choice = data["choices"][0]
+    assert choice["finish_reason"] == "tool_calls"
+    assert choice["message"]["content"] is None
+    tool_call = choice["message"]["tool_calls"][0]
+    assert tool_call["id"] == "call_1"
+    assert tool_call["type"] == "function"
+    assert tool_call["function"]["name"] == "book_appointment"
+    assert json.loads(tool_call["function"]["arguments"])["pet_name"] == "Мурзик"
+
+    call = fake_model.calls[0]
+    assert call["tool_choice"] == "auto"
+    assert call["tools"][0]["function"]["name"] == "book_appointment"
+    assert "верни ТОЛЬКО JSON" in call["messages"][0]["content"]
+
+
+def test_tool_call_from_text_is_parsed(client: TestClient, fake_model: FakeModel) -> None:
+    fake_model.response = {
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": (
+                        '<tool_call>{"name": "set_reminder", "arguments": '
+                        '{"time": "20:00", "text": "Дать таблетку"}}</tool_call>'
+                    ),
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {},
+    }
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Напомни дать таблетку в 20:00"}],
+            "tools": [SET_REMINDER_TOOL],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["choices"][0]["finish_reason"] == "tool_calls"
+    assert data["choices"][0]["message"]["tool_calls"][0]["function"]["name"] == "set_reminder"
+
+
+def test_tool_syntax_is_not_parsed_without_tools(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    fake_model.response = {
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": '{"name": "set_reminder", "arguments": {"time": "20:00"}}',
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {},
+    }
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Просто вопрос"}]},
+    )
+
+    assert response.status_code == 200
+    message = response.json()["choices"][0]["message"]
+    assert message["tool_calls"] is None
+    assert message["content"].startswith('{"name": "set_reminder"')
+
+
+def test_streaming_tool_call_is_returned_as_sse(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    fake_model.response = _tool_response(
+        name="set_reminder",
+        arguments={"time": "20:00", "text": "Дать таблетку"},
+        call_id="call_stream",
+    )
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Напомни в 20:00"}],
+            "tools": [SET_REMINDER_TOOL],
+            "stream": True,
+        },
+    )
+
+    assert response.status_code == 200
+    lines = [
+        line.removeprefix("data: ")
+        for line in response.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert lines[-1] == "[DONE]"
+    chunks = [json.loads(line) for line in lines[:-1]]
+    tool_delta = next(
+        chunk["choices"][0]["delta"]["tool_calls"]
+        for chunk in chunks
+        if chunk["choices"][0]["delta"].get("tool_calls")
+    )
+    assert tool_delta[0]["id"] == "call_stream"
+    assert tool_delta[0]["function"]["name"] == "set_reminder"
+    assert chunks[-1]["choices"][0]["finish_reason"] == "tool_calls"
+
+
+def test_tool_execute_stub_returns_success(client: TestClient) -> None:
+    response = client.post(
+        "/v1/tools/execute",
+        json={
+            "name": "book_appointment",
+            "arguments": {"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "success"}
 
 
 def test_empty_messages_are_rejected(client: TestClient) -> None:

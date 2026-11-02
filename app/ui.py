@@ -13,7 +13,8 @@ import requests
 import streamlit as st
 
 from app.settings import get_ui_settings
-from app.ui_client import stream_chat
+from app.tools import AVAILABLE_TOOLS, ToolCall
+from app.ui_client import stream_chat_events
 
 ERROR_API_DOWN = "Сервер ветеринара спит, включите uvicorn"
 
@@ -47,6 +48,11 @@ def main() -> None:
             st.session_state.messages = []
             st.rerun()
         use_rag = st.checkbox("Использовать базу знаний (RAG)", value=True)
+        use_tools = st.checkbox(
+            "Разрешить модели использовать инструменты (Function Calling)",
+            value=False,
+            help="Запись на приём и создание напоминаний через tool_calls.",
+        )
         st.divider()
         st.caption(f"API: `{settings.api_url}`")
         st.caption(f"Модель: `{settings.model_id}`")
@@ -66,17 +72,22 @@ def main() -> None:
     with st.chat_message("assistant"):
         placeholder = st.empty()
         chunks: list[str] = []
+        tool_calls: list[ToolCall] = []
         try:
-            for token in stream_chat(
+            for event in stream_chat_events(
                 st.session_state.messages,
                 temperature=temperature,
                 use_rag=use_rag,
+                tools=AVAILABLE_TOOLS if use_tools else None,
                 api_url=settings.api_url,
                 model_id=settings.model_id,
                 timeout=settings.timeout_s,
             ):
-                chunks.append(token)
-                placeholder.markdown("".join(chunks) + "▌")
+                if event.content is not None:
+                    chunks.append(event.content)
+                    placeholder.markdown("".join(chunks) + "▌")
+                if event.tool_calls:
+                    tool_calls.extend(event.tool_calls)
         except requests.RequestException:
             placeholder.error(ERROR_API_DOWN)
             return
@@ -85,12 +96,24 @@ def main() -> None:
             return
 
         answer = "".join(chunks).strip()
-        if not answer:
+        if not answer and not tool_calls:
             placeholder.warning("Модель вернула пустой ответ. Попробуйте ещё раз.")
             return
 
-        placeholder.markdown(answer)
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+        if answer:
+            placeholder.markdown(answer)
+
+        tool_summary: list[str] = []
+        for tool_call in tool_calls:
+            name = tool_call.function.name
+            arguments = tool_call.function.arguments
+            st.success(f"🛠️ Вызван инструмент: **{name}**\n\nПараметры: `{arguments}`")
+            tool_summary.append(f"{name} ({arguments})")
+
+        history_content = answer
+        if not history_content and tool_summary:
+            history_content = "🛠️ Вызван инструмент: " + "; ".join(tool_summary)
+        st.session_state.messages.append({"role": "assistant", "content": history_content})
 
 
 main()

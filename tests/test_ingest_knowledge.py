@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ingest_knowledge import build_chunks, chunk_text, load_documents, main
+from scripts.ingest_knowledge import build_chunks, chunk_text, load_documents, main, read_pdf
 
 
 def test_chunk_text_respects_max_size() -> None:
@@ -47,6 +47,57 @@ def test_load_documents_reads_only_non_empty_txt(tmp_path: Path) -> None:
     assert [name for name, _ in documents] == ["a.txt", "b.txt"]
 
 
+def test_load_documents_reads_nested_txt(tmp_path: Path) -> None:
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    (real_dir / "article.txt").write_text("Реальный текст статьи", encoding="utf-8")
+
+    documents = load_documents(tmp_path)
+
+    assert documents == [("real/article.txt", "Реальный текст статьи")]
+
+
+def test_load_documents_reads_pdf_via_pypdf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pdf_path = tmp_path / "article.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    monkeypatch.setattr(
+        "scripts.ingest_knowledge.read_pdf",
+        lambda path: f"Текст из {path.name}",
+    )
+
+    documents = load_documents(tmp_path)
+
+    assert documents == [("article.pdf", "Текст из article.pdf")]
+
+
+def test_read_pdf_extracts_real_text(tmp_path: Path) -> None:
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    path = tmp_path / "article.pdf"
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=612, height=792)
+    stream = DecodedStreamObject()
+    stream.set_data(b"BT /F1 12 Tf 72 720 Td (Paracetamol is toxic to cats.) Tj ET")
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    font = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Font"),
+            NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"),
+        }
+    )
+    font_ref = writer._add_object(font)
+    page[NameObject("/Resources")] = DictionaryObject(
+        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font_ref})}
+    )
+    writer.write(path)
+
+    assert "Paracetamol is toxic to cats." in read_pdf(path)
+
+
 def test_build_chunks_ids_are_unique() -> None:
     documents = [
         ("paracetamol_cats.txt", "Факт о парацетамоле. " * 100),
@@ -60,6 +111,13 @@ def test_build_chunks_ids_are_unique() -> None:
     assert len(ids) == len(set(ids))
     assert all(chunk.source in {"paracetamol_cats.txt", "diarrhea_dogs.txt"} for chunk in chunks)
     assert all(chunk.text for chunk in chunks)
+
+
+def test_build_chunks_includes_relative_path_in_id() -> None:
+    chunks = build_chunks([("real/article.txt", "Текст статьи")])
+
+    assert chunks[0].id == "real-article-0001"
+    assert chunks[0].source == "real/article.txt"
 
 
 def test_dry_run_reads_documents_without_chroma(tmp_path: Path) -> None:

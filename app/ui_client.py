@@ -8,14 +8,24 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import requests
 
 from app.settings import DEFAULT_MODEL_ID, DEFAULT_UI_API_URL, DEFAULT_UI_TIMEOUT_S
+from app.tools import ToolCall, ToolCallFunction
 
 DEFAULT_API_URL = DEFAULT_UI_API_URL
 DEFAULT_TIMEOUT_S = DEFAULT_UI_TIMEOUT_S
+
+
+@dataclass(frozen=True)
+class ChatStreamEvent:
+    """Событие SSE: текст и/или вызов инструмента."""
+
+    content: str | None = None
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
 def build_payload(
@@ -24,19 +34,23 @@ def build_payload(
     model_id: str,
     temperature: float,
     use_rag: bool = False,
+    tools: Sequence[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Собрать тело запроса к OpenAI-совместимому API."""
-    return {
+    payload: dict[str, Any] = {
         "model": model_id,
         "messages": [dict(message) for message in messages],
         "temperature": temperature,
         "stream": True,
         "use_rag": use_rag,
     }
+    if tools:
+        payload["tools"] = [dict(tool) for tool in tools]
+    return payload
 
 
-def parse_sse_line(line: str) -> str | None:
-    """Вернуть текстовую дельту из строки SSE или ``None``."""
+def parse_sse_event(line: str) -> ChatStreamEvent | None:
+    """Разобрать строку SSE в текст и/или вызовы инструментов."""
     prefix = "data: "
     if not line.startswith(prefix):
         return None
@@ -62,20 +76,62 @@ def parse_sse_line(line: str) -> str | None:
     delta = first.get("delta")
     if not isinstance(delta, dict):
         return None
+
     content = delta.get("content")
-    return content if isinstance(content, str) and content else None
+    if not isinstance(content, str) or not content:
+        content = None
+
+    tool_calls: list[ToolCall] = []
+    raw_calls = delta.get("tool_calls")
+    if isinstance(raw_calls, list):
+        for index, raw_call in enumerate(raw_calls):
+            if not isinstance(raw_call, dict):
+                continue
+            function = raw_call.get("function")
+            if not isinstance(function, dict):
+                continue
+            name = function.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+            call_id = raw_call.get("id")
+            if not isinstance(call_id, str) or not call_id:
+                call_id = f"call_{index}"
+            arguments = function.get("arguments")
+            if not isinstance(arguments, str):
+                arguments = json.dumps(
+                    arguments if arguments is not None else {},
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            tool_calls.append(
+                ToolCall(
+                    id=call_id,
+                    function=ToolCallFunction(name=name, arguments=arguments),
+                )
+            )
+
+    if content is None and not tool_calls:
+        return None
+    return ChatStreamEvent(content=content, tool_calls=tuple(tool_calls))
 
 
-def stream_chat(
+def parse_sse_line(line: str) -> str | None:
+    """Вернуть текстовую дельту из строки SSE или ``None``."""
+    event = parse_sse_event(line)
+    return event.content if event is not None else None
+
+
+def stream_chat_events(
     messages: Sequence[dict[str, str]],
     *,
     temperature: float,
     use_rag: bool = False,
+    tools: Sequence[dict[str, Any]] | None = None,
     api_url: str = DEFAULT_API_URL,
     model_id: str = DEFAULT_MODEL_ID,
     timeout: float = DEFAULT_TIMEOUT_S,
-) -> Iterator[str]:
-    """Потоково запросить ответ API и отдавать текстовые дельты.
+) -> Iterator[ChatStreamEvent]:
+    """Потоково запросить ответ API и отдавать текст/вызовы инструментов.
 
     Raises:
         requests.RequestException: сервер недоступен, таймаут или HTTP-ошибка.
@@ -85,6 +141,7 @@ def stream_chat(
         model_id=model_id,
         temperature=temperature,
         use_rag=use_rag,
+        tools=tools,
     )
     with requests.post(
         api_url,
@@ -97,6 +154,30 @@ def stream_chat(
             line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
             if line.strip() == "data: [DONE]":
                 break
-            content = parse_sse_line(line)
-            if content is not None:
-                yield content
+            event = parse_sse_event(line)
+            if event is not None:
+                yield event
+
+
+def stream_chat(
+    messages: Sequence[dict[str, str]],
+    *,
+    temperature: float,
+    use_rag: bool = False,
+    tools: Sequence[dict[str, Any]] | None = None,
+    api_url: str = DEFAULT_API_URL,
+    model_id: str = DEFAULT_MODEL_ID,
+    timeout: float = DEFAULT_TIMEOUT_S,
+) -> Iterator[str]:
+    """Потоково запросить ответ API и отдавать только текстовые дельты."""
+    for event in stream_chat_events(
+        messages,
+        temperature=temperature,
+        use_rag=use_rag,
+        tools=tools,
+        api_url=api_url,
+        model_id=model_id,
+        timeout=timeout,
+    ):
+        if event.content is not None:
+            yield event.content

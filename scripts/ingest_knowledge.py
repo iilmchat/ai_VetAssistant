@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-"""Индексация текстовой базы знаний в локальную ChromaDB (T-026).
+"""Индексация базы знаний в локальную ChromaDB (T-026, T-030).
 
-Скрипт читает ``*.txt`` из ``data/knowledge/``, режет текст на чанки по
-500 символов, считает эмбеддинги через sentence-transformers и сохраняет
-их в ``data/chroma_db``.
+Скрипт рекурсивно читает ``*.txt`` и ``*.pdf`` из ``data/knowledge/``,
+режет текст на чанки по 500 символов, считает эмбеддинги через
+sentence-transformers и сохраняет их в ``data/chroma_db``. PDF извлекаются
+через ``pypdf``.
 
 Примеры::
 
@@ -30,6 +31,7 @@ DEFAULT_COLLECTION = "msd_vet_manual"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_OVERLAP = 50
+SUPPORTED_SUFFIXES = frozenset({".txt", ".pdf"})
 
 
 @dataclass(frozen=True)
@@ -93,18 +95,57 @@ def chunk_text(
     return chunks
 
 
+def read_pdf(path: Path) -> str:
+    """Извлечь текст из PDF через pypdf.
+
+    Raises:
+        ValueError: файл не удалось прочитать как PDF.
+    """
+    from pypdf import PdfReader
+
+    try:
+        reader = PdfReader(str(path))
+    except Exception as exc:
+        raise ValueError(f"не удалось открыть PDF: {exc}") from exc
+
+    pages: list[str] = []
+    for page_number, page in enumerate(reader.pages, start=1):
+        try:
+            text = page.extract_text() or ""
+        except Exception as exc:
+            logger.warning("{}: страница {} не прочитана: {}", path, page_number, exc)
+            continue
+        if text.strip():
+            pages.append(text)
+    return "\n\n".join(pages).strip()
+
+
+def read_document(path: Path) -> str:
+    """Прочитать TXT или PDF."""
+    if path.suffix.lower() == ".pdf":
+        return read_pdf(path)
+    return path.read_text(encoding="utf-8")
+
+
 def load_documents(directory: Path) -> list[tuple[str, str]]:
-    """Прочитать непустые ``*.txt`` из папки (имя файла, текст)."""
+    """Рекурсивно прочитать непустые TXT/PDF (относительный путь, текст)."""
     if not directory.exists():
         raise FileNotFoundError(f"Папка базы знаний не найдена: {directory}")
     if not directory.is_dir():
         raise FileNotFoundError(f"Ожидалась папка с текстами: {directory}")
 
     documents: list[tuple[str, str]] = []
-    for path in sorted(directory.glob("*.txt")):
-        text = path.read_text(encoding="utf-8").strip()
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
+            continue
+        try:
+            text = read_document(path).strip()
+        except (OSError, ValueError) as exc:
+            logger.warning("Пропущен {}: {}", path, exc)
+            continue
         if text:
-            documents.append((path.name, text))
+            source = path.relative_to(directory).as_posix()
+            documents.append((source, text))
     return documents
 
 
@@ -117,7 +158,7 @@ def build_chunks(
     """Нарезать документы на чанки с уникальными id."""
     chunks: list[KnowledgeChunk] = []
     for source, text in documents:
-        source_stem = Path(source).stem
+        source_stem = Path(source).with_suffix("").as_posix().replace("/", "-")
         for index, chunk in enumerate(
             chunk_text(text, chunk_size=chunk_size, overlap=overlap),
             start=1,
@@ -200,7 +241,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=DEFAULT_KNOWLEDGE_DIR,
         metavar="PATH",
-        help=f"папка с *.txt (по умолчанию {DEFAULT_KNOWLEDGE_DIR})",
+        help=f"папка с *.txt/*.pdf, рекурсивно (по умолчанию {DEFAULT_KNOWLEDGE_DIR})",
     )
     parser.add_argument(
         "--chroma-dir",
@@ -259,7 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     if not documents:
-        logger.error("В {} нет непустых .txt файлов", args.knowledge_dir)
+        logger.error("В {} нет непустых .txt/.pdf файлов", args.knowledge_dir)
         return 1
 
     chunks = build_chunks(

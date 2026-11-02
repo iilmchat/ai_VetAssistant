@@ -8,6 +8,15 @@
 
 ### Добавлено
 
+- Function Calling: `app/tools.py` со схемами `book_appointment` и
+  `set_reminder`, парсинг нативных и текстовых `tool_calls`, поддержка
+  параметра `tools` в `/v1/chat/completions`, заглушка
+  `POST /v1/tools/execute` (T-030).
+- Streamlit UI: переключатель Function Calling и бейджи
+  «🛠️ Вызван инструмент: …» с параметрами (T-030).
+- Реальный RAG: `scripts/download_msd.py` скачивает статьи MSD Vet Manual
+  в `data/knowledge/real/`; `scripts/ingest_knowledge.py` рекурсивно читает
+  TXT и PDF через `pypdf` (T-030).
 - GitHub Release `v0.2.0 - VetAssistant MVP` с описанием из CHANGELOG (T-031).
 - Workflow `.github/workflows/release.yml`: на пуш тега `v*` собирает
   Docker-образ и создаёт GitHub Release через `softprops/action-gh-release@v2`

@@ -26,6 +26,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
+from app.tools import (
+    ToolCall,
+    ToolDefinition,
+    ToolExecutionRequest,
+    normalize_native_tool_calls,
+    parse_tool_calls,
+    with_tools_instruction,
+)
 
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 0.95
@@ -64,13 +72,18 @@ class ChatCompletionRequest(BaseModel):
         default=False,
         description="Использовать поиск по локальной базе знаний",
     )
+    tools: list[ToolDefinition] | None = Field(
+        default=None,
+        description="OpenAI-совместимые инструменты для Function Calling",
+    )
 
 
 class ResponseMessage(BaseModel):
     """Ответ ассистента внутри choice."""
 
     role: Literal["assistant"] = "assistant"
-    content: str
+    content: str | None = None
+    tool_calls: list[ToolCall] | None = None
 
 
 class ChatCompletionChoice(BaseModel):
@@ -166,12 +179,21 @@ def _last_user_message(messages: Sequence[ChatMessage]) -> str | None:
     return None
 
 
+def _tool_names(request: ChatCompletionRequest) -> set[str]:
+    """Имена инструментов, разрешённых в текущем запросе."""
+    return {tool.function.name for tool in request.tools or []}
+
+
 def _generation_kwargs(request: ChatCompletionRequest) -> dict[str, Any]:
-    return {
+    kwargs: dict[str, Any] = {
         "temperature": request.temperature,
         "top_p": request.top_p,
         "max_tokens": request.max_tokens,
     }
+    if request.tools:
+        kwargs["tools"] = [tool.model_dump(exclude_none=True) for tool in request.tools]
+        kwargs["tool_choice"] = "auto"
+    return kwargs
 
 
 def _complete(
@@ -195,18 +217,123 @@ def _complete(
         total_tokens=int(usage_payload.get("total_tokens", 0)),
     )
 
+    allowed_tools = _tool_names(request)
+    content = str(message.get("content") or "")
+    tool_calls = normalize_native_tool_calls(
+        message.get("tool_calls"),
+        allowed_tools=allowed_tools,
+    )
+    if request.tools and not tool_calls:
+        tool_calls, content = parse_tool_calls(content, allowed_tools=allowed_tools)
+
+    response_content: str | None = content
+    if tool_calls and not content:
+        response_content = None
+    finish_reason = "tool_calls" if tool_calls else str(choice.get("finish_reason") or "stop")
+
     return ChatCompletionResponse(
         id=f"chatcmpl-{uuid.uuid4().hex}",
         created=int(time.time()),
         model=model_name,
         choices=[
             ChatCompletionChoice(
-                message=ResponseMessage(content=str(message.get("content") or "")),
-                finish_reason=str(choice.get("finish_reason") or "stop"),
+                message=ResponseMessage(
+                    content=response_content,
+                    tool_calls=tool_calls or None,
+                ),
+                finish_reason=finish_reason,
             )
         ],
         usage=usage,
     )
+
+
+def _sse_chunk(payload: dict[str, Any]) -> str:
+    """Сериализовать один SSE-чанк."""
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _stream_with_tools(
+    model: ChatModel,
+    messages: Sequence[dict[str, str]],
+    request: ChatCompletionRequest,
+    model_name: str,
+) -> Iterator[str]:
+    """Отдать SSE-поток для запроса с инструментами.
+
+    Модель вызывается без ``stream``, чтобы корректно разобрать цельный
+    JSON/tool_call. После разбора чанки формируются вручную в формате OpenAI.
+    """
+    try:
+        response = _complete(model, messages, request, model_name)
+        choice = response.choices[0]
+        message = choice.message
+        if message.tool_calls:
+            tool_calls = [
+                {"index": index, **tool_call.model_dump()}
+                for index, tool_call in enumerate(message.tool_calls)
+            ]
+            yield _sse_chunk(
+                {
+                    "id": response.id,
+                    "object": "chat.completion.chunk",
+                    "created": response.created,
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "content": message.content,
+                                "tool_calls": tool_calls,
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+            )
+            yield _sse_chunk(
+                {
+                    "id": response.id,
+                    "object": "chat.completion.chunk",
+                    "created": response.created,
+                    "model": model_name,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                }
+            )
+        else:
+            yield _sse_chunk(
+                {
+                    "id": response.id,
+                    "object": "chat.completion.chunk",
+                    "created": response.created,
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "content": message.content or "",
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+            )
+            yield _sse_chunk(
+                {
+                    "id": response.id,
+                    "object": "chat.completion.chunk",
+                    "created": response.created,
+                    "model": model_name,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                }
+            )
+    except Exception as exc:
+        logger.error("Ошибка генерации с инструментами: {}", exc)
+        error = {"error": {"message": str(exc), "type": "server_error"}}
+        yield _sse_chunk(error)
+    yield "data: [DONE]\n\n"
 
 
 def _stream(
@@ -216,6 +343,10 @@ def _stream(
     model_name: str,
 ) -> Iterator[str]:
     """Отдать ответ потоком SSE в формате OpenAI."""
+    if request.tools:
+        yield from _stream_with_tools(model, messages, request, model_name)
+        return
+
     try:
         stream = model.create_chat_completion(
             messages=messages,
@@ -281,6 +412,9 @@ def chat_completions(
                 messages = with_rag_context(messages, chunks)
                 logger.info("RAG: добавлено чанков: {}", len(chunks))
 
+    if request.tools:
+        messages = with_tools_instruction(messages, request.tools)
+
     # Инструкция добавляется последней, чтобы модель прочитала её после RAG.
     if triage["is_emergency"]:
         messages = with_emergency_instruction(messages)
@@ -293,3 +427,10 @@ def chat_completions(
         )
 
     return _complete(model, messages, request, model_name)
+
+
+@app.post("/v1/tools/execute")
+def execute_tool(request: ToolExecutionRequest) -> dict[str, str]:
+    """Заглушка выполнения инструмента: логирует вызов и подтверждает успех."""
+    logger.info("Tool execute: name={} arguments={}", request.name, request.arguments)
+    return {"status": "success"}

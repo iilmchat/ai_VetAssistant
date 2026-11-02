@@ -205,6 +205,13 @@
 - **Оценка:** 1
 - **Статус:** частично: тег, CHANGELOG, README и инструкция готовы; Branch Protection недоступен для private-репозитория на GitHub Free (API 403), требуется GitHub Pro/Team или публичный репозиторий — см. `docs/development/BRANCH_PROTECTION.md`.
 
+### [x] T-030. Function Calling и реальный RAG (v0.3.0)
+- **Зависит от:** T-022, T-026, T-027
+- **Что:** `app/tools.py` — OpenAI JSON Schema для `book_appointment` и `set_reminder`, парсинг `tool_calls`; поддержка `tools` в API и заглушка `/v1/tools/execute`; UI-переключатель и бейджи инструментов. Реальный RAG: `scripts/download_msd.py` (2 статьи MSD), PDF-поддержка в `scripts/ingest_knowledge.py` через `pypdf`.
+- **DoD:** модель возвращает `tool_calls` в OpenAI-формате, UI показывает вызов, заглушка исполнения отвечает `{"status":"success"}`, реальные статьи скачиваются и индексируются вместе с PDF; тесты парсинга и API.
+- **Оценка:** 2
+- **Статус:** выполнено: инструменты и API, UI-бейджи, загрузка 2 статей MSD, поддержка PDF/TXT и рекурсивная индексация; `pytest` 474 passed, `ruff`/`mypy` чисто.
+
 ### [x] T-031. GitHub Release и автоматизация релизов
 - **Зависит от:** T-028, T-029
 - **Что:** публикация GitHub Release `v0.2.0` через `gh`; workflow `.github/workflows/release.yml` на теги `v*` — сборка Docker-образа и создание релиза через `softprops/action-gh-release@v2`; бейдж последнего релиза в README.

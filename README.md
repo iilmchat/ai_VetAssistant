@@ -5,7 +5,8 @@
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
 
-**Статус:** ✅ Стабильный релиз **v0.2.0** (2026-11-03)
+**Статус:** ✅ Стабильный релиз **v0.2.0** (2026-11-03); 🚧 **v0.3.0** в разработке
+**В разработке v0.3.0:** Function Calling и реальный RAG по статьям MSD Vet Manual
 **CI/CD:** GitHub Actions — линтеры, тесты и Docker-сборка (бейдж выше)
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -22,7 +23,7 @@
   prompt injection до вызова LLM; F1 = **1.0000** на бенчмарке.
 - **Docker-дистрибутив**: FastAPI и Streamlit UI одной командой
   `docker compose up --build`, модель и ChromaDB монтируются из `data/`.
-- **CI/CD**: GitHub Actions проверяет `ruff`, `mypy`, `pytest` (447 тестов)
+- **CI/CD**: GitHub Actions проверяет `ruff`, `mypy`, `pytest` (470+ тестов)
   и собирает Docker-образ на каждый push/PR в `main`.
 - Подробности: [CHANGELOG.md](docs/CHANGELOG.md),
   [EVAL_ROUTER.md](docs/development/reports/EVAL_ROUTER.md).
@@ -184,6 +185,7 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 - потоковый вывод ответа (эффект печатной машинки);
 - история сообщений в `st.session_state`;
 - слайдер `temperature` (0.0–1.0, по умолчанию 0.7);
+- переключатель Function Calling и бейджи вызова инструментов;
 - кнопка «Очистить историю чата».
 
 Если API выключен, UI покажет сообщение
@@ -199,6 +201,17 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
    лёгкая мультиязычная модель эмбеддингов
    `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
 2. Положите текстовые файлы в `data/knowledge/` (3 демо-файла уже есть).
+   Поддерживаются `*.txt` и `*.pdf`, файлы читаются рекурсивно. Чтобы скачать
+   реальные статьи MSD Vet Manual:
+
+   ```powershell
+   python scripts/download_msd.py --dry-run
+   python scripts/download_msd.py
+   ```
+
+   Статьи сохраняются в `data/knowledge/real/`: отравление человеческими
+   анальгетиками (включая парацетамол) и острый геморрагический диарейный
+   синдром у собак.
 3. Постройте индекс:
 
 ```powershell
@@ -231,6 +244,54 @@ regex-роутер `app/router.py`:
   с фразы **«СРОЧНО ОБРАТИТЕСЬ В КЛИНИКУ»** и не задавать уточняющих вопросов.
 
 Проверка занимает микросекунды и не требует загрузки дополнительных моделей.
+
+## 🧰 Function Calling
+
+Модель умеет вызывать два инструмента (схемы — `app/tools.py`):
+
+- `book_appointment(date, time, pet_name)` — запись питомца на приём;
+- `set_reminder(time, text)` — напоминание, например дать таблетку.
+
+В Streamlit включите в сайдбаре
+**«Разрешить модели использовать инструменты (Function Calling)»**. Если
+модель вернула `tool_calls`, в чате появится бейдж
+**🛠️ Вызван инструмент: …** с параметрами.
+
+Прямой запрос к API передаёт OpenAI-совместимый массив `tools`:
+
+```json
+{
+  "messages": [{"role": "user", "content": "Запиши Мурзика на 4 ноября в 10:00"}],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "book_appointment",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "date": {"type": "string"},
+            "time": {"type": "string"},
+            "pet_name": {"type": "string"}
+          },
+          "required": ["date", "time", "pet_name"]
+        }
+      }
+    }
+  ]
+}
+```
+
+Заглушка выполнения инструмента:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/tools/execute `
+  -Method Post -ContentType "application/json" `
+  -Body '{"name":"book_appointment","arguments":{"date":"2026-11-04","time":"10:00","pet_name":"Мурзик"}}'
+```
+
+Ответ: `{"status": "success"}`. Реальная интеграция с календарём и
+напоминаниями появится в следующих итерациях.
 
 ## 🐳 Запуск через Docker Compose
 
@@ -296,7 +357,8 @@ Compose обращается к API по имени сервиса `http://api:8
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
 - **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py), GGUF Q4_K_M/Q5_K_M.
 - **Инференс:** FastAPI + `llama-cpp-python`, OpenAI-совместимый API и SSE.
-- **RAG:** ChromaDB + sentence-transformers, локальная база знаний.
+- **RAG:** ChromaDB + sentence-transformers, TXT/PDF, реальные статьи MSD Vet Manual.
+- **Function Calling:** `book_appointment`, `set_reminder`, OpenAI-совместимые `tools`.
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
 - **Развёртывание:** Docker Compose, FastAPI + Streamlit UI.
