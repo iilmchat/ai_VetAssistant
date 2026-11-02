@@ -4,6 +4,16 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Unreleased]
+
+### Добавлено
+
+- GitHub Release `v0.2.0 - VetAssistant MVP` с описанием из CHANGELOG (T-031).
+- Workflow `.github/workflows/release.yml`: на пуш тега `v*` собирает
+  Docker-образ и создаёт GitHub Release через `softprops/action-gh-release@v2`
+  (T-031).
+- Бейдж последнего релиза в README (T-031).
+
 ## [0.2.0] — 2026-11-03
 
 > Официальный стабильный релиз. Тег: `v0.2.0`.

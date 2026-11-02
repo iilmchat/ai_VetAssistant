@@ -205,6 +205,13 @@
 - **Оценка:** 1
 - **Статус:** частично: тег, CHANGELOG, README и инструкция готовы; Branch Protection недоступен для private-репозитория на GitHub Free (API 403), требуется GitHub Pro/Team или публичный репозиторий — см. `docs/development/BRANCH_PROTECTION.md`.
 
+### [x] T-031. GitHub Release и автоматизация релизов
+- **Зависит от:** T-028, T-029
+- **Что:** публикация GitHub Release `v0.2.0` через `gh`; workflow `.github/workflows/release.yml` на теги `v*` — сборка Docker-образа и создание релиза через `softprops/action-gh-release@v2`; бейдж последнего релиза в README.
+- **DoD:** релиз `v0.2.0` виден в GitHub Releases, workflow готов к следующему тегу, бейдж добавлен.
+- **Оценка:** 0.5
+- **Статус:** выполнено: GitHub Release `v0.2.0 - VetAssistant MVP` опубликован; `release.yml` и бейдж добавлены.
+
 ---
 
 ## Backlog
