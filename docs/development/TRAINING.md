@@ -265,7 +265,29 @@ python scripts/convert_to_gguf.py --dry-run
 `build-essential` и `cmake` (setup-скрипт ставит build-essential отдельно).
 Пути можно переопределить: `--model-dir`, `--output-dir`, `--llama-dir`.
 
-## 10. Диагностика
+## 10. Локальный веб-интерфейс Streamlit
+
+После запуска FastAPI-сервера (см. `README.md`) можно открыть браузерный чат
+с моделью:
+
+```bash
+pip install -e .
+streamlit run app/ui.py
+```
+
+На Windows, если команда `streamlit` не найдена в PATH:
+
+```powershell
+python -m streamlit run app/ui.py
+```
+
+UI доступен на `http://localhost:8501` и обращается к
+`POST http://127.0.0.1:8000/v1/chat/completions`. Поддерживаются потоковый
+вывод ответа, история в `st.session_state`, слайдер `temperature` и очистка
+истории. Если API выключен, интерфейс покажет:
+«Сервер ветеринара спит, включите uvicorn».
+
+## 11. Диагностика
 
 - **`apt-get: Permission denied`** — запускайте от `root` или через пользователя
   с `sudo`.

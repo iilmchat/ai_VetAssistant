@@ -163,6 +163,13 @@
 - **Оценка:** 1
 - **Статус:** выполнено: `MODEL_CARD.md`, `docs/CHANGELOG.md`, обновлены README и EVAL_V1; релизный коммит и тег `v0.1.0`.
 
+### [x] T-025. Веб-интерфейс Streamlit
+- **Зависит от:** T-022, T-024
+- **Что:** `app/ui.py` — чат на Streamlit с историей в `st.session_state`, потоковым выводом через SSE, настройкой `temperature` и очисткой истории; HTTP-клиент `app/ui_client.py`; инструкции в README и TRAINING.md.
+- **DoD:** `streamlit run app/ui.py` открывает чат, ответы приходят потоком, при выключенном API показывается «Сервер ветеринара спит, включите uvicorn».
+- **Оценка:** 1.5
+- **Статус:** выполнено: UI и клиент готовы, 11 тестов, Streamlit отвечает HTTP 200; `pytest` 388 passed, `ruff`/`mypy` чисто.
+
 ---
 
 ## Backlog

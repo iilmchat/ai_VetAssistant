@@ -141,11 +141,39 @@ python evaluation/evaluate.py --local-api `
   --output data/local_answers.jsonl
 ```
 
+## 🖥️ Веб-интерфейс Streamlit
+
+Убедитесь, что FastAPI-сервер уже запущен (см. раздел выше), затем установите
+зависимости и запустите UI:
+
+```powershell
+pip install -e .
+streamlit run app/ui.py
+```
+
+Если команда `streamlit` не найдена в PATH:
+
+```powershell
+python -m streamlit run app/ui.py
+```
+
+Streamlit откроет браузер на `http://localhost:8501`. В интерфейсе доступны:
+
+- чат с моделью через `POST /v1/chat/completions`;
+- потоковый вывод ответа (эффект печатной машинки);
+- история сообщений в `st.session_state`;
+- слайдер `temperature` (0.0–1.0, по умолчанию 0.7);
+- кнопка «Очистить историю чата».
+
+Если API выключен, UI покажет сообщение
+**«Сервер ветеринара спит, включите uvicorn»**.
+
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
 - **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py), GGUF Q4_K_M/Q5_K_M.
 - **Инференс:** FastAPI + `llama-cpp-python`, OpenAI-совместимый API и SSE.
+- **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`.
 
 ## 💾 Работа с данными (DVC)
