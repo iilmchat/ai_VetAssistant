@@ -24,6 +24,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
+from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
 
 DEFAULT_TEMPERATURE = 0.2
@@ -251,6 +252,19 @@ def chat_completions(
     knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
 ) -> ChatCompletionResponse | StreamingResponse:
     """Сгенерировать ответ модели в формате OpenAI Chat Completions."""
+    # Быстрый триаж до генерации: не тратим ресурсы LLM на prompt injection
+    # и сразу помечаем угрожающие жизни случаи.
+    user_message = _last_user_message(request.messages) or ""
+    triage = triage_message(user_message)
+    if triage["injection_detected"]:
+        logger.warning("Triage: запрос отклонён — {}", triage["reason"])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Запрос отклонён системой безопасности: {triage['reason']}",
+        )
+    if triage["is_emergency"]:
+        logger.info("Triage: экстренный случай — {}", triage["reason"])
+
     settings = get_app_settings()
     model_name = _model_name(request, settings)
     messages = build_messages(request.messages)
@@ -266,6 +280,10 @@ def chat_completions(
             if chunks:
                 messages = with_rag_context(messages, chunks)
                 logger.info("RAG: добавлено чанков: {}", len(chunks))
+
+    # Инструкция добавляется последней, чтобы модель прочитала её после RAG.
+    if triage["is_emergency"]:
+        messages = with_emergency_instruction(messages)
 
     if request.stream:
         return StreamingResponse(
