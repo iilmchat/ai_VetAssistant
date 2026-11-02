@@ -1,5 +1,7 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
+[![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
+
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
 
 **Статус:** 🚧 Подготовка релиза **v0.2.0** (предыдущий релиз — v0.1.0)
@@ -280,6 +282,7 @@ Compose обращается к API по имени сервиса `http://api:8
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
 - **Развёртывание:** Docker Compose, FastAPI + Streamlit UI.
+- **CI/CD:** GitHub Actions — ruff, mypy, pytest, сборка Docker-образа.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`, `scripts/evaluate_router.py`.
 
 ## 💾 Работа с данными (DVC)

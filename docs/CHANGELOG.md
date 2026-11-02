@@ -34,6 +34,9 @@
 - Docker-стек: `Dockerfile`, `docker-compose.yml`, `.dockerignore`.
   Контейнеры FastAPI (`:8000`) и Streamlit UI (`:8501`), общий volume
   `./data:/app/data` для GGUF-модели и ChromaDB.
+- CI/CD: GitHub Actions workflow `.github/workflows/ci.yml` на push/PR в
+  `main` — `ruff check .`, `mypy app`, `pytest -q` и сборка Docker-образа;
+  бейдж статуса CI в README (T-028).
 - README: инструкция запуска через `docker compose up --build`.
 
 ### Результаты v0.2.0

@@ -184,12 +184,19 @@
 - **Оценка:** 1.5
 - **Статус:** выполнено: `app/router.py`, интеграция в API, 30 тестов роутера и API; `pytest` 440 passed, `ruff`/`mypy` чисто.
 
-### [x] T-028. Docker-стек и подготовка v0.2.0
+### [x] T-027.1. Docker-стек и подготовка v0.2.0
 - **Зависит от:** T-025, T-026, T-027
 - **Что:** `Dockerfile`, `docker-compose.yml` и `.dockerignore`; контейнеры FastAPI (`:8000`) и Streamlit UI (`:8501`), volume `./data:/app/data`, переменные `VET_API_*`/`VET_UI_*`; настройка адреса API для UI; README и CHANGELOG v0.2.0.
 - **DoD:** `docker compose config` валиден, UI внутри Compose обращается к API по имени сервиса, модель и ChromaDB доступны через volume, инструкция запуска добавлена в README.
 - **Оценка:** 1
 - **Статус:** выполнено: Docker-стек готов, `UISettings` для `VET_UI_*`, README и CHANGELOG обновлены; `docker compose config` — OK, образ собран (3.68 ГБ), smoke-тест API+UI в контейнерах пройден (API `/health` 200, UI `/_stcore/health` — `ok`).
+
+### [x] T-028. CI/CD пайплайн (GitHub Actions)
+- **Зависит от:** T-013, T-027
+- **Что:** `.github/workflows/ci.yml` — push/PR в `main`, Python 3.12, установка зависимостей, `ruff check .`, `mypy app`, `pytest -q`, Docker Buildx и сборка образа без пуша; бейдж CI в README.
+- **DoD:** workflow запускается на push и pull_request в `main`, все шаги зелёные, Docker-образ собирается, бейдж отображает статус.
+- **Оценка:** 1
+- **Статус:** выполнено: workflow и бейдж добавлены; актуальный статус прогонов — по бейджу CI в README.
 
 ---
 
