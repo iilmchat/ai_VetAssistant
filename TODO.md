@@ -126,6 +126,31 @@
 
 ---
 
+## Фаза 2. Оценка GGUF-модели
+
+### [x] T-020. Оценка дообученной GGUF-модели
+- **Зависит от:** T-018
+- **Что:** прогнать `evaluation/evaluate.py` на `data/eval_dataset_petqa.jsonl` (2000 open-ended вопросов PetQA-Bench) через LM Studio (`--base-url`, `--model-id`, `--limit`), с resume по уже сгенерированным ответам.
+- **DoD:** 2000/2000 ответов без потерь; `eval_report.json` и лог прогона.
+- **Оценка:** 2
+- **Статус:** выполнено: 2000/2000 ответов, 0 missing; `reference_f1_avg=0.0836` (низкий из-за разницы длины ответов и эталонов); дважды потребовался resume после выгрузки модели в LM Studio (873 и 119 ошибок `No models loaded`).
+
+### [x] T-021. Оценка качества ответов через LLM-Judge
+- **Зависит от:** T-020
+- **Что:** прогнать готовые ответы `data/eval_answers.jsonl` через локального LLM-Judge (LM Studio, `--judge-base-url`/`--judge-model-id`) без повторной генерации (`--skip-generation`); пилот на 10, затем все 2000.
+- **DoD:** судья возвращает JSON `{"score": 1..5, "reason": ...}`; отчёт с `reasoning_score_avg` и `reasoning_above_4_ratio` на 2000 ответах.
+- **Оценка:** 1.5
+- **Статус:** выполнено: 2000/2000 вердиктов, `judge_errors=0`, `reasoning_score_avg=4.5185`, `reasoning_above_4_ratio=0.977`; кеш вердиктов `data/judge_verdicts.jsonl`.
+
+### [x] T-022. FastAPI-обёртка для локальной GGUF-модели
+- **Зависит от:** T-018, T-020
+- **Что:** `app/main.py` — OpenAI-совместимый `POST /v1/chat/completions` на `llama-cpp-python`, системный ветеринарный промпт, SSE-стриминг, настройки модели через pydantic-settings; тесты с замоканной моделью.
+- **DoD:** API принимает `messages` в формате OpenAI, возвращает полный ответ или SSE-поток; тесты не грузят GGUF; зависимости добавлены в `pyproject.toml`.
+- **Оценка:** 2
+- **Статус:** выполнено: `app/main.py`, `app/settings.py`, 7 API-тестов с моком; `pytest` 368 passed, `ruff`/`mypy` чисто.
+
+---
+
 ## Backlog
 
 ### [ ] T-013. Архитектура «Router & Triage»

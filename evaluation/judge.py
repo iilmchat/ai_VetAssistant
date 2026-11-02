@@ -19,14 +19,20 @@ Reasoning в offline-режиме недостоверна и равна ней�
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import re
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, Protocol, TypedDict
 
 from loguru import logger
+from openai import BadRequestError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from configs.prompts import PromptRenderer, get_prompts
+from data_pipeline.dataset_io import append_jsonl
 from data_pipeline.llm_client import TeacherClient
 from evaluation.schemas import (
     EvalRecord,
@@ -53,6 +59,24 @@ MIN_PASS_SCORE = 4
 
 #: Лимит токенов на вердикт: JSON с коротким обоснованием.
 JUDGE_MAX_TOKENS = 512
+
+#: Строгая схема ответа судьи для провайдеров с поддержкой structured output.
+JUDGE_JSON_SCHEMA_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "judge_verdict",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "score": {"type": "integer", "minimum": 1, "maximum": 5},
+                "reason": {"type": "string", "minLength": 1},
+            },
+            "required": ["score", "reason"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 
 class JudgeVerdict(TypedDict):
@@ -206,12 +230,21 @@ class LLMJudge:
         *,
         prompts: PromptRenderer | None = None,
         max_tokens: int = JUDGE_MAX_TOKENS,
+        use_response_format: bool = True,
+        response_format: Mapping[str, Any] | None = None,
     ) -> None:
         if max_tokens < 1:
             raise ValueError("max_tokens должен быть >= 1")
         self._client = client
         self._prompts = prompts if prompts is not None else get_prompts()
         self._max_tokens = max_tokens
+        # LM Studio и часть OpenAI-совместимых серверов возвращают 400 на
+        # response_format. При первом таком ответе повторяем запрос без него.
+        self._response_format = (
+            dict(response_format)
+            if response_format is not None
+            else ({"type": "json_object"} if use_response_format else None)
+        )
 
     async def evaluate_reasoning(self, record: EvalRecord, model_response: str) -> JudgeVerdict:
         """Оценить свободный ответ по рубрике 1–5.
@@ -221,12 +254,27 @@ class LLMJudge:
             openai.OpenAIError: ошибка API (после ретраев `TeacherClient`).
         """
         prompt = build_judge_prompt(self._prompts, record, model_response)
-        result = await self._client.chat(
-            [{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=self._max_tokens,
-            response_format={"type": "json_object"},
-        )
+        messages = [{"role": "user", "content": prompt}]
+        try:
+            result = await self._client.chat(
+                messages,
+                temperature=0.0,
+                max_tokens=self._max_tokens,
+                response_format=self._response_format,
+            )
+        except BadRequestError:
+            if self._response_format is None:
+                raise
+            logger.warning(
+                "Судья: провайдер не поддерживает response_format — "
+                "повторяю запрос без него"
+            )
+            self._response_format = None
+            result = await self._client.chat(
+                messages,
+                temperature=0.0,
+                max_tokens=self._max_tokens,
+            )
         verdict = parse_verdict(result.content)
         logger.debug(
             "Судья: id={} score={} reason={}",
@@ -246,9 +294,107 @@ class LLMJudge:
         return verdict["score"] >= MIN_PASS_SCORE
 
 
+def _answer_hash(text: str) -> str:
+    """SHA-256 ответа: кеш не переиспользуется после изменения ответа."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class CachingJudge:
+    """Судья с инкрементальным кешем вердиктов в JSONL.
+
+    Нужен для длинных прогонов: при обрыве связи уже оценённые ответы не
+    теряются, а повторный запуск продолжает с места остановки. Записи кеша
+    привязаны к модели судьи и хешу ответа, поэтому смена модели или ответа
+    автоматически инвалидирует старые вердикты.
+    """
+
+    def __init__(self, judge: Judge, path: Path, *, judge_model: str) -> None:
+        if not judge_model.strip():
+            raise ValueError("judge_model не должен быть пустым")
+        self._judge = judge
+        self._path = path
+        self._judge_model = judge_model
+        self._lock = asyncio.Lock()
+        self._cache: dict[str, tuple[str, JudgeVerdict]] = {}
+        self._added = 0
+        self._load()
+
+    @property
+    def cached(self) -> int:
+        """Сколько вердиктов загружено из кеша."""
+        return len(self._cache)
+
+    @property
+    def added(self) -> int:
+        """Сколько новых вердиктов записано в кеш за процесс."""
+        return self._added
+
+    def _load(self) -> None:
+        if not self._path.exists():
+            return
+        with self._path.open("r", encoding="utf-8") as handle:
+            for line_no, raw_line in enumerate(handle, start=1):
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    payload: Any = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "{}:{} — пропущен битый вердикт кеша", self._path.name, line_no
+                    )
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                if payload.get("judge_model") != self._judge_model:
+                    continue
+                record_id = payload.get("id")
+                answer_hash = payload.get("answer_sha256")
+                if not isinstance(record_id, str) or not isinstance(answer_hash, str):
+                    continue
+                try:
+                    verdict = _VerdictPayload.model_validate(payload)
+                except ValidationError:
+                    logger.warning("{}:{} — вердикт не прошёл схему", self._path.name, line_no)
+                    continue
+                self._cache[record_id] = (
+                    answer_hash,
+                    {"score": verdict.score, "reason": verdict.reason},
+                )
+
+    async def evaluate_reasoning(
+        self, record: EvalRecord, model_response: str
+    ) -> JudgeVerdict:
+        """Вернуть вердикт из кеша или запросить судью и сразу сохранить."""
+        answer_hash = _answer_hash(model_response)
+        cached = self._cache.get(record.id)
+        if cached is not None and cached[0] == answer_hash:
+            logger.debug("Судья: вердикт {} взят из кеша", record.id)
+            return cached[1]
+
+        verdict = await self._judge.evaluate_reasoning(record, model_response)
+        async with self._lock:
+            append_jsonl(
+                self._path,
+                {
+                    "id": record.id,
+                    "score": verdict["score"],
+                    "reason": verdict["reason"],
+                    "judge_model": self._judge_model,
+                    "answer_sha256": answer_hash,
+                },
+            )
+            self._cache[record.id] = (answer_hash, verdict)
+            self._added += 1
+        return verdict
+
+    async def evaluate_safety(self, record: SafetyRecord, model_response: str) -> bool:
+        """Safety делегируется базовому судье (в PetQA Safety-кейсов нет)."""
+        return await self._judge.evaluate_safety(record, model_response)
+
+
 class OfflineJudge:
     """Заглушка без API: регулярки для Safety, нейтральный балл для Reasoning."""
-
     async def evaluate_reasoning(self, record: EvalRecord, model_response: str) -> JudgeVerdict:
         """Reasoning без LLM не оценить — возвращаем нейтральные 3 балла."""
         logger.debug("OfflineJudge: Reasoning для {} не оценивается", record.id)
