@@ -2,7 +2,7 @@
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
 
-**Статус:** ✅ Релиз **v0.1.0** (2026-11-02)
+**Статус:** 🚧 Подготовка релиза **v0.2.0** (предыдущий релиз — v0.1.0)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
 **API:** FastAPI, OpenAI-совместимый `POST /v1/chat/completions`
 **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
@@ -29,6 +29,7 @@
 | [**Design.md**](docs/development/Design_v1.md) | **Источник истины.** Архитектура пайплайна, выбор моделей, инфраструктура, риски. |
 | [**MODEL_CARD.md**](MODEL_CARD.md) | Карточка модели: назначение, данные, метрики, ограничения. |
 | [**EVAL_V1.md**](docs/development/reports/EVAL_V1.md) | Отчёт об обучении, генерации, LLM-Judge и Safety-проверке. |
+| [**EVAL_ROUTER.md**](docs/development/reports/EVAL_ROUTER.md) | Precision/Recall/F1 роутера на бенчмарке экстренных случаев и инъекций. |
 | [**CHANGELOG.md**](docs/CHANGELOG.md) | История релизов и ключевые вехи проекта. |
 | [**synthetic_prompts.md**](docs/synthetic_prompts.md) | Библиотека промптов для двухшаговой генерации (Шаг A + Шаг B) и Safety-кейсов. |
 | [**eval_harness.md**](docs/eval_harness.md) | Структура бенчмарка, JSONL-схемы, метрики (MCQ, Safety, Multi-turn) и код `evaluate.py`. |
@@ -211,14 +212,75 @@ regex-роутер `app/router.py`:
 
 Проверка занимает микросекунды и не требует загрузки дополнительных моделей.
 
+## 🐳 Запуск через Docker Compose
+
+Требования: Docker Engine или Docker Desktop с Compose v2 и не менее 10 ГБ
+свободного места (образ содержит `llama-cpp-python`, CPU-сборку PyTorch,
+ChromaDB и Streamlit).
+
+1. Убедитесь, что GGUF-модель лежит в `data/gguf/`. Если файла нет:
+
+   ```powershell
+   python scripts/sync_data.py pull
+   ```
+
+2. (Опционально) Постройте индекс RAG. Можно на хосте:
+
+   ```powershell
+   python scripts/ingest_knowledge.py
+   ```
+
+   Или в контейнере после сборки:
+
+   ```powershell
+   docker compose run --rm api python scripts/ingest_knowledge.py
+   ```
+
+3. Соберите и запустите оба сервиса:
+
+   ```powershell
+   docker compose up --build
+   ```
+
+4. Откройте:
+   - API: `http://localhost:8000/health`
+   - Streamlit UI: `http://localhost:8501`
+
+5. Остановка:
+
+   ```powershell
+   docker compose down
+   ```
+
+Контейнеры монтируют локальную папку `./data` в `/app/data`, поэтому модель
+GGUF и ChromaDB не копируются в образ и остаются доступны API. UI внутри
+Compose обращается к API по имени сервиса `http://api:8000`.
+
+Основные переменные окружения можно задать в `.env` (Compose подхватит их
+для подстановки):
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `VET_API_MODEL_PATH` | `/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf` | Путь к GGUF внутри контейнера |
+| `VET_API_N_CTX` | `8192` | Размер контекста llama.cpp |
+| `VET_API_N_GPU_LAYERS` | `0` | Слоёв на GPU (0 — CPU) |
+| `VET_UI_API_URL` | `http://api:8000/v1/chat/completions` | Адрес API для UI |
+| `VET_UI_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах UI |
+
+> Первая сборка может занять 10–20 минут: `llama-cpp-python` собирается из
+> исходников. Если GGUF-модель отсутствует, API запустится, но ответы на
+> запросы будут возвращать `503 Модель недоступна`.
+
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
 - **Экспорт:** `llama.cpp` (convert_hf_to_gguf.py), GGUF Q4_K_M/Q5_K_M.
 - **Инференс:** FastAPI + `llama-cpp-python`, OpenAI-совместимый API и SSE.
 - **RAG:** ChromaDB + sentence-transformers, локальная база знаний.
+- **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
-- **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`.
+- **Развёртывание:** Docker Compose, FastAPI + Streamlit UI.
+- **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`, `scripts/evaluate_router.py`.
 
 ## 💾 Работа с данными (DVC)
 

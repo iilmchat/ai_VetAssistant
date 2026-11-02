@@ -1,0 +1,38 @@
+# Git и служебные файлы
+.git
+.gitignore
+.dvc
+.dvcignore
+
+# Виртуальные окружения и кэши
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+coverage.xml
+
+# Данные и артефакты: монтируются в контейнер, в образ не попадают
+data
+models
+checkpoints
+outputs
+logs
+*.log
+*.gguf
+
+# Секреты и локальная конфигурация
+.env
+.env.*
+!.env.example
+
+# Тесты и IDE
+tests
+.idea
+.vscode
+.DS_Store
+Thumbs.db

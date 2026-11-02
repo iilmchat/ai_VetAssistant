@@ -12,9 +12,10 @@ from typing import Any
 
 import requests
 
-DEFAULT_API_URL = "http://127.0.0.1:8000/v1/chat/completions"
-DEFAULT_MODEL_ID = "qwen3-8b-vet"
-DEFAULT_TIMEOUT_S = 300.0
+from app.settings import DEFAULT_MODEL_ID, DEFAULT_UI_API_URL, DEFAULT_UI_TIMEOUT_S
+
+DEFAULT_API_URL = DEFAULT_UI_API_URL
+DEFAULT_TIMEOUT_S = DEFAULT_UI_TIMEOUT_S
 
 
 def build_payload(

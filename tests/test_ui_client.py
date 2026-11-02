@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 import requests
 
+from app.settings import UISettings
 from app.ui_client import build_payload, parse_sse_line, stream_chat
 
 
@@ -27,6 +28,18 @@ class _FakeResponse:
 
     def iter_lines(self) -> Any:
         return iter(self._lines)
+
+
+def test_ui_settings_read_api_url_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VET_UI_API_URL", "http://api:8000/v1/chat/completions")
+    monkeypatch.setenv("VET_UI_MODEL_ID", "docker-model")
+    monkeypatch.setenv("VET_UI_TIMEOUT_S", "42")
+
+    settings = UISettings(_env_file=None)  # type: ignore[call-arg]
+
+    assert settings.api_url == "http://api:8000/v1/chat/completions"
+    assert settings.model_id == "docker-model"
+    assert settings.timeout_s == 42.0
 
 
 def test_build_payload_contains_stream_and_settings() -> None:

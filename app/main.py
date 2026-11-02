@@ -143,7 +143,7 @@ def get_model() -> ChatModel:
         raise HTTPException(status_code=503, detail="Модель недоступна") from exc
 
 
-app = FastAPI(title="VetAssistant API", version="0.1.0")
+app = FastAPI(title="VetAssistant API", version="0.2.0")
 
 
 def build_messages(messages: Sequence[ChatMessage]) -> list[dict[str, str]]:

@@ -12,7 +12,8 @@ from __future__ import annotations
 import requests
 import streamlit as st
 
-from app.ui_client import DEFAULT_API_URL, DEFAULT_MODEL_ID, stream_chat
+from app.settings import get_ui_settings
+from app.ui_client import stream_chat
 
 ERROR_API_DOWN = "Сервер ветеринара спит, включите uvicorn"
 
@@ -27,6 +28,7 @@ def main() -> None:
     """Отрисовать страницу и обработать ввод пользователя."""
     st.set_page_config(page_title="VetAssistant", page_icon="🐾", layout="centered")
     _init_session()
+    settings = get_ui_settings()
 
     st.title("🐾 VetAssistant - AI Ветеринар")
     st.caption("Локальный ветеринарный ассистент. Не заменяет очный осмотр врача.")
@@ -46,8 +48,8 @@ def main() -> None:
             st.rerun()
         use_rag = st.checkbox("Использовать базу знаний (RAG)", value=True)
         st.divider()
-        st.caption(f"API: `{DEFAULT_API_URL}`")
-        st.caption(f"Модель: `{DEFAULT_MODEL_ID}`")
+        st.caption(f"API: `{settings.api_url}`")
+        st.caption(f"Модель: `{settings.model_id}`")
 
     for message in st.session_state.messages:
         with st.chat_message(str(message["role"])):
@@ -69,6 +71,9 @@ def main() -> None:
                 st.session_state.messages,
                 temperature=temperature,
                 use_rag=use_rag,
+                api_url=settings.api_url,
+                model_id=settings.model_id,
+                timeout=settings.timeout_s,
             ):
                 chunks.append(token)
                 placeholder.markdown("".join(chunks) + "▌")

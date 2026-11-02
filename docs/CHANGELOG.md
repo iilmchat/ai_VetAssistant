@@ -4,6 +4,54 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.2.0] — 2026-11-02
+
+> Статус: release candidate. Финальная фиксация — после smoke-теста
+> Docker-стека (`docker compose up --build`).
+
+Второй релиз: Streamlit UI, локальная RAG-база знаний, Router & Triage
+и Docker-стек для запуска всего приложения одной командой.
+
+### Добавлено
+
+- Streamlit-интерфейс `app/ui.py`: чат с историей в `st.session_state`,
+  потоковый вывод SSE, слайдер `temperature`, очистка истории и понятная
+  ошибка при выключенном FastAPI (T-025).
+- HTTP-клиент UI `app/ui_client.py` с тестами парсинга SSE (T-025).
+- RAG-слой: `scripts/ingest_knowledge.py`, ChromaDB + sentence-transformers,
+  поиск по `data/knowledge/` и контекст «Справочная информация из MSD Vet
+  Manual» в system prompt при `use_rag=true` (T-026).
+- Галочка «Использовать базу знаний (RAG)» в Streamlit-сайдбаре (T-026).
+- Router & Triage: `app/router.py` с быстрыми эвристиками экстренных
+  симптомов и prompt injection. API отклоняет инъекции с `400 Bad Request`
+  и добавляет жёсткую инструкцию «СРОЧНО ОБРАТИТЕСЬ В КЛИНИКУ» при
+  угрожающих жизни симптомах до вызова LLM (T-027).
+- Бенчмарк роутера `data/router_benchmark.jsonl` (30 кейсов: экстренные,
+  обычные, инъекции) и `scripts/evaluate_router.py` с Precision/Recall/F1;
+  отчёт `docs/development/reports/EVAL_ROUTER.md` (T-013).
+- `UISettings` (`VET_UI_API_URL`, `VET_UI_MODEL_ID`, `VET_UI_TIMEOUT_S`) —
+  адрес API можно переопределить для Docker и других окружений.
+- Docker-стек: `Dockerfile`, `docker-compose.yml`, `.dockerignore`.
+  Контейнеры FastAPI (`:8000`) и Streamlit UI (`:8501`), общий volume
+  `./data:/app/data` для GGUF-модели и ChromaDB.
+- README: инструкция запуска через `docker compose up --build`.
+
+### Результаты v0.2.0
+
+| Метрика | Значение |
+|---|---|
+| Router: экстренность F1 | **1.0000** |
+| Router: prompt injection F1 | **1.0000** |
+| Бенчмарк роутера | 30 кейсов, 0 ошибок |
+| Проверка Docker Compose | `docker compose config` — OK |
+| Сборка Docker-образа | `docker compose build api` — OK (3.68 ГБ) |
+| Smoke-тест контейнеров | API `/health` 200, UI `/_stcore/health` — `ok` |
+
+### Планируется
+
+- Расширенный Safety-бенчмарк и независимые модели-судьи.
+- Интеграция с внешним веб-приложением.
+
 ## [0.1.0] — 2026-11-02
 
 Первый публичный релиз: данные, обученная GGUF-модель, оценка качества,
@@ -74,23 +122,3 @@ Safety-проверка и локальный OpenAI-совместимый API.
 - LLM-Judge — та же модель, что и оцениваемая (self-evaluation bias).
 - `reference_f1_avg` не показательна из-за разницы длины ответов и эталонов.
 - Возможны галлюцинации; модель не заменяет ветеринарного врача.
-
-## [Unreleased]
-
-### Добавлено
-
-- Streamlit-интерфейс `app/ui.py`: чат с историей в `st.session_state`,
-  потоковый вывод SSE, слайдер `temperature`, очистка истории и понятная
-  ошибка при выключенном FastAPI (T-025).
-- HTTP-клиент UI `app/ui_client.py` с тестами парсинга SSE (T-025).
-- RAG-слой: `scripts/ingest_knowledge.py`, ChromaDB + sentence-transformers,
-  поиск по `data/knowledge/` и контекст «Справочная информация из MSD Vet
-  Manual» в system prompt при `use_rag=true` (T-026).
-- Галочка «Использовать базу знаний (RAG)» в Streamlit-сайдбаре (T-026).
-- Router & Triage: `app/router.py` с быстрыми эвристиками экстренных
-  симптомов и prompt injection. API отклоняет инъекции с `400 Bad Request`
-  и добавляет жёсткую инструкцию «СРОЧНО ОБРАТИТЕСЬ В КЛИНИКУ» при
-  угрожающих жизни симптомах до вызова LLM (T-027).
-
-Планируется: расширенный Safety-бенчмарк, независимые модели-судьи,
-измерение precision/recall роутера, интеграция с веб-приложением.

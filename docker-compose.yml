@@ -1,0 +1,76 @@
+name: vetassistant
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: vetassistant:0.2.0
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *app
+    container_name: vetassistant-api
+    command:
+      - uvicorn
+      - app.main:app
+      - --host=0.0.0.0
+      - --port=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      # Модель GGUF и ChromaDB берутся с хоста, а не копируются в образ.
+      - ./data:/app/data
+    environment:
+      VET_API_MODEL_PATH: ${VET_API_MODEL_PATH:-/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf}
+      VET_API_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
+      VET_API_N_CTX: ${VET_API_N_CTX:-8192}
+      VET_API_N_GPU_LAYERS: ${VET_API_N_GPU_LAYERS:-0}
+      VET_API_CHROMA_DIR: ${VET_API_CHROMA_DIR:-/app/data/chroma_db}
+      VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
+      VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ui:
+    <<: *app
+    container_name: vetassistant-ui
+    command:
+      - streamlit
+      - run
+      - app/ui.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    environment:
+      # Внутри compose UI обращается к API по имени сервиса, а не localhost.
+      VET_UI_API_URL: ${VET_UI_API_URL:-http://api:8000/v1/chat/completions}
+      VET_UI_MODEL_ID: ${VET_UI_MODEL_ID:-qwen3-8b-vet}
+      VET_UI_TIMEOUT_S: ${VET_UI_TIMEOUT_S:-300}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

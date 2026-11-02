@@ -20,6 +20,12 @@ DEFAULT_MODEL_PATH = PROJECT_ROOT / "data" / "gguf" / "qwen3-8b-vet-Q4_K_M.gguf"
 #: Имя модели по умолчанию в ответах OpenAI-совместимого API.
 DEFAULT_MODEL_ID = "qwen3-8b-vet"
 
+#: Адрес API по умолчанию для Streamlit UI (локальный запуск).
+DEFAULT_UI_API_URL = "http://127.0.0.1:8000/v1/chat/completions"
+
+#: Таймаут HTTP-запроса UI к API по умолчанию.
+DEFAULT_UI_TIMEOUT_S = 300.0
+
 
 class AppSettings(BaseSettings):
     """Параметры загрузки GGUF-модели и генерации."""
@@ -63,3 +69,37 @@ def get_app_settings() -> AppSettings:
     """Вернуть настройки API (кеш на процесс)."""
     # Значения приходят из окружения, а не из аргументов конструктора.
     return AppSettings()
+
+
+class UISettings(BaseSettings):
+    """Параметры Streamlit UI; в Docker позволяют указать адрес API-сервиса."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="VET_UI_",
+        env_file=(".env", str(PROJECT_ROOT / ".env")),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    api_url: str = Field(
+        default=DEFAULT_UI_API_URL,
+        min_length=1,
+        description="Полный URL /v1/chat/completions",
+    )
+    model_id: str = Field(
+        default=DEFAULT_MODEL_ID,
+        min_length=1,
+        description="Имя модели в запросах UI",
+    )
+    timeout_s: float = Field(
+        default=DEFAULT_UI_TIMEOUT_S,
+        gt=0,
+        description="Таймаут запроса к API, секунды",
+    )
+
+
+@lru_cache(maxsize=1)
+def get_ui_settings() -> UISettings:
+    """Вернуть настройки UI (кеш на процесс)."""
+    return UISettings()
