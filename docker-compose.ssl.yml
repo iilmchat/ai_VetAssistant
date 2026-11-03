@@ -1,0 +1,36 @@
+# HTTPS-overlay для production-стека (T-040).
+#
+# 1. Выпустите сертификат (frontend уже отдаёт ACME webroot на :80):
+#    docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml \
+#      --profile tools run --rm certbot certonly \
+#      --webroot -w /var/www/certbot \
+#      -d vetassistant.ru --cert-name vetassistant \
+#      --email admin@example.com --agree-tos --no-eff-email --non-interactive
+#
+# 2. Поднимите HTTPS:
+#    docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
+#
+# Certbot использует фиксированное имя сертификата `vetassistant`, поэтому
+# deploy/nginx/ssl.conf не зависит от домена.
+
+services:
+  frontend:
+    ports:
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/ssl.conf:/etc/nginx/conf.d/ssl.conf:ro
+      # Весь каталог целиком: live/*.pem — симлинки на archive/*.pem.
+      - ./deploy/certbot/conf:/etc/letsencrypt:ro
+
+  certbot:
+    image: certbot/certbot:v5.9.0
+    profiles: ["tools"]
+    volumes:
+      - ./deploy/certbot/conf:/etc/letsencrypt
+      - ./deploy/certbot/www:/var/www/certbot
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

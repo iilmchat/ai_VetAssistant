@@ -1,0 +1,147 @@
+# Production-стек VetAssistant для одного домена (T-040).
+#
+# Запуск:
+#   cp .env.production.example .env
+#   # заполните секреты (см. DEPLOYMENT.md)
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Наружу опубликован только frontend (:80; после включения SSL — ещё :443).
+# API, PostgreSQL и Telegram-бот доступны только внутри compose-сети.
+#
+# HTTPS добавляется отдельным overlay-файлом:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml up -d
+
+name: vetassistant
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: vetassistant:0.5.0
+  restart: unless-stopped
+  logging: *default-logging
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vetassistant-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *app
+    container_name: vetassistant-api
+    command:
+      - uvicorn
+      - app.main:app
+      - --host=0.0.0.0
+      - --port=8000
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    # Порт не публикуется на хост: доступ только через frontend/nginx.
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Модель GGUF и ChromaDB берутся с хоста, а не копируются в образ.
+      - ./data:/app/data
+    environment:
+      VET_API_MODEL_PATH: ${VET_API_MODEL_PATH:-/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf}
+      VET_API_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
+      VET_API_N_CTX: ${VET_API_N_CTX:-8192}
+      VET_API_N_GPU_LAYERS: ${VET_API_N_GPU_LAYERS:-0}
+      VET_API_CHROMA_DIR: ${VET_API_CHROMA_DIR:-/app/data/chroma_db}
+      VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
+      VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+      VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
+      VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:?VET_API_JWT_SECRET is required}
+      VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # В браузере запросы идут на тот же origin, Nginx проксирует /api.
+        VITE_API_BASE_URL: /api
+        VITE_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
+    image: vetassistant-frontend:0.5.0
+    container_name: vetassistant-frontend
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      # Единственный публичный порт приложения. HTTPS добавляет overlay.
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      # Webroot для ACME-челленджей Let's Encrypt.
+      - ./deploy/certbot/www:/var/www/certbot:ro
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - --spider
+        - "http://127.0.0.1/healthz"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  bot:
+    <<: *app
+    container_name: vetassistant-bot
+    command:
+      - python
+      - -m
+      - bot
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required (or remove the bot service)}
+      VET_BOT_API_URL: http://api:8000/v1/chat/completions
+      VET_BOT_MODEL_ID: ${VET_BOT_MODEL_ID:-qwen3-8b-vet}
+      VET_BOT_TIMEOUT_S: ${VET_BOT_TIMEOUT_S:-300}
+      VET_BOT_TEMPERATURE: ${VET_BOT_TEMPERATURE:-0.7}
+      VET_BOT_USE_RAG: ${VET_BOT_USE_RAG:-true}
+      VET_BOT_USE_TOOLS: ${VET_BOT_USE_TOOLS:-true}
+      VET_BOT_MAX_HISTORY_MESSAGES: ${VET_BOT_MAX_HISTORY_MESSAGES:-20}
+      VET_BOT_AUTH_SECRET: ${VET_BOT_AUTH_SECRET:?VET_BOT_AUTH_SECRET is required}
+
+volumes:
+  postgres_data:

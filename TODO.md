@@ -275,6 +275,13 @@
 - **Оценка:** 3
 - **Статус:** выполнено: `app/auth.py` (JWT HS256, bcrypt, `get_current_user`), таблица `users` и `user_id` FK с мягкой миграцией, защита API и Agentic Loop; React (`AuthScreen`, `lib/auth.ts`, logout, per-user история), Streamlit auth-gate и Telegram-авторизация через HMAC-аккаунт с кэшем JWT и повтором при `401`; `pytest` 537 passed, React-тесты 29 passed, `ruff`/`mypy` и `npm run build` чисто. Коммит `4117c2b`; CI (run `41617248540`): Lint & Test, Frontend и Docker Build — success.
 
+### [x] T-040. Подготовка к production-деплою на VPS
+- **Зависит от:** T-033, T-035, T-037, T-039
+- **Что:** production-стек для одного домена: `docker-compose.prod.yml` с публикацией только `frontend:80`; `frontend/nginx.conf` с проксированием `/api/*` в `api:8000` и SPA fallback; `.env.production.example` со всеми обязательными секретами и инструкцией генерации через `openssl rand -hex 32`; bash-скрипт установки Docker/Compose, клонирования и запуска; HTTPS через Let's Encrypt/Certbot; пошаговый `DEPLOYMENT.md`.
+- **DoD:** `.env` исключён из Git, production-шаблон закоммичен; приложение доступно на одном домене, API проксируется через Nginx, наружу открыты только `80`/`443`; скрипт деплоя запускает стек на чистом Ubuntu; документация описывает VPS, DNS, деплой и SSL; тесты и линтеры зелёные.
+- **Оценка:** 3
+- **Статус:** выполнено: `docker-compose.prod.yml` (только frontend `80:80`), `docker-compose.ssl.yml` (443, Certbot, HSTS и HTTP→HTTPS), Nginx-конфигурация с `/api/`, SSE, SPA и ACME; `.env.production.example`, `scripts/deploy.sh` (Docker, clone, secrets, `--ssl`), `scripts/renew_ssl.sh`, `DEPLOYMENT.md`, тесты `tests/test_deployment.py`; `pytest` 546 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build`, `docker compose config` и `nginx -t` — успешно.
+
 ---
 
 ## Backlog

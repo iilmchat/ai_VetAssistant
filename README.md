@@ -10,7 +10,8 @@
 **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
 **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
-**Порты:** `3000` — Docker/Nginx, `5173` — Vite dev server
+**Production:** Ubuntu VPS, Docker Compose, единый домен и HTTPS через Let's Encrypt
+**Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
 **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -653,6 +654,31 @@ origin.
 > исходников. Если GGUF-модель отсутствует, API запустится, но ответы на
 > запросы будут возвращать `503 Модель недоступна`.
 
+## 🚀 Production-деплой на VPS (T-040)
+
+Для боевого запуска на Ubuntu-сервере есть отдельная конфигурация:
+
+- `docker-compose.prod.yml` — публикует только `frontend:80`; API,
+  PostgreSQL и бот доступны только внутри Docker-сети;
+- `docker-compose.ssl.yml` — включает `443`, Certbot и HTTPS;
+- `frontend/nginx.conf` — раздаёт SPA и проксирует `/api/*` в `api:8000`;
+- `.env.production.example` — шаблон секретов и production-настроек;
+- `scripts/deploy.sh` — установка Docker, клонирование, генерация секретов
+  и запуск стека (опционально с `--ssl`);
+- `scripts/renew_ssl.sh` — автопродление Let's Encrypt.
+
+Быстрый старт на чистом сервере:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iilmchat/ai_VetAssistant/main/scripts/deploy.sh \
+  -o /tmp/deploy.sh
+sudo bash /tmp/deploy.sh --ssl
+```
+
+Пошаговая инструкция: аренда VPS, DNS A-запись, firewall, модель GGUF,
+Certbot, автопродление, бэкапы и диагностика — в
+[DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
@@ -667,6 +693,7 @@ origin.
 - **Streamlit:** резервный UI (`app/ui.py`) с потоковым выводом и настройками температуры.
 - **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot`, история диалога на пользователя.
 - **Развёртывание:** Docker Compose, FastAPI + React/Streamlit UI + PostgreSQL + Telegram-бот; Nginx для фронтенда.
+- **Production:** `docker-compose.prod.yml` + `docker-compose.ssl.yml`, единый домен, Let's Encrypt/Certbot, `scripts/deploy.sh`.
 - **CI/CD:** GitHub Actions — ruff, mypy, pytest, тесты и сборка React, Docker-образы.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`, `scripts/evaluate_router.py`.
 

@@ -17,6 +17,11 @@ env/
 .env
 .env.*
 !.env.example
+!.env.production.example
+
+# --- Production TLS / ACME (не коммитим ключи и сертификаты) ---
+deploy/certbot/conf/
+deploy/certbot/www/
 
 # --- Сгенерированные данные: воспроизводимы из seeds, в git не нужны ---
 data/*.jsonl
