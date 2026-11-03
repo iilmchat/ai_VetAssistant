@@ -42,15 +42,19 @@ python -m http.server 8098
 Подробный чек-лист — в [`DEPLOY.md`](DEPLOY.md). Кратко:
 
 1. Скопировать папку `landing/` в `/srv/vetassistant/landing`.
-2. Добавить сервис `landing` из `compose.edge.fragment.yml` в
-   `docker-compose.edge.yml` (см. план Phase 2).
+2. Запустить `deploy/landing/apply-package-b.sh` — он поднимает отдельный
+   Compose-проект `vetassistant-landing`, не редактируя tracked
+   `docker-compose.edge.yml` (чтобы не ломать `git pull` в CI).
 3. В Caddy направить `ai-pets.ru` на `vetassistant-landing:80`, а
-   `app.ai-pets.ru` — на frontend + API; готовый сниппет —
-   `Caddyfile.edge.snippet`.
+   `app.ai-pets.ru` — на frontend + API; готовый скрипт делает это сам,
+   сниппет — `Caddyfile.edge.snippet`.
 4. Проверить `https://ai-pets.ru/`, `/privacy/`, `/terms/`, `/robots.txt`,
    `/sitemap.xml`, `/assets/og.png`.
 
 DNS, Caddy и сертификаты — отдельный шаг, без него лендинг не публикуется.
+Если сервис нужно добавить именно в `docker-compose.edge.yml`, используйте
+`compose.edge.fragment.yml` и коммитьте изменение в репозиторий, а не только
+на сервер.
 
 ## Nginx и кэш
 

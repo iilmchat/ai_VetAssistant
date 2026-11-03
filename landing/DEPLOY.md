@@ -1,5 +1,12 @@
 # Пакет B — порядок применения
 
+> **Актуальный способ:** запустить `deploy/landing/apply-package-b.sh`.
+> Скрипт использует отдельный Compose-проект `vetassistant-landing`, чтобы
+> не редактировать tracked `docker-compose.edge.yml` на сервере: иначе
+> `git pull --ff-only` в CI может упасть на dirty tree. Вариант с вставкой
+> сервиса в `docker-compose.edge.yml` ниже — для случая, когда изменение
+> добавляется в репозиторий, а не только на сервер.
+
 Чек-лист для момента, когда Пакет A уже задеплоен и проверен на production.
 До этого шага **ничего не применять**: файл описывает действия, а не текущее
 состояние инфраструктуры.
@@ -9,33 +16,32 @@
 - Пакет A задеплоен: в приложении нет вкладки регистрации, форма заявки
   работает, `?mode=request` открывает её.
 - `https://ai-pets.ru/api/health` отвечает 200.
-- Лендинг из `landing/` скопирован в `/srv/vetassistant/landing`.
-- Сделан backup текущего Caddyfile и `docker-compose.edge.yml`.
-- DNS-запись `app.ai-pets.ru` ещё не обязательна, но её нужно добавить
-  до reload Caddy.
+- Лендинг из `landing/` уже на сервере в `/srv/vetassistant/landing`.
+- Скрипт лежит в `/srv/vetassistant/deploy/landing/apply-package-b.sh`.
+- DNS-запись `app.ai-pets.ru` добавлена; скрипт подождёт её распространения.
+- Backup Caddyfile скрипт делает сам.
 
-## 1. Поднять контейнер лендинга
-
-Фрагмент сервиса лежит в `landing/compose.edge.fragment.yml`. Вставить его
-в `services:` файла `/srv/vetassistant/docker-compose.edge.yml` после
-`frontend`.
-
-Проверить конфигурацию:
+## 1. Запустить скрипт
 
 ```bash
-cd /srv/vetassistant
-docker compose -f docker-compose.edge.yml config >/dev/null
-docker compose -f docker-compose.edge.yml up -d landing
+chmod +x /srv/vetassistant/deploy/landing/apply-package-b.sh
+bash /srv/vetassistant/deploy/landing/apply-package-b.sh
 ```
 
-Проверить healthcheck и ответ внутри edge-сети:
+Скрипт:
 
-```bash
-docker inspect --format '{{.State.Health.Status}}' vetassistant-landing
-docker exec vetassistant-landing wget -qO- http://127.0.0.1/healthz
-```
+- проверяет DNS `app.ai-pets.ru`;
+- создаёт отдельный Compose-проект `docker-compose.landing.yml` и поднимает
+  `vetassistant-landing`;
+- **не редактирует** tracked `docker-compose.edge.yml`;
+- сначала добавляет только `app.ai-pets.ru`, проверяет приложение и API;
+- затем переключает `ai-pets.ru` на лендинг;
+- проверяет, что служебные файлы (`README.md`, `DEPLOY.md`, `nginx.conf`,
+  `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) отдают 404.
 
-Ожидаем `healthy` и `ok`.
+Если нужно добавить сервис именно в `docker-compose.edge.yml` (например, для
+commit в репозиторий), используйте `landing/compose.edge.fragment.yml`. На
+сервере вручную этого не делать: файл tracked, CI делает `git pull --ff-only`.
 
 ## 2. DNS и сертификат для app.ai-pets.ru
 
