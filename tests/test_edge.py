@@ -85,10 +85,10 @@ def test_ssh_and_sftp_use_correct_port_flags() -> None:
     assert "-P" in sftp_options
 
 
-def test_build_sftp_batch_quotes_paths() -> None:
+def test_build_sftp_batch_quotes_paths_and_uses_reput() -> None:
     batch = build_sftp_batch(Path("C:/models/model.gguf"), "/srv/model.gguf.part")
 
-    assert batch == 'put "C:/models/model.gguf" "/srv/model.gguf.part"\n'
+    assert batch == 'reput "C:/models/model.gguf" "/srv/model.gguf.part"\n'
 
 
 def test_validate_local_model_checks_size_and_hash(
