@@ -15,7 +15,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
-from sqlalchemy import DateTime, ForeignKey, String, inspect, select, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    inspect,
+    select,
+    text,
+)
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -52,9 +61,35 @@ class User(Base):
     )
 
 
+class AccessRequest(Base):
+    """Заявка на доступ к закрытому сервису."""
+
+    __tablename__ = "access_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_access_requests_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
+        index=True,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class Appointment(Base):
     """Запись на приём, принадлежащая пользователю."""
-
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -183,6 +218,49 @@ async def update_user_password(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def create_access_request(
+    session: AsyncSession,
+    *,
+    email: str,
+    reason: str,
+) -> AccessRequest:
+    """Сохранить заявку на доступ со статусом pending."""
+    request = AccessRequest(email=email, reason=reason, status="pending")
+    session.add(request)
+    await session.commit()
+    await session.refresh(request)
+    return request
+
+
+async def get_pending_access_request(
+    session: AsyncSession,
+    email: str,
+) -> AccessRequest | None:
+    """Найти последнюю pending-заявку по email."""
+    result = await session.execute(
+        select(AccessRequest)
+        .where(
+            AccessRequest.email == email,
+            AccessRequest.status == "pending",
+        )
+        .order_by(AccessRequest.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_pending_access_requests(
+    session: AsyncSession,
+) -> list[AccessRequest]:
+    """Вернуть все pending-заявки в порядке поступления."""
+    result = await session.execute(
+        select(AccessRequest)
+        .where(AccessRequest.status == "pending")
+        .order_by(AccessRequest.created_at, AccessRequest.id)
+    )
+    return list(result.scalars().all())
 
 
 async def book_appointment(

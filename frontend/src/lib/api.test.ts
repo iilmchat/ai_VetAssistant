@@ -4,6 +4,7 @@ import {
   changePassword,
   normalizeBaseUrl,
   parseSSEEvent,
+  requestAccess,
   setAuthToken,
 } from './api'
 import { AVAILABLE_TOOLS } from './tools'
@@ -113,6 +114,33 @@ describe('changePassword', () => {
     await expect(
       changePassword('wrong', 'new-secret-pass-2', 'new-secret-pass-2'),
     ).rejects.toThrow('Неверный старый пароль')
+  })
+})
+
+describe('requestAccess', () => {
+  it('отправляет email и причину на /v1/access/request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: 'Заявка отправлена' }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await requestAccess(
+      'guest@example.com',
+      'Ветеринар, хочу протестировать',
+    )
+
+    expect(result.message).toBe('Заявка отправлена')
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/access/request')
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({
+      email: 'guest@example.com',
+      reason: 'Ветеринар, хочу протестировать',
+    })
   })
 })
 

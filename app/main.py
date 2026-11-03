@@ -19,20 +19,23 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Protocol, cast
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.exc import IntegrityError
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from app.auth import (
+    AccessRequestCreate,
+    AccessRequestResponse,
     AuthResponse,
     ChangePasswordRequest,
     ChangePasswordResponse,
     LoginRequest,
-    RegisterRequest,
     UserRead,
     create_access_token,
     get_current_user,
@@ -42,8 +45,9 @@ from app.auth import (
 from app.database import (
     Database,
     User,
-    create_user,
+    create_access_request,
     get_database,
+    get_pending_access_request,
     get_user_by_email,
     get_user_by_id,
     list_appointments,
@@ -234,6 +238,13 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="VetAssistant API", version="1.1.3", lifespan=lifespan)
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(
+    RateLimitExceeded,
+    cast(Any, _rate_limit_exceeded_handler),
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ALLOWED_ORIGINS),
@@ -260,41 +271,43 @@ def _auth_response(user: User, settings: AppSettings) -> AuthResponse:
     response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def register(
-    payload: RegisterRequest,
+async def register() -> AuthResponse:
+    """Публичная регистрация закрыта: доступ только по заявкам."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Регистрация только по заявкам",
+    )
+
+
+@app.post(
+    "/v1/access/request",
+    response_model=AccessRequestResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@limiter.limit("3/hour")
+async def request_access(
+    request: Request,
+    payload: AccessRequestCreate,
     database: Annotated[Database, Depends(get_database)],
-    settings: Annotated[AppSettings, Depends(get_app_settings)],
-) -> AuthResponse:
-    """Зарегистрировать пользователя и сразу выдать JWT."""
-    if not settings.allow_public_registration:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Регистрация временно закрыта",
-        )
+) -> AccessRequestResponse:
+    """Принять заявку на доступ (не более 3 в час с одного IP)."""
     email = str(payload.email).strip().lower()
 
     async with database.session() as session:
-        if await get_user_by_email(session, email) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Пользователь с таким email уже зарегистрирован",
-            )
-
-        try:
-            user = await create_user(
+        existing = await get_pending_access_request(session, email)
+        if existing is None:
+            await create_access_request(
                 session,
                 email=email,
-                hashed_password=hash_password(payload.password),
+                reason=payload.reason,
             )
-        except IntegrityError as exc:
-            await session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Пользователь с таким email уже зарегистрирован",
-            ) from exc
+            logger.info("Access: новая заявка от {}", email)
+        else:
+            logger.info("Access: повторная заявка от {}", email)
 
-    logger.info("Auth: зарегистрирован пользователь {}", user.id)
-    return _auth_response(user, settings)
+    return AccessRequestResponse(
+        message="Заявка отправлена. Мы свяжемся с вами после одобрения",
+    )
 
 
 @app.post("/v1/auth/login", response_model=AuthResponse)

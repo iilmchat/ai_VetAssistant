@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Loader2, Lock, Mail, PawPrint, ShieldCheck } from 'lucide-react'
+import { Loader2, Lock, Mail, PawPrint, ShieldCheck, UserPlus } from 'lucide-react'
 import type { AuthSession } from '../lib/auth'
-import { login, register } from '../lib/api'
+import { login } from '../lib/api'
 import { errorMessage } from '../lib/utils'
-
-type AuthMode = 'login' | 'register'
+import { AccessRequestDialog } from './AccessRequestDialog'
 
 interface AuthScreenProps {
   onAuthenticated: (session: AuthSession) => void
@@ -13,13 +12,11 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
-  const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const isRegister = mode === 'register'
+  const [accessDialogOpen, setAccessDialogOpen] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -28,29 +25,17 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
       setError('Введите email и пароль.')
       return
     }
-    if (isRegister && password.length < 8) {
-      setError('Пароль должен содержать минимум 8 символов.')
-      return
-    }
 
     setLoading(true)
     setError(null)
     try {
-      const session = isRegister
-        ? await register(normalizedEmail, password)
-        : await login(normalizedEmail, password)
+      const session = await login(normalizedEmail, password)
       onAuthenticated(session)
     } catch (requestError) {
       setError(errorMessage(requestError))
     } finally {
       setLoading(false)
     }
-  }
-
-  function switchMode(next: AuthMode) {
-    setMode(next)
-    setError(null)
-    setPassword('')
   }
 
   return (
@@ -82,32 +67,17 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
             </div>
           )}
 
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-white/[0.06] bg-black/25 p-1">
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className={`rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
-                !isRegister
-                  ? 'bg-white/10 text-white'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              Вход
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode('register')}
-              className={`rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
-                isRegister
-                  ? 'bg-white/10 text-white'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              Регистрация
-            </button>
+          <div className="mb-5">
+            <h2 className="text-[15px] font-semibold text-white">Вход</h2>
+            <p className="mt-0.5 text-[11.5px] text-zinc-500">
+              Сервис работает по приглашениям
+            </p>
           </div>
 
-          <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3.5">
+          <form
+            onSubmit={(event) => void handleSubmit(event)}
+            className="space-y-3.5"
+          >
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                 Email
@@ -134,12 +104,11 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
                 <Lock className="h-4 w-4 shrink-0 text-zinc-500" />
                 <input
                   type="password"
-                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  autoComplete="current-password"
                   required
-                  minLength={isRegister ? 8 : undefined}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={isRegister ? 'Минимум 8 символов' : 'Ваш пароль'}
+                  placeholder="Ваш пароль"
                   className="w-full bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-600"
                 />
               </div>
@@ -160,9 +129,21 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[13.5px] font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isRegister ? 'Создать аккаунт' : 'Войти'}
+              Войти
             </button>
           </form>
+
+          <div className="mt-4 border-t border-white/10 pt-4 text-center">
+            <p className="text-[11.5px] text-zinc-500">Нет аккаунта?</p>
+            <button
+              type="button"
+              onClick={() => setAccessDialogOpen(true)}
+              className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Запросить доступ
+            </button>
+          </div>
 
           <p className="mt-4 flex items-start gap-2 text-[10.5px] leading-4 text-zinc-600">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -171,6 +152,13 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
           </p>
         </div>
       </div>
+
+      {accessDialogOpen && (
+        <AccessRequestDialog
+          initialEmail={email.trim()}
+          onClose={() => setAccessDialogOpen(false)}
+        />
+      )}
     </div>
   )
 }

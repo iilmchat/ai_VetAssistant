@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -10,7 +11,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model
+from app.auth import hash_password
+from app.database import Database, create_user, list_pending_access_requests
+from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model, limiter
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION
 from app.settings import DEFAULT_MODEL_ID, get_app_settings
 from app.tools import BOOK_APPOINTMENT_TOOL, SET_REMINDER_TOOL
@@ -150,6 +153,32 @@ def db_url(tmp_path: Path) -> str:
     return f"sqlite+aiosqlite:///{(tmp_path / 'api.db').as_posix()}"
 
 
+def _seed_user(client: TestClient, email: str, password: str) -> dict[str, str]:
+    """Создать пользователя в БД в обход закрытой регистрации и войти."""
+    database: Database = client.app.state.db
+
+    async def seed() -> None:
+        seeded = Database(database.url)
+        try:
+            async with seeded.session() as session:
+                await create_user(
+                    session,
+                    email=email,
+                    hashed_password=hash_password(password),
+                )
+        finally:
+            await seeded.dispose()
+
+    asyncio.run(seed())
+
+    response = client.post(
+        "/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
 @pytest.fixture
 def client(
     fake_model: FakeModel,
@@ -158,68 +187,137 @@ def client(
 ) -> Iterator[TestClient]:
     monkeypatch.setenv("VET_API_DATABASE_URL", db_url)
     get_app_settings.cache_clear()
+    limiter.reset()
     app.dependency_overrides[get_model] = lambda: fake_model
     app.dependency_overrides[get_knowledge_base] = lambda: None
     with TestClient(app) as test_client:
-        response = test_client.post(
-            "/v1/auth/register",
-            json={"email": "owner@example.com", "password": "secret-pass-1"},
+        headers = _seed_user(
+            test_client,
+            "owner@example.com",
+            "secret-pass-1",
         )
-        assert response.status_code == 201
-        test_client.headers["Authorization"] = (
-            f"Bearer {response.json()['access_token']}"
-        )
+        test_client.headers["Authorization"] = headers["Authorization"]
         yield test_client
     app.dependency_overrides.clear()
+    limiter.reset()
     get_app_settings.cache_clear()
 
 
-def _register_second_user(client: TestClient) -> dict[str, str]:
-    """Зарегистрировать второго пользователя и вернуть его auth-заголовки."""
-    response = client.post(
-        "/v1/auth/register",
-        json={"email": "other@example.com", "password": "secret-pass-2"},
-    )
-    assert response.status_code == 201
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+def _create_second_user(client: TestClient) -> dict[str, str]:
+    """Создать второго пользователя и вернуть его auth-заголовки."""
+    return _seed_user(client, "other@example.com", "secret-pass-2")
 
 
-def test_auth_register_login_and_me(client: TestClient) -> None:
+def test_public_registration_is_closed_and_login_works(client: TestClient) -> None:
     register = client.post(
         "/v1/auth/register",
         json={"email": "new@example.com", "password": "strong-pass-1"},
     )
 
-    assert register.status_code == 201
-    data = register.json()
-    assert data["token_type"] == "bearer"
-    assert data["user"]["email"] == "new@example.com"
-    assert "hashed_password" not in data["user"]
+    assert register.status_code == 403
+    assert register.json()["detail"] == "Регистрация только по заявкам"
+
+    not_created = client.post(
+        "/v1/auth/login",
+        json={"email": "new@example.com", "password": "strong-pass-1"},
+    )
+    assert not_created.status_code == 401
 
     login = client.post(
         "/v1/auth/login",
-        json={"email": "new@example.com", "password": "strong-pass-1"},
+        json={"email": "owner@example.com", "password": "secret-pass-1"},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]
 
     me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
-    assert me.json()["email"] == "new@example.com"
+    assert me.json()["email"] == "owner@example.com"
 
 
-def test_auth_rejects_duplicate_email_and_wrong_password(client: TestClient) -> None:
-    duplicate = client.post(
-        "/v1/auth/register",
-        json={"email": "owner@example.com", "password": "secret-pass-1"},
-    )
-    assert duplicate.status_code == 409
-
+def test_auth_rejects_wrong_password(client: TestClient) -> None:
     wrong = client.post(
         "/v1/auth/login",
         json={"email": "owner@example.com", "password": "wrong-password"},
     )
     assert wrong.status_code == 401
+
+
+def test_access_request_creates_pending_row(
+    client: TestClient,
+    db_url: str,
+) -> None:
+    response = client.post(
+        "/v1/access/request",
+        json={
+            "email": "Guest@Example.com",
+            "reason": "  Ветеринар, хочу протестировать  ",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["message"] == (
+        "Заявка отправлена. Мы свяжемся с вами после одобрения"
+    )
+
+    async def fetch() -> list[Any]:
+        database = Database(db_url)
+        try:
+            async with database.session() as session:
+                return await list_pending_access_requests(session)
+        finally:
+            await database.dispose()
+
+    requests = asyncio.run(fetch())
+    assert len(requests) == 1
+    assert requests[0].email == "guest@example.com"
+    assert requests[0].status == "pending"
+    assert requests[0].reason == "Ветеринар, хочу протестировать"
+
+
+def test_access_request_is_idempotent_for_pending_email(
+    client: TestClient,
+    db_url: str,
+) -> None:
+    payload = {"email": "guest@example.com", "reason": "Первый раз"}
+    first = client.post("/v1/access/request", json=payload)
+    second = client.post("/v1/access/request", json=payload)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+
+    async def count() -> int:
+        database = Database(db_url)
+        try:
+            async with database.session() as session:
+                return len(await list_pending_access_requests(session))
+        finally:
+            await database.dispose()
+
+    assert asyncio.run(count()) == 1
+
+
+def test_access_request_is_rate_limited(client: TestClient) -> None:
+    limiter.reset()
+
+    for index in range(3):
+        response = client.post(
+            "/v1/access/request",
+            json={
+                "email": f"guest{index}@example.com",
+                "reason": "Проверка rate limit",
+            },
+        )
+        assert response.status_code == 202, index
+
+    limited = client.post(
+        "/v1/access/request",
+        json={
+            "email": "limited@example.com",
+            "reason": "Четвёртый запрос за час",
+        },
+    )
+    assert limited.status_code == 429
 
 
 def test_change_password_updates_hash_and_login(client: TestClient) -> None:
@@ -291,22 +389,6 @@ def test_change_password_rejects_mismatched_confirmation(
     assert old_login.status_code == 200
 
 
-def test_public_registration_can_be_disabled(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("VET_API_ALLOW_PUBLIC_REGISTRATION", "false")
-    get_app_settings.cache_clear()
-
-    response = client.post(
-        "/v1/auth/register",
-        json={"email": "closed@example.com", "password": "secret-pass-1"},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Регистрация временно закрыта"
-
-
 def test_protected_endpoints_require_token(client: TestClient) -> None:
     client.headers.pop("Authorization")
 
@@ -352,7 +434,7 @@ def test_invalid_token_is_rejected(client: TestClient) -> None:
 
 
 def test_user_records_are_isolated(client: TestClient) -> None:
-    other_headers = _register_second_user(client)
+    other_headers = _create_second_user(client)
 
     owner_record = client.post(
         "/v1/tools/execute",
@@ -751,7 +833,7 @@ def test_agent_loop_writes_records_for_current_user(
     client: TestClient,
     fake_model: FakeModel,
 ) -> None:
-    other_headers = _register_second_user(client)
+    other_headers = _create_second_user(client)
     fake_model.responses = [
         _tool_response(arguments={"date": "2026-11-06", "time": "12:00", "pet_name": "Барсик"}),
         _final_response("Записал Барсика."),

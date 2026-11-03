@@ -314,8 +314,9 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 
 В интерфейсе есть:
 
-- экран входа и регистрации: без JWT показывается форма, после входа токен
-  хранится в `localStorage`;
+- экран входа: без JWT показывается форма, после входа токен
+  хранится в `localStorage`; новый аккаунт можно запросить кнопкой
+  **«Запросить доступ»**;
 - кнопка **«Выйти»** и email текущего пользователя в сайдбаре;
 - боковая панель с настройками `temperature`, RAG и Function Calling;
 - блок **«Мои записи»** с приёмами (`/v1/appointments`) и напоминаниями;
@@ -592,25 +593,40 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders -Headers $headers
 - `user_id` берётся только из JWT и никогда из аргументов модели, поэтому
   Agentic Loop записывает приём владельцу текущей сессии.
 
-### Регистрация и вход
+### Регистрация по заявке
+
+Публичная регистрация закрыта: `POST /v1/auth/register` всегда возвращает
+`403 Регистрация только по заявкам`. Новый пользователь оставляет заявку:
+
+```powershell
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/v1/access/request `
+  -Method Post -ContentType "application/json" `
+  -Body '{"email":"owner@example.com","reason":"Ветеринар, хочу протестировать"}'
+```
+
+Заявка сохраняется в `access_requests` со статусом `pending`; лимит — 3
+запроса в час с одного IP. После одобрения админ создаёт аккаунт напрямую:
+
+```powershell
+python scripts/create_user.py --email owner@example.com
+python scripts/list_access_requests.py
+```
+
+Пароль запрашивается через `getpass`. Затем пользователь входит обычным
+способом:
 
 ```powershell
 $auth = Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/v1/auth/register `
+  -Uri http://127.0.0.1:8000/v1/auth/login `
   -Method Post -ContentType "application/json" `
   -Body '{"email":"owner@example.com","password":"secret-pass-1"}'
 
 $headers = @{ Authorization = "Bearer $($auth.access_token)" }
-
-# Повторный вход в другом клиенте
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/v1/auth/login `
-  -Method Post -ContentType "application/json" `
-  -Body '{"email":"owner@example.com","password":"secret-pass-1"}'
 ```
 
-`register` и `login` возвращают `access_token`, `token_type` и публичные
-данные пользователя. `GET /v1/auth/me` проверяет токен и возвращает текущего
+`login` возвращает `access_token`, `token_type` и публичные данные
+пользователя. `GET /v1/auth/me` проверяет токен и возвращает текущего
 пользователя.
 
 ### Смена пароля
@@ -632,10 +648,10 @@ Invoke-RestMethod `
 
 ### Клиенты
 
-- **React:** при отсутствии токена показывается экран входа/регистрации;
-  JWT сохраняется в `localStorage` и передаётся в `Authorization`. История
-  чата хранится отдельно для каждого `user_id`, в сайдбаре есть кнопка
-  «Выйти» и шестерёнка «Настройки» со сменой пароля.
+- **React:** при отсутствии токена показывается экран входа с кнопкой
+  «Запросить доступ»; JWT сохраняется в `localStorage` и передаётся в
+  `Authorization`. История чата хранится отдельно для каждого `user_id`, в
+  сайдбаре есть кнопка «Выйти» и шестерёнка «Настройки» со сменой пароля.
 - **Streamlit:** формы входа и регистрации, токен хранится в `session_state`,
   кнопка выхода в сайдбаре.
 - **Telegram:** на `/start` бот создаёт или переиспользует синтетический

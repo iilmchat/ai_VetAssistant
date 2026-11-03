@@ -105,6 +105,30 @@ class ChangePasswordResponse(BaseModel):
     message: str
 
 
+class AccessRequestCreate(BaseModel):
+    """Тело запроса ``POST /v1/access/request``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_is_not_blank(cls, value: str) -> str:
+        """Не принимать заявку с одной пустой строкой."""
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("укажите причину или кто вы")
+        return stripped
+
+
+class AccessRequestResponse(BaseModel):
+    """Ответ на заявку о доступе."""
+
+    message: str
+
+
 def hash_password(password: str) -> str:
     """Вернуть bcrypt-хэш пароля."""
     if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:

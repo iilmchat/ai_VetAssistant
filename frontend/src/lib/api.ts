@@ -48,6 +48,10 @@ export interface ChangePasswordResponse {
   message: string
 }
 
+export interface AccessRequestResponse {
+  message: string
+}
+
 export interface StreamEvent {
   content?: string
   toolCalls?: ToolCallDelta[]
@@ -229,6 +233,22 @@ export function changePassword(
         new_password: newPassword,
         new_password_confirm: newPasswordConfirm,
       }),
+    },
+    baseUrl,
+  )
+}
+
+export function requestAccess(
+  email: string,
+  reason: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AccessRequestResponse> {
+  return requestJson<AccessRequestResponse>(
+    '/v1/access/request',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, reason }),
     },
     baseUrl,
   )
