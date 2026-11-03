@@ -154,7 +154,9 @@ ai-pets.ru {
 	}
 	# Infra files live in the landing web-root; never serve them.
 	@landing_private path /README.md /DEPLOY.md /nginx.conf /compose.edge.fragment.yml /Caddyfile.edge.snippet
-	respond @landing_private 404
+	handle @landing_private {
+		respond 404
+	}
 	handle {
 		reverse_proxy vetassistant-landing:80
 	}

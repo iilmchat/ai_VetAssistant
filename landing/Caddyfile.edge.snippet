@@ -16,7 +16,9 @@ ai-pets.ru {
 	}
 	# В web-root лежат и инфраструктурные файлы; наружу их не отдаём.
 	@landing_private path /README.md /DEPLOY.md /nginx.conf /compose.edge.fragment.yml /Caddyfile.edge.snippet
-	respond @landing_private 404
+	handle @landing_private {
+		respond 404
+	}
 	handle {
 		reverse_proxy vetassistant-landing:80
 	}
