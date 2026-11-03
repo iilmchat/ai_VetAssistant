@@ -1,18 +1,20 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.2.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.2.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.2.0** (2026-11-04)
-**Релиз:** закрытый доступ по заявкам, форма Access Request и статический лендинг
+**Статус:** ✅ **Production Ready — v1.2.1** (2026-11-04)
+**Релиз:** разделение лендинга и приложения по доменам, закрытый доступ по
+заявкам и статический лендинг
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
 - **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
-- **Production:** Ubuntu VPS, Docker Compose, единый домен и HTTPS через Caddy/Let's Encrypt
+- **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
+  `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
 - **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
@@ -22,6 +24,29 @@
 - **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
 **Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md)
+
+## 🌐 Архитектура доменов (v1.2.1)
+
+Лендинг и приложение разнесены по доменам — это финал Фазы 2:
+
+| URL | Что отдаёт | Контейнер |
+|---|---|---|
+| `https://ai-pets.ru/` | статический лендинг (индексируется) | `vetassistant-landing` (nginx) |
+| `https://ai-pets.ru/privacy/` | политика конфиденциальности | `vetassistant-landing` |
+| `https://ai-pets.ru/terms/` | условия использования | `vetassistant-landing` |
+| `https://app.ai-pets.ru/` | React SPA, `X-Robots-Tag: noindex` | `vetassistant-frontend` (nginx) |
+| `https://app.ai-pets.ru/api/*` | FastAPI | `vetassistant-api:8000` |
+| `https://www.ai-pets.ru/` | 301 на `https://ai-pets.ru/` | Caddy |
+
+- TLS терминирует Caddy на edge-хосте; лендинг и приложение портов на хост не
+  публикуют и доступны только по сети `edge`.
+- `app.ai-pets.ru` получает сертификат автоматически (ACME HTTP-01/TLS-ALPN);
+  HSTS с `includeSubDomains` требует сначала проверить TLS поддомена.
+- Служебные файлы лендинга (`README.md`, `DEPLOY.md`, `nginx.conf`,
+  `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) лежат в web-root
+  `landing/` и закрыты Caddy-матчером `@landing_private` (404); их вынос —
+  задача T-114.
+- План и история работ: [PHASE2_LANDING_APP.md](docs/development/PHASE2_LANDING_APP.md).
 
 ## 🚀 v1.1.0 — Security and Memory Optimizations
 
@@ -804,7 +829,7 @@ Paramiko, и не управляет контейнерами. Пароль за
 После запуска контейнеров и настройки Caddy:
 
 ```powershell
-python scripts/smoke_test.py --base-url https://ai-pets.ru --email owner@example.com
+python scripts/smoke_test.py --base-url https://app.ai-pets.ru --email owner@example.com
 ```
 
 Пароль будет запрошен через `getpass`. Smoke-тест входит существующим

@@ -4,6 +4,29 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.2.1] — 2026-11-04
+
+### Изменено
+
+- **Split architecture:** landing page on `ai-pets.ru`, app on
+  `app.ai-pets.ru`, fixed Caddy matchers.
+- Лендинг и приложение разделены по доменам: `ai-pets.ru` отдаёт статический
+  лендинг (`vetassistant-landing`), `app.ai-pets.ru` — React SPA и
+  `/api/*` → `vetassistant-api:8000`, `www.ai-pets.ru` редиректит на apex.
+  Caddy на edge-хосте переключён, сертификат поддомена выпущен автоматически,
+  smoke-проверки (корень, app, API, `www`, `/privacy/`, `/terms/`) пройдены.
+- **Caddy matchers:** служебные файлы лендинга (`README.md`, `DEPLOY.md`,
+  `nginx.conf`, `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`)
+  возвращают 404 до проксирования. В исходной конфигурации
+  `respond @landing_private 404` не срабатывал раньше `handle`; исправлено на
+  `handle @landing_private { respond 404 }` (`f982cd0`).
+
+### Документация
+
+- `docs/development/PHASE2_LANDING_APP.md` — Пакеты A и B отмечены как
+  реализованные и задеплоенные, добавлен итоговый статус доменов.
+- `README.md` — архитектура двух доменов и актуальный smoke-тест.
+
 ## [1.2.0] — 2026-11-04
 
 ### Добавлено

@@ -1,14 +1,42 @@
 # Phase 2 — VetAssistant: лендинг и разделение приложения
 
-**Статус:** черновик плана, не согласован. Production не меняется.
+**Статус:** ✅ **Пакеты A и B реализованы и задеплоены в production**
+(2026-11-04, тег `v1.2.1`). Пакеты C и D — в бэклоге.
 **Дата:** 2026-11-04.
-**Текущая версия:** backend `1.1.2`, frontend `1.1.2`.
-**Прогресс:** шаг B1 — статический лендинг подготовлен в `landing/`
-(`index.html`, `privacy/`, `terms/`, OG 1200×630); шаг B2 — подготовлены
-`landing/compose.edge.fragment.yml`, `landing/Caddyfile.edge.snippet`,
-`landing/DEPLOY.md` и `deploy/landing/apply-package-b.sh`. Caddy, compose и DNS
-не менялись. В v1.2.0 служебные файлы лежат в web-root `landing/`; Caddy
-блокирует их по путям, вынос в `deploy/landing/` — следующий шаг.
+**Текущая версия:** backend `1.2.0`, frontend `1.2.0`; `v1.2.1` — docs-релиз,
+фиксирующий разделение доменов.
+**Прогресс:** Пакет A (заявки на доступ, rate limiting, UI, скрипты) вышел в
+v1.2.0. Пакет B задеплоен: `ai-pets.ru` отдаёт лендинг, `app.ai-pets.ru` —
+React SPA и `/api/*`, `www` редиректит на apex; DNS и TLS настроены на
+edge-хосте. В web-root `landing/` пока лежат служебные файлы, их блокирует
+Caddy (`@landing_private`); вынос — задача T-114.
+
+## 0. Итог: лендинг и приложение разделены по доменам
+
+```text
+https://ai-pets.ru/           -> лендинг (nginx, контейнер vetassistant-landing)
+https://ai-pets.ru/privacy/   -> политика конфиденциальности
+https://ai-pets.ru/terms/     -> условия использования
+https://app.ai-pets.ru/       -> React SPA (X-Robots-Tag: noindex)
+https://app.ai-pets.ru/api/*  -> FastAPI (vetassistant-api:8000)
+https://www.ai-pets.ru/       -> 301 на https://ai-pets.ru/
+```
+
+- **Пакет A** (v1.2.0): `access_requests`, `POST /v1/access/request` с лимитом
+  3/час, закрытая публичная регистрация, форма «Запросить доступ» в React,
+  `scripts/list_access_requests.py` и `scripts/create_user.py`.
+- **Пакет B**: лендинг собран и опубликован, отдельный Compose-проект
+  `vetassistant-landing` поднят скриптом `deploy/landing/apply-package-b.sh`,
+  Caddy переключён на два домена, сертификат `app.ai-pets.ru` выпущен
+  автоматически, smoke-проверки пройдены. Порядок работ описан в §4.6.
+- **Фикс Caddy-матчера** (`f982cd0`): служебные файлы лендинга отдавали бы
+  200, потому что `respond @landing_private 404` не срабатывал раньше
+  `handle`; исправлено на `handle @landing_private { respond 404 }`, и
+  `/README.md`, `/DEPLOY.md`, `/nginx.conf`, `/compose.edge.fragment.yml`,
+  `/Caddyfile.edge.snippet` отвечают 404 до проксирования.
+- **Осталось:** T-114 — вынести служебные файлы из web-root и убрать
+  `@landing_private`; Пакеты C (SEO/аналитика/мониторинг) и D (CSP,
+  ограничение `/health`, CORS) — следующие итерации.
 
 ## 1. Цель
 
@@ -214,7 +242,8 @@ landing/
 ```
 
 Служебные файлы в web-root блокируются Caddy (`@landing_private`).
-Целевая чистка — вынести их в `deploy/landing/` и не держать в web-root.
+Целевая чистка — вынести их в `deploy/landing/` и не держать в web-root
+(задача T-114).
 
 Контент:
 
@@ -268,7 +297,7 @@ Caddy не зависел от файлов продукта:
 - `ai_VetAssistant/deploy/Caddyfile` — standalone-вариант, синхронизировать.
 
 Было: `ai-pets.ru` целиком уходил в `vetassistant-frontend:80`.
-Стало:
+Стало (задеплоено в v1.2.1):
 
 ```caddyfile
 ai-pets.ru {
@@ -279,6 +308,11 @@ ai-pets.ru {
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+	}
+	# Служебные файлы лежат в web-root лендинга; наружу их не отдаём.
+	@landing_private path /README.md /DEPLOY.md /nginx.conf /compose.edge.fragment.yml /Caddyfile.edge.snippet
+	handle @landing_private {
+		respond 404
 	}
 	handle {
 		reverse_proxy vetassistant-landing:80
@@ -310,6 +344,11 @@ www.ai-pets.ru {
 }
 ```
 
+Матчер вынесен в `handle @landing_private { respond 404 }`: в исходном
+варианте `respond @landing_private 404` не отдавал 404 раньше `handle`, и
+запрос уходил в `reverse_proxy`. Фикс — `f982cd0`; после него служебные пути
+на `ai-pets.ru` возвращают 404 до проксирования.
+
 `handle_path /api/*` по-прежнему срезает `/api`; frontend собирается с
 `VITE_API_BASE_URL=/api`, менять не нужно.
 
@@ -334,8 +373,10 @@ www.ai-pets.ru {
 Важно: HSTS уже стоит с `includeSubDomains`. Поддомен нельзя анонсировать,
 пока TLS не готов, иначе браузеры будут ломаться на HTTPS.
 
-### 4.6. Порядок выкладки (когда дойдём до production)
+### 4.6. Порядок выкладки (выполнено 2026-11-04)
 
+Ниже — фактический порядок, по которому работал инфраструктурный агент.
+Все шаги выполнены; домены разделены и проверены на production.
 1. Собрать `landing` и новый frontend, поднять `landing` и `frontend` в compose.
 2. Добавить DNS `app`, дождаться сертификата.
 3. Проверить `https://app.ai-pets.ru/` и `https://app.ai-pets.ru/api/health`
@@ -439,7 +480,8 @@ www.ai-pets.ru {
 
 ## 10. Открытые решения
 
-1. Подтверждаем `app.ai-pets.ru` или всё же `/app/`?
+1. ~~Подтверждаем `app.ai-pets.ru` или всё же `/app/`?~~ Решено:
+   `app.ai-pets.ru`, задеплоено в v1.2.1.
 2. Уведомления только в Telegram или ещё email через SMTP reg.ru?
 3. Кто делает юридическую проверку политики/условий?
 4. Нужен ли отдельный счётчик Метрики для `ai-pets.ru` или используем
