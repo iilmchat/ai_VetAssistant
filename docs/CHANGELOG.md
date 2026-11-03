@@ -6,9 +6,36 @@
 
 ## [Unreleased]
 
+### Добавлено
+
+#### React-веб-интерфейс
+
+- Новый фронтенд `frontend/` на React 19 + Vite + TypeScript + Tailwind CSS 4:
+  чат в стиле ChatGPT с боковой панелью и адаптивной вёрсткой (T-037).
+- SSE-стриминг ответов `/v1/chat/completions`: текст появляется по мере
+  генерации, поддерживается остановка запроса (T-037).
+- Markdown и GFM-таблицы через `react-markdown`; вызовы `book_appointment` и
+  `set_reminder` отображаются цветными бейджами (T-037).
+- Настройки `temperature`, RAG и Function Calling; блок «Мои записи» с
+  приёмами (`/v1/appointments`) и напоминаниями (`/v1/reminders`) (T-037).
+- История диалога в `localStorage`, индикатор доступности API и кнопка
+  «Новый чат» (T-037).
+
+#### Инфраструктура
+
+- `frontend/Dockerfile`: multi-stage сборка Node.js → Nginx, healthcheck
+  `/healthz` (T-037).
+- Сервис `frontend` в Docker Compose на порту `3000`; Nginx проксирует
+  `/api/*` в `api:8000` без буферизации SSE (T-037).
+- CORS в FastAPI для Vite (`http://localhost:5173`,
+  `http://127.0.0.1:5173`) и Docker-фронтенда на порту `3000` (T-037).
+- README: локальный запуск `npm run dev`, сборка, тесты и запуск через Docker
+  (T-037).
+- CI: отдельная проверка фронтенда (`npm ci`, lint, tests, build) и сборка
+  Docker-образа (T-037).
+
 ### Планируется
 
-- Полноценный React-фронтенд.
 - Расширенный Safety-бенчмарк и независимые модели-судьи.
 - Расширение базы знаний и оценка качества RAG-ответов.
 

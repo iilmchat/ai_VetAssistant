@@ -20,6 +20,7 @@ from functools import lru_cache
 from typing import Annotated, Any, Literal, Protocol, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
@@ -44,6 +45,14 @@ DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 0.95
 DEFAULT_MAX_TOKENS = 1024
 MAX_AGENT_STEPS = 3
+
+#: Origins React-фронтенда: Vite dev server и Docker/Nginx.
+CORS_ALLOWED_ORIGINS: tuple[str, ...] = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
 
 #: Системная инструкция ветеринарного ассистента (добавляется, если клиент
 #: не передал собственный system message).
@@ -201,6 +210,14 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="VetAssistant API", version="0.4.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(CORS_ALLOWED_ORIGINS),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def get_database(request: Request) -> Database:

@@ -254,6 +254,13 @@
 - **Оценка:** 1
 - **Статус:** выполнено: версия `0.4.0`, CHANGELOG и README обновлены, `pytest` 516 passed, `ruff`/`mypy` чисто; релизный коммит `72a9227`, тег `v0.4.0` запушен, workflow Release (run `41605144099`) успешно создал GitHub Release.
 
+### [x] T-037. React-веб-интерфейс
+- **Зависит от:** T-022, T-025, T-030, T-033
+- **Что:** `frontend/` на React 19 + Vite + TypeScript + Tailwind CSS 4; SSE-стриминг, Markdown, бейджи Function Calling, настройки temperature/RAG/tools, «Мои записи»; CORS для Vite; multi-stage Dockerfile и сервис `frontend` в Compose; README и тесты.
+- **DoD:** чат стримит ответы, показывает tool_calls, настройки и записи работают, `npm run build`/`npm test` зелёные, контейнер раздаёт UI через Nginx, документация обновлена.
+- **Оценка:** 3
+- **Статус:** выполнено: `frontend/` с SSE-чатом, Markdown, бейджами, настройками и «Моими записями»; CORS и `tests/test_cors.py`; multi-stage Dockerfile + Nginx и сервис `frontend`; README, CHANGELOG, CI. Проверено: `npm run lint`/`npm test` (22 passed)/`npm run build`, `pytest` 518 passed, `ruff`/`mypy` чисто, Docker-образ собирается и отдаёт `/healthz`; e2e с mock-API: стриминг, tool badge, автообновление записей, drawer.
+
 ---
 
 ## Backlog

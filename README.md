@@ -8,6 +8,7 @@
 **Статус:** ✅ Релиз **v0.4.0** (2026-11-03) — Telegram-бот
 **Новое в v0.4.0:** Telegram-бот на aiogram 3.x, история диалогов для каждого пользователя, Function Calling
 **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
+**Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
 **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -228,6 +229,59 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 
 Если API выключен, UI покажет сообщение
 **«Сервер ветеринара спит, включите uvicorn»**.
+
+## ⚛️ React-веб-интерфейс
+
+Современный чат в стиле ChatGPT: React 19, Vite, TypeScript и Tailwind CSS 4.
+Ответы приходят через SSE и появляются постепенно, Markdown и таблицы
+рендерятся через `react-markdown`, а вызовы `book_appointment` и
+`set_reminder` показываются зелёными и янтарными бейджами.
+
+В интерфейсе есть:
+
+- боковая панель с настройками `temperature`, RAG и Function Calling;
+- блок **«Мои записи»** с приёмами (`/v1/appointments`) и напоминаниями;
+- история диалога в `localStorage`, кнопка «Новый чат» и остановка генерации;
+- индикатор доступности API и адаптивная вёрстка для телефона.
+
+### Локальный запуск
+
+Нужен Node.js 20.19+ (или 22.12+) и запущенный FastAPI на
+`http://127.0.0.1:8000`.
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Откройте `http://localhost:5173`. По умолчанию фронтенд обращается к
+`http://127.0.0.1:8000`; адрес можно изменить в `frontend/.env`:
+
+```dotenv
+VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_MODEL_ID=qwen3-8b-vet
+```
+
+FastAPI разрешает CORS для `http://localhost:5173` и
+`http://127.0.0.1:5173`. Проверка сборки и тестов:
+
+```powershell
+cd frontend
+npm run build
+npm test
+npm run lint
+```
+
+### Запуск в Docker
+
+```powershell
+docker compose up --build frontend
+```
+
+Фронтенд будет доступен на `http://localhost:3000`. Nginx раздаёт статику и
+проксирует `/api/*` в сервис `api`, поэтому браузер не обращается к
+`api:8000` напрямую, а SSE не буферизуется.
 
 ## 🤖 Telegram-бот
 
@@ -456,7 +510,7 @@ ChromaDB и Streamlit).
    docker compose run --rm api python scripts/ingest_knowledge.py
    ```
 
-3. Соберите и запустите весь стек (`db` + `api` + `ui`):
+3. Соберите и запустите весь стек (`db` + `api` + `ui` + `frontend` + `bot`):
 
    ```powershell
    docker compose up --build
@@ -464,6 +518,7 @@ ChromaDB и Streamlit).
 
 4. Откройте:
    - API: `http://localhost:8000/health`
+   - React UI: `http://localhost:3000`
    - Streamlit UI: `http://localhost:8501`
 
 5. Остановка:
@@ -475,8 +530,10 @@ ChromaDB и Streamlit).
 Контейнеры монтируют локальную папку `./data` в `/app/data`, поэтому модель
 GGUF и ChromaDB не копируются в образ и остаются доступны API. PostgreSQL
 хранит данные в именованном volume `postgres_data`, поэтому записи и
-напоминания сохраняются между перезапусками. UI внутри Compose обращается к
-API по имени сервиса `http://api:8000`.
+напоминания сохраняются между перезапусками. Streamlit UI внутри Compose
+обращается к API по имени сервиса `http://api:8000`. React-фронтенд раздаётся
+Nginx, который проксирует `/api/*` в `api:8000` — для браузера это тот же
+origin.
 
 Основные переменные окружения можно задать в `.env` (Compose подхватит их
 для подстановки):
@@ -490,8 +547,10 @@ API по имени сервиса `http://api:8000`.
 | `VET_API_MODEL_PATH` | `/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf` | Путь к GGUF внутри контейнера |
 | `VET_API_N_CTX` | `8192` | Размер контекста llama.cpp |
 | `VET_API_N_GPU_LAYERS` | `0` | Слоёв на GPU (0 — CPU) |
-| `VET_UI_API_URL` | `http://api:8000/v1/chat/completions` | Адрес API для UI |
+| `VET_UI_API_URL` | `http://api:8000/v1/chat/completions` | Адрес API для Streamlit UI |
 | `VET_UI_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах UI |
+| `FRONTEND_PORT` | `3000` | Порт React-фронтенда на хосте |
+| `VITE_FRONTEND_API_BASE_URL` | `/api` | Базовый URL API при сборке фронтенда |
 
 > Первая сборка может занять 10–20 минут: `llama-cpp-python` собирается из
 > исходников. Если GGUF-модель отсутствует, API запустится, но ответы на
@@ -506,10 +565,11 @@ API по имени сервиса `http://api:8000`.
 - **Function Calling:** `book_appointment`, `set_reminder`, OpenAI-совместимые `tools`.
 - **База данных:** PostgreSQL 16 + async SQLAlchemy 2.0/asyncpg; SQLite/aiosqlite для локальных тестов.
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
-- **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
+- **UI:** React 19 + Vite + TypeScript + Tailwind CSS 4 (`frontend/`): SSE-стриминг, Markdown, бейджи инструментов, настройки и «Мои записи».
+- **Streamlit:** резервный UI (`app/ui.py`) с потоковым выводом и настройками температуры.
 - **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot`, история диалога на пользователя.
-- **Развёртывание:** Docker Compose, FastAPI + Streamlit UI + PostgreSQL + Telegram-бот.
-- **CI/CD:** GitHub Actions — ruff, mypy, pytest, сборка Docker-образа.
+- **Развёртывание:** Docker Compose, FastAPI + React/Streamlit UI + PostgreSQL + Telegram-бот; Nginx для фронтенда.
+- **CI/CD:** GitHub Actions — ruff, mypy, pytest, тесты и сборка React, Docker-образы.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`, `scripts/evaluate_router.py`.
 
 ## 💾 Работа с данными (DVC)

@@ -1,0 +1,458 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  BookOpen,
+  Loader2,
+  Menu,
+  Wrench,
+  Wifi,
+  WifiOff,
+} from 'lucide-react'
+import type {
+  ApiStatus,
+  Appointment,
+  ChatSettings,
+  Reminder,
+  ToolCall,
+  UiMessage,
+} from './types'
+import {
+  ApiError,
+  fetchAppointments,
+  fetchHealth,
+  fetchReminders,
+  streamChat,
+} from './lib/api'
+import { AVAILABLE_TOOLS, mergeToolCalls } from './lib/tools'
+import { errorMessage, isAbortError, isRecord, uid } from './lib/utils'
+import { Sidebar } from './components/Sidebar'
+import { MessageBubble } from './components/MessageBubble'
+import { Composer } from './components/Composer'
+import { Welcome } from './components/Welcome'
+
+const STORAGE_KEY = 'vetassistant.messages.v1'
+const MAX_CONTEXT_MESSAGES = 20
+const DEFAULT_SETTINGS: ChatSettings = {
+  temperature: 0.7,
+  useRag: true,
+  useTools: false,
+}
+
+function isToolCall(value: unknown): value is ToolCall {
+  if (!isRecord(value) || !isRecord(value.function)) {
+    return false
+  }
+  return (
+    value.type === 'function' &&
+    typeof value.id === 'string' &&
+    typeof value.function.name === 'string' &&
+    typeof value.function.arguments === 'string'
+  )
+}
+
+function loadStoredMessages(): UiMessage[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      return []
+    }
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    const messages: UiMessage[] = []
+    for (const item of parsed) {
+      if (
+        !isRecord(item) ||
+        (item.role !== 'user' && item.role !== 'assistant') ||
+        typeof item.content !== 'string'
+      ) {
+        continue
+      }
+
+      messages.push({
+        id: typeof item.id === 'string' ? item.id : uid(),
+        role: item.role,
+        content: item.content,
+        toolCalls: Array.isArray(item.toolCalls)
+          ? item.toolCalls.filter(isToolCall)
+          : [],
+        status: 'done',
+      })
+    }
+    return messages
+  } catch {
+    return []
+  }
+}
+
+function apiStatusLabel(status: ApiStatus): string {
+  if (status === 'online') {
+    return 'API онлайн'
+  }
+  if (status === 'offline') {
+    return 'API недоступен'
+  }
+  return 'Подключение…'
+}
+
+function App() {
+  const [messages, setMessages] = useState<UiMessage[]>(loadStoredMessages)
+  const [input, setInput] = useState('')
+  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [recordsLoading, setRecordsLoading] = useState(true)
+  const [recordsError, setRecordsError] = useState<string | null>(null)
+
+  const abortRef = useRef<AbortController | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const shouldStickToBottom = useRef(true)
+
+  const patchMessage = useCallback(
+    (id: string, patch: Partial<UiMessage>) => {
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.id === id ? { ...message, ...patch } : message,
+        ),
+      )
+    },
+    [],
+  )
+
+  const loadRecords = useCallback(async () => {
+    try {
+      const [nextAppointments, nextReminders] = await Promise.all([
+        fetchAppointments(),
+        fetchReminders(),
+      ])
+      setRecordsError(null)
+      setAppointments(nextAppointments)
+      setReminders(nextReminders)
+    } catch (error) {
+      if (!isAbortError(error)) {
+        setRecordsError(errorMessage(error))
+      }
+    } finally {
+      setRecordsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Синхронизация с внешним API при монтировании; состояние обновляется
+    // после await, а не синхронно в теле эффекта.
+    // oxlint-disable-next-line react/set-state-in-effect
+    void loadRecords()
+  }, [loadRecords])
+
+  useEffect(() => {
+    let active = true
+
+    async function checkHealth() {
+      try {
+        await fetchHealth()
+        if (active) {
+          setApiStatus('online')
+        }
+      } catch {
+        if (active) {
+          setApiStatus('offline')
+        }
+      }
+    }
+
+    void checkHealth()
+    const interval = window.setInterval(() => {
+      void checkHealth()
+    }, 30_000)
+
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (messages.some((message) => message.status === 'streaming')) {
+      return
+    }
+
+    const stored = messages
+      .filter(
+        (message) => message.content.trim().length > 0 || message.toolCalls.length > 0,
+      )
+      .map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        toolCalls: message.toolCalls,
+      }))
+
+    try {
+      if (stored.length === 0) {
+        window.localStorage.removeItem(STORAGE_KEY)
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+      }
+    } catch {
+      // Приватный режим или переполненное хранилище — история просто не сохранится.
+    }
+  }, [messages])
+
+  useEffect(() => {
+    if (!shouldStickToBottom.current) {
+      return
+    }
+    const element = scrollRef.current
+    if (!element) {
+      return
+    }
+    element.scrollTo({ top: element.scrollHeight, behavior: 'auto' })
+  }, [messages])
+
+  async function sendMessage(raw: string) {
+    const text = raw.trim()
+    if (!text || isStreaming) {
+      return
+    }
+
+    shouldStickToBottom.current = true
+
+    const userMessage: UiMessage = {
+      id: uid(),
+      role: 'user',
+      content: text,
+      toolCalls: [],
+      status: 'done',
+    }
+    const assistantId = uid()
+    const assistantMessage: UiMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      toolCalls: [],
+      status: 'streaming',
+    }
+
+    const history = [...messages, userMessage]
+      .filter(
+        (message) =>
+          message.content.trim().length > 0 && message.status !== 'error',
+      )
+      .slice(-MAX_CONTEXT_MESSAGES)
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+      }))
+
+    setMessages((previous) => [...previous, userMessage, assistantMessage])
+    setInput('')
+    setIsStreaming(true)
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    let content = ''
+    let toolCalls: ToolCall[] = []
+
+    try {
+      for await (const event of streamChat({
+        messages: history,
+        settings,
+        tools: AVAILABLE_TOOLS,
+        signal: controller.signal,
+      })) {
+        if (event.done) {
+          break
+        }
+        if (event.error) {
+          throw new ApiError(event.error)
+        }
+
+        if (event.content) {
+          content += event.content
+          patchMessage(assistantId, { content })
+        }
+
+        if (event.toolCalls && event.toolCalls.length > 0) {
+          toolCalls = mergeToolCalls(toolCalls, event.toolCalls)
+          patchMessage(assistantId, { toolCalls })
+        }
+      }
+
+      if (!content.trim() && toolCalls.length === 0) {
+        throw new ApiError(
+          'Модель не вернула ответ. Попробуйте переформулировать вопрос.',
+        )
+      }
+
+      patchMessage(assistantId, { content, toolCalls, status: 'done' })
+
+      if (toolCalls.length > 0) {
+        void loadRecords()
+      }
+    } catch (error) {
+      if (controller.signal.aborted || isAbortError(error)) {
+        patchMessage(assistantId, {
+          content,
+          toolCalls,
+          status: 'stopped',
+        })
+      } else {
+        patchMessage(assistantId, {
+          content,
+          toolCalls,
+          status: 'error',
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Не удалось получить ответ ветеринара.',
+        })
+      }
+    } finally {
+      setIsStreaming(false)
+      abortRef.current = null
+    }
+  }
+
+  function handleStop() {
+    abortRef.current?.abort()
+  }
+
+  function handleNewChat() {
+    abortRef.current?.abort()
+    setMessages([])
+    setInput('')
+    setSidebarOpen(false)
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // Хранилище недоступно — ничего страшного.
+    }
+  }
+
+  function updateSettings(patch: Partial<ChatSettings>) {
+    setSettings((previous) => ({ ...previous, ...patch }))
+  }
+
+  return (
+    <div className="flex h-dvh w-full overflow-hidden bg-[#212121] text-zinc-100">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        settings={settings}
+        onSettingsChange={updateSettings}
+        onNewChat={handleNewChat}
+        appointments={appointments}
+        reminders={reminders}
+        recordsLoading={recordsLoading}
+        recordsError={recordsError}
+        onRefreshRecords={() => {
+          setRecordsLoading(true)
+          setRecordsError(null)
+          void loadRecords()
+        }}
+        apiStatus={apiStatus}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#212121]/95 px-3 backdrop-blur sm:px-4 lg:px-6">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Открыть меню"
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-[13px] font-semibold tracking-tight text-zinc-100">
+                Консультация
+              </h1>
+              <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-300 sm:inline">
+                vet
+              </span>
+            </div>
+            <p className="truncate text-[10.5px] text-zinc-500">
+              Qwen3-8B Vet · локальный API
+            </p>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            {settings.useRag && (
+              <span className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[9.5px] font-medium text-zinc-400 md:inline-flex">
+                <BookOpen className="h-3 w-3 text-emerald-400/80" />
+                RAG
+              </span>
+            )}
+            {settings.useTools && (
+              <span className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[9.5px] font-medium text-zinc-400 md:inline-flex">
+                <Wrench className="h-3 w-3 text-amber-400/80" />
+                Tools
+              </span>
+            )}
+
+            <div
+              title={apiStatusLabel(apiStatus)}
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-zinc-400"
+            >
+              {apiStatus === 'checking' ? (
+                <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+              ) : apiStatus === 'online' ? (
+                <Wifi className="h-3 w-3 text-emerald-400" />
+              ) : (
+                <WifiOff className="h-3 w-3 text-rose-400" />
+              )}
+              <span className="hidden sm:inline">{apiStatusLabel(apiStatus)}</span>
+            </div>
+          </div>
+        </header>
+
+        <main
+          ref={scrollRef}
+          onScroll={(event) => {
+            const element = event.currentTarget
+            const distance =
+              element.scrollHeight - element.scrollTop - element.clientHeight
+            shouldStickToBottom.current = distance < 120
+          }}
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+            {messages.length === 0 ? (
+              <Welcome
+                onSuggestion={(prompt) => {
+                  void sendMessage(prompt)
+                }}
+              />
+            ) : (
+              <div className="space-y-7">
+                {messages.map((message) => (
+                  <MessageBubble key={message.id} message={message} />
+                ))}
+                <div className="h-1" />
+              </div>
+            )}
+          </div>
+        </main>
+
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSend={() => {
+            void sendMessage(input)
+          }}
+          onStop={handleStop}
+          isStreaming={isStreaming}
+        />
+      </div>
+    </div>
+  )
+}
+
+export default App
