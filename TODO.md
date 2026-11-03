@@ -261,6 +261,13 @@
 - **Оценка:** 3
 - **Статус:** выполнено: `frontend/` с SSE-чатом, Markdown, бейджами, настройками и «Моими записями»; CORS и `tests/test_cors.py`; multi-stage Dockerfile + Nginx и сервис `frontend`; README, CHANGELOG, CI. Проверено: `npm run lint`/`npm test` (22 passed)/`npm run build`, `pytest` 518 passed, `ruff`/`mypy` чисто, Docker-образ собирается и отдаёт `/healthz`; e2e с mock-API: стриминг, tool badge, автообновление записей, drawer.
 
+### [x] T-038. Подготовка и выпуск релиза v0.5.0
+- **Зависит от:** T-037
+- **Что:** версия `0.5.0` в `pyproject.toml`, FastAPI, Docker Compose, `frontend/package.json` и lockfile; секция `[0.5.0]` в CHANGELOG; README со скриншотом, описанием веб-интерфейса и портами `3000`/`5173`; release-workflow собирает API и Frontend; релизный коммит и аннотированный тег.
+- **DoD:** версии и документация согласованы, тесты и линтеры зелёные, Docker-образы API и Frontend собираются, тег `v0.5.0` опубликован, GitHub Release создан.
+- **Оценка:** 1
+- **Статус:** выполнено: версия `0.5.0` обновлена во всех конфигурациях, CHANGELOG и README дополнены скриншотом и портами, release-workflow собирает оба Docker-образа; релизный коммит и тег `v0.5.0` запускают публикацию GitHub Release.
+
 ---
 
 ## Backlog

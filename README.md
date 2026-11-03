@@ -1,14 +1,15 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v0.4.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v0.5.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ Релиз **v0.4.0** (2026-11-03) — Telegram-бот
-**Новое в v0.4.0:** Telegram-бот на aiogram 3.x, история диалогов для каждого пользователя, Function Calling
+**Статус:** ✅ Релиз **v0.5.0** (2026-11-03) — полноценное веб-приложение
+**Новое в v0.5.0:** React 19 UI, SSE-стриминг, Function Calling в браузере, Docker/Nginx
 **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
+**Порты:** `3000` — Docker/Nginx, `5173` — Vite dev server
 **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -16,7 +17,29 @@
 **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
-## 🏁 Релиз v0.4.0 — Telegram-бот
+## 🏁 Релиз v0.5.0 — полноценное веб-приложение
+
+[![React-интерфейс VetAssistant](docs/assets/react-ui.png)](docs/assets/react-ui.png)
+
+- **React 19 Frontend**: новый SPA в `frontend/` на Vite, TypeScript и
+  Tailwind CSS 4 — чат в стиле ChatGPT с боковой панелью и адаптивной
+  вёрсткой для телефона.
+- **SSE-стриминг**: ответы `/v1/chat/completions` появляются постепенно;
+  генерацию можно остановить, Markdown и таблицы рендерятся через
+  `react-markdown`.
+- **UI для Function Calling**: переключатели RAG и инструментов,
+  `temperature`, зелёные/янтарные бейджи записей и напоминаний, блок
+  **«Мои записи»**.
+- **Docker/Nginx**: multi-stage `frontend/Dockerfile`, сервис `frontend` в
+  Compose на порту **3000**; Nginx раздаёт SPA и проксирует `/api/*` в
+  `api:8000` без буферизации SSE.
+- **CORS и тесты**: FastAPI разрешает `localhost:5173` для Vite; **22**
+  фронтенд-теста и **518** тестов проекта.
+- Подробности: [CHANGELOG.md](docs/CHANGELOG.md).
+
+## 🏁 Предыдущие релизы
+
+### v0.4.0 — 2026-11-03 — Telegram-бот
 
 - **Telegram-бот** на aiogram 3.x: отдельный процесс `python -m bot` и
   контейнер `bot`; команды `/start`, `/reset` и `/help`.
@@ -32,8 +55,6 @@
 - **Тесты**: **516** тестов, включая клиент API и логику бота с фейковыми
   Telegram и FastAPI.
 - Подробности: [CHANGELOG.md](docs/CHANGELOG.md).
-
-## 🏁 Предыдущие релизы
 
 ### v0.3.0 — 2026-11-03 — Autonomous Agent
 
@@ -244,7 +265,7 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 - история диалога в `localStorage`, кнопка «Новый чат» и остановка генерации;
 - индикатор доступности API и адаптивная вёрстка для телефона.
 
-### Локальный запуск
+### Локальный запуск (порт 5173)
 
 Нужен Node.js 20.19+ (или 22.12+) и запущенный FastAPI на
 `http://127.0.0.1:8000`.
@@ -273,7 +294,7 @@ npm test
 npm run lint
 ```
 
-### Запуск в Docker
+### Запуск в Docker (порт 3000)
 
 ```powershell
 docker compose up --build frontend
