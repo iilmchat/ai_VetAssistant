@@ -52,6 +52,8 @@ services:
       VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
       VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
       VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-vetassistant}:${POSTGRES_PASSWORD:-vetassistant}@db:5432/${POSTGRES_DB:-vetassistant}}
+      VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:-dev-insecure-jwt-secret-change-me}
+      VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
     healthcheck:
       test:
         - CMD
@@ -144,6 +146,7 @@ services:
       VET_BOT_USE_RAG: ${VET_BOT_USE_RAG:-true}
       VET_BOT_USE_TOOLS: ${VET_BOT_USE_TOOLS:-true}
       VET_BOT_MAX_HISTORY_MESSAGES: ${VET_BOT_MAX_HISTORY_MESSAGES:-20}
+      VET_BOT_AUTH_SECRET: ${VET_BOT_AUTH_SECRET:-}
     restart: "no"
 
 volumes:

@@ -3,11 +3,13 @@ import {
   BookOpen,
   CalendarDays,
   Loader2,
+  LogOut,
   PawPrint,
   Plus,
   RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
+  UserRound,
   Wrench,
   X,
 } from 'lucide-react'
@@ -33,6 +35,8 @@ interface SidebarProps {
   recordsError: string | null
   onRefreshRecords: () => void
   apiStatus: ApiStatus
+  userEmail: string
+  onLogout: () => void
 }
 
 function statusLabel(status: ApiStatus): string {
@@ -67,6 +71,8 @@ export function Sidebar({
   recordsError,
   onRefreshRecords,
   apiStatus,
+  userEmail,
+  onLogout,
 }: SidebarProps) {
   return (
     <>
@@ -258,6 +264,27 @@ export function Sidebar({
         </div>
 
         <div className="border-t border-white/10 px-4 py-3.5">
+          <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] px-2.5 py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+              <UserRound className="h-3.5 w-3.5" />
+            </div>
+            <span
+              title={userEmail}
+              className="min-w-0 flex-1 truncate text-[11.5px] text-zinc-300"
+            >
+              {userEmail}
+            </span>
+            <button
+              type="button"
+              onClick={onLogout}
+              aria-label="Выйти"
+              title="Выйти"
+              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 text-[11px] text-zinc-500">
             <span
               className={`h-1.5 w-1.5 rounded-full ${statusColor(apiStatus)}`}

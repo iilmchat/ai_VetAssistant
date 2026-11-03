@@ -1,13 +1,22 @@
-"""Async SQLAlchemy-хранилище для инструментов VetAssistant (T-033).
+"""Async SQLAlchemy-хранилище VetAssistant (T-033, T-039).
 
 В Docker используется PostgreSQL 16 + asyncpg; локально и в тестах — async
 SQLite через aiosqlite. Таблицы создаются в lifespan FastAPI через
 ``Base.metadata.create_all``.
+
+С T-039 данные изолированы по пользователям: ``appointments`` и
+``reminders`` ссылаются на ``users.id``. Для уже существующих баз
+``create_tables`` добавляет недостающую колонку ``user_id`` без потери
+старых строк (они остаются невидимыми до привязки к пользователю).
 """
 
 from __future__ import annotations
 
-from sqlalchemy import String, select
+from datetime import UTC, datetime
+
+from fastapi import HTTPException, Request
+from sqlalchemy import DateTime, ForeignKey, String, inspect, select, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -23,25 +32,81 @@ class Base(DeclarativeBase):
     """Базовый класс ORM-моделей."""
 
 
+class User(Base):
+    """Зарегистрированный пользователь сервиса."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(
+        String(320),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
 class Appointment(Base):
-    """Запись на приём."""
+    """Запись на приём, принадлежащая пользователю."""
 
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     pet_name: Mapped[str] = mapped_column(String(120), nullable=False)
     date: Mapped[str] = mapped_column(String(32), nullable=False)
     time: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
 class Reminder(Base):
-    """Напоминание."""
+    """Напоминание, принадлежащее пользователю."""
 
     __tablename__ = "reminders"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     text: Mapped[str] = mapped_column(String(500), nullable=False)
     time: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+def _migrate_legacy_tables(connection: Connection) -> None:
+    """Добавить ``user_id`` в таблицы, созданные до T-039."""
+    inspector = inspect(connection)
+    existing_tables = set(inspector.get_table_names())
+
+    for table in ("appointments", "reminders"):
+        if table not in existing_tables:
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table)}
+        if "user_id" in columns:
+            continue
+
+        references = "REFERENCES users(id)"
+        if connection.dialect.name == "postgresql":
+            references += " ON DELETE CASCADE"
+        connection.execute(
+            text(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER {references}")
+        )
+        connection.execute(
+            text(
+                f"CREATE INDEX IF NOT EXISTS ix_{table}_user_id "
+                f"ON {table} (user_id)"
+            )
+        )
 
 
 class Database:
@@ -56,9 +121,10 @@ class Database:
         )
 
     async def create_tables(self) -> None:
-        """Создать таблицы, если их ещё нет."""
+        """Создать таблицы и мягко мигрировать схему до T-039."""
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            await connection.run_sync(_migrate_legacy_tables)
 
     def session(self) -> AsyncSession:
         """Открыть новую сессию (используйте ``async with``)."""
@@ -69,15 +135,55 @@ class Database:
         await self.engine.dispose()
 
 
+def get_database(request: Request) -> Database:
+    """FastAPI-зависимость: БД, созданная в lifespan."""
+    database = getattr(request.app.state, "db", None)
+    if not isinstance(database, Database):
+        raise HTTPException(status_code=503, detail="База данных недоступна")
+    return database
+
+
+async def create_user(
+    session: AsyncSession,
+    *,
+    email: str,
+    hashed_password: str,
+) -> User:
+    """Создать пользователя и вернуть его."""
+    user = User(email=email, hashed_password=hashed_password)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    """Найти пользователя по email."""
+    result = await session.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
+    """Найти пользователя по идентификатору."""
+    result = await session.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
+
+
 async def book_appointment(
     session: AsyncSession,
     *,
+    user_id: int,
     pet_name: str,
     date: str,
     time: str,
 ) -> Appointment:
-    """Сохранить запись на приём и вернуть её."""
-    appointment = Appointment(pet_name=pet_name, date=date, time=time)
+    """Сохранить запись на приём указанному пользователю."""
+    appointment = Appointment(
+        user_id=user_id,
+        pet_name=pet_name,
+        date=date,
+        time=time,
+    )
     session.add(appointment)
     await session.commit()
     await session.refresh(appointment)
@@ -87,24 +193,41 @@ async def book_appointment(
 async def set_reminder(
     session: AsyncSession,
     *,
+    user_id: int,
     text: str,
     time: str,
 ) -> Reminder:
-    """Сохранить напоминание и вернуть его."""
-    reminder = Reminder(text=text, time=time)
+    """Сохранить напоминание указанному пользователю."""
+    reminder = Reminder(user_id=user_id, text=text, time=time)
     session.add(reminder)
     await session.commit()
     await session.refresh(reminder)
     return reminder
 
 
-async def list_appointments(session: AsyncSession) -> list[Appointment]:
-    """Вернуть все записи на приём."""
-    result = await session.execute(select(Appointment).order_by(Appointment.id))
+async def list_appointments(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> list[Appointment]:
+    """Вернуть записи на приём только указанного пользователя."""
+    result = await session.execute(
+        select(Appointment)
+        .where(Appointment.user_id == user_id)
+        .order_by(Appointment.id)
+    )
     return list(result.scalars().all())
 
 
-async def list_reminders(session: AsyncSession) -> list[Reminder]:
-    """Вернуть все напоминания."""
-    result = await session.execute(select(Reminder).order_by(Reminder.id))
+async def list_reminders(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> list[Reminder]:
+    """Вернуть напоминания только указанного пользователя."""
+    result = await session.execute(
+        select(Reminder)
+        .where(Reminder.user_id == user_id)
+        .order_by(Reminder.id)
+    )
     return list(result.scalars().all())

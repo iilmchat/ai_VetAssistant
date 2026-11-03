@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -20,14 +23,23 @@ API_TIMEOUT_MESSAGE = "Ветеринар отвечает слишком дол
 MODEL_UNAVAILABLE_MESSAGE = "Модель временно недоступна. Попробуйте позже."
 API_ERROR_MESSAGE = "Не удалось получить ответ ветеринара. Попробуйте позже."
 EMPTY_RESPONSE_MESSAGE = "Модель не вернула ответ. Попробуйте переформулировать вопрос."
+AUTH_ERROR_MESSAGE = "Не удалось войти в сервис. Попробуйте позже."
+AUTH_EXPIRED_MESSAGE = "Сессия истекла. Напишите /start, чтобы войти заново."
 
 
 class VetApiError(RuntimeError):
     """Ошибка обращения к FastAPI с готовым сообщением для пользователя."""
 
-    def __init__(self, message: str, *, user_message: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        user_message: str,
+        status: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.user_message = user_message
+        self.status = status
 
 
 @dataclass(frozen=True)
@@ -46,6 +58,31 @@ def chat_endpoint(api_url: str) -> str:
     if normalized.endswith("/v1"):
         return f"{normalized}/chat/completions"
     return f"{normalized}/v1/chat/completions"
+
+
+def api_base_url(api_url: str) -> str:
+    """Привести базовый URL или полный URL к корню API."""
+    normalized = api_url.rstrip("/")
+    for suffix in ("/v1/chat/completions", "/v1"):
+        if normalized.endswith(suffix):
+            return normalized[: -len(suffix)]
+    return normalized
+
+
+def telegram_credentials(telegram_user_id: int, secret: str) -> tuple[str, str]:
+    """Стабильные email и пароль синтетического аккаунта Telegram-пользователя.
+
+    Пароль — HMAC-SHA256 от Telegram ID и секрета бота, поэтому после
+    перезапуска бот может снова войти в тот же аккаунт, не храня пароли.
+    """
+    email = f"telegram-{telegram_user_id}@bot.vetassistant.local"
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        f"telegram:{telegram_user_id}".encode(),
+        hashlib.sha256,
+    ).digest()
+    password = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return email, password
 
 
 def build_payload(
@@ -126,7 +163,7 @@ def _error_detail(response: httpx.Response) -> str:
 
 
 class VetApiClient:
-    """HTTP-клиент к ``POST /v1/chat/completions``."""
+    """HTTP-клиент к FastAPI: JWT-аутентификация и chat completions."""
 
     def __init__(
         self,
@@ -134,10 +171,13 @@ class VetApiClient:
         *,
         model_id: str,
         timeout_s: float = 300.0,
+        auth_secret: str = "vetassistant-bot-dev-secret",
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._endpoint = chat_endpoint(api_url)
+        self._base_url = api_base_url(api_url)
         self._model_id = model_id
+        self._auth_secret = auth_secret
         self._client = client or httpx.AsyncClient(timeout=timeout_s)
         self._owns_client = client is None
 
@@ -146,10 +186,82 @@ class VetApiClient:
         if self._owns_client:
             await self._client.aclose()
 
+    async def _auth_request(self, path: str, payload: dict[str, str]) -> dict[str, Any]:
+        """Выполнить register/login и вернуть JSON с токеном."""
+        try:
+            response = await self._client.post(f"{self._base_url}{path}", json=payload)
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise VetApiError(
+                "таймаут авторизации",
+                user_message=AUTH_ERROR_MESSAGE,
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            detail = _error_detail(exc.response)
+            logger.warning("Bot auth: HTTP {} — {}", status, detail)
+            user_message = (
+                AUTH_EXPIRED_MESSAGE if status == 401 else AUTH_ERROR_MESSAGE
+            )
+            raise VetApiError(
+                f"auth HTTP {status}: {detail}",
+                user_message=user_message,
+                status=status,
+            ) from exc
+        except httpx.RequestError as exc:
+            logger.warning("Bot auth: API недоступен — {}", exc)
+            raise VetApiError("API недоступен", user_message=API_DOWN_MESSAGE) from exc
+
+        try:
+            data: Any = response.json()
+        except ValueError as exc:
+            raise VetApiError(
+                "некорректный JSON авторизации",
+                user_message=AUTH_ERROR_MESSAGE,
+            ) from exc
+        if not isinstance(data, dict):
+            raise VetApiError(
+                "API вернул не объект",
+                user_message=AUTH_ERROR_MESSAGE,
+            )
+        return data
+
+    async def authenticate(self, telegram_user_id: int) -> str:
+        """Войти или зарегистрировать синтетический аккаунт Telegram-пользователя.
+
+        Returns:
+            JWT access-токен для запросов к защищённым эндпоинтам.
+        """
+        email, password = telegram_credentials(telegram_user_id, self._auth_secret)
+        credentials = {"email": email, "password": password}
+
+        try:
+            data = await self._auth_request("/v1/auth/login", credentials)
+        except VetApiError as exc:
+            if exc.status != 401:
+                raise
+            try:
+                data = await self._auth_request("/v1/auth/register", credentials)
+            except VetApiError as register_error:
+                if register_error.status != 409:
+                    raise
+                # Аккаунт успел создаться параллельно — просто входим снова.
+                data = await self._auth_request("/v1/auth/login", credentials)
+
+        token = data.get("access_token")
+        if not isinstance(token, str) or not token:
+            raise VetApiError(
+                "API не вернул access_token",
+                user_message=AUTH_ERROR_MESSAGE,
+            )
+        logger.info("Bot auth: Telegram user {} авторизован", telegram_user_id)
+        return token
+
     async def chat(
         self,
         messages: Sequence[dict[str, str]],
         *,
+        token: str,
         temperature: float,
         use_rag: bool,
         tools: Sequence[dict[str, Any]] | None = None,
@@ -168,7 +280,11 @@ class VetApiClient:
         )
 
         try:
-            response = await self._client.post(self._endpoint, json=payload)
+            response = await self._client.post(
+                self._endpoint,
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+            )
             response.raise_for_status()
         except httpx.TimeoutException as exc:
             logger.warning("Bot: таймаут API — {}", exc)
@@ -183,11 +299,17 @@ class VetApiClient:
                     if detail
                     else "Запрос отклонён системой безопасности."
                 )
+            elif status == 401:
+                user_message = AUTH_EXPIRED_MESSAGE
             elif status == 503:
                 user_message = MODEL_UNAVAILABLE_MESSAGE
             else:
                 user_message = API_ERROR_MESSAGE
-            raise VetApiError(f"HTTP {status}: {detail}", user_message=user_message) from exc
+            raise VetApiError(
+                f"HTTP {status}: {detail}",
+                user_message=user_message,
+                status=status,
+            ) from exc
         except httpx.RequestError as exc:
             logger.warning("Bot: API недоступен — {}", exc)
             raise VetApiError("API недоступен", user_message=API_DOWN_MESSAGE) from exc

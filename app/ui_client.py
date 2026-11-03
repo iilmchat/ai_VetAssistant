@@ -29,6 +29,68 @@ def api_base_url(api_url: str = DEFAULT_API_URL) -> str:
     return normalized
 
 
+def auth_headers(token: str | None = None) -> dict[str, str]:
+    """Заголовок Authorization для защищённых запросов."""
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _auth_request(
+    api_url: str,
+    path: str,
+    *,
+    email: str,
+    password: str,
+    timeout: float,
+) -> dict[str, Any]:
+    """Выполнить register/login и проверить наличие токена."""
+    response = requests.post(
+        f"{api_base_url(api_url)}{path}",
+        json={"email": email, "password": password},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload: Any = response.json()
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("access_token"), str
+    ):
+        raise ValueError("API не вернул access_token")
+    return payload
+
+
+def login(
+    api_url: str = DEFAULT_API_URL,
+    *,
+    email: str,
+    password: str,
+    timeout: float = DEFAULT_TIMEOUT_S,
+) -> dict[str, Any]:
+    """Войти и получить JWT для Streamlit-сессии."""
+    return _auth_request(
+        api_url,
+        "/v1/auth/login",
+        email=email,
+        password=password,
+        timeout=timeout,
+    )
+
+
+def register(
+    api_url: str = DEFAULT_API_URL,
+    *,
+    email: str,
+    password: str,
+    timeout: float = DEFAULT_TIMEOUT_S,
+) -> dict[str, Any]:
+    """Зарегистрироваться и получить JWT для Streamlit-сессии."""
+    return _auth_request(
+        api_url,
+        "/v1/auth/register",
+        email=email,
+        password=password,
+        timeout=timeout,
+    )
+
+
 @dataclass(frozen=True)
 class ChatStreamEvent:
     """Событие SSE: текст и/или вызов инструмента."""
@@ -139,6 +201,7 @@ def stream_chat_events(
     api_url: str = DEFAULT_API_URL,
     model_id: str = DEFAULT_MODEL_ID,
     timeout: float = DEFAULT_TIMEOUT_S,
+    token: str | None = None,
 ) -> Iterator[ChatStreamEvent]:
     """Потоково запросить ответ API и отдавать текст/вызовы инструментов.
 
@@ -155,6 +218,7 @@ def stream_chat_events(
     with requests.post(
         api_url,
         json=payload,
+        headers=auth_headers(token),
         stream=True,
         timeout=timeout,
     ) as response:
@@ -177,6 +241,7 @@ def stream_chat(
     api_url: str = DEFAULT_API_URL,
     model_id: str = DEFAULT_MODEL_ID,
     timeout: float = DEFAULT_TIMEOUT_S,
+    token: str | None = None,
 ) -> Iterator[str]:
     """Потоково запросить ответ API и отдавать только текстовые дельты."""
     for event in stream_chat_events(
@@ -187,14 +252,20 @@ def stream_chat(
         api_url=api_url,
         model_id=model_id,
         timeout=timeout,
+        token=token,
     ):
         if event.content is not None:
             yield event.content
 
 
-def _get_json_list(url: str, *, timeout: float) -> list[dict[str, Any]]:
+def _get_json_list(
+    url: str,
+    *,
+    timeout: float,
+    token: str | None = None,
+) -> list[dict[str, Any]]:
     """GET-запрос, возвращающий список объектов."""
-    response = requests.get(url, timeout=timeout)
+    response = requests.get(url, headers=auth_headers(token), timeout=timeout)
     response.raise_for_status()
     payload: Any = response.json()
     if not isinstance(payload, list):
@@ -206,15 +277,25 @@ def fetch_appointments(
     api_url: str = DEFAULT_API_URL,
     *,
     timeout: float = DEFAULT_TIMEOUT_S,
+    token: str | None = None,
 ) -> list[dict[str, Any]]:
     """Получить записи на приём через ``GET /v1/appointments``."""
-    return _get_json_list(f"{api_base_url(api_url)}/v1/appointments", timeout=timeout)
+    return _get_json_list(
+        f"{api_base_url(api_url)}/v1/appointments",
+        timeout=timeout,
+        token=token,
+    )
 
 
 def fetch_reminders(
     api_url: str = DEFAULT_API_URL,
     *,
     timeout: float = DEFAULT_TIMEOUT_S,
+    token: str | None = None,
 ) -> list[dict[str, Any]]:
     """Получить напоминания через ``GET /v1/reminders``."""
-    return _get_json_list(f"{api_base_url(api_url)}/v1/reminders", timeout=timeout)
+    return _get_json_list(
+        f"{api_base_url(api_url)}/v1/reminders",
+        timeout=timeout,
+        token=token,
+    )

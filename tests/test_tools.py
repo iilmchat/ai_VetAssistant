@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app.database import Database, list_appointments, list_reminders
+from app.database import Database, User, create_user, list_appointments, list_reminders
 from app.tools import (
     AVAILABLE_TOOLS,
     BOOK_APPOINTMENT_TOOL,
@@ -31,6 +31,17 @@ async def database(tmp_path: Path) -> AsyncIterator[Database]:
     await db.create_tables()
     yield db
     await db.dispose()
+
+
+@pytest.fixture
+async def user(database: Database) -> User:
+    """Владелец записей, создаваемых инструментами."""
+    async with database.session() as session:
+        return await create_user(
+            session,
+            email="owner@example.com",
+            hashed_password="hash",
+        )
 
 
 def test_default_tools_have_expected_names_and_required_fields() -> None:
@@ -172,51 +183,59 @@ def test_tools_instruction_is_empty_without_tools() -> None:
     assert with_tools_instruction(messages, []) == messages
 
 
-async def test_execute_tool_book_appointment(database: Database) -> None:
+async def test_execute_tool_book_appointment(database: Database, user: User) -> None:
     async with database.session() as session:
         result = await execute_tool(
             "book_appointment",
             '{"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}',
             session=session,
+            user_id=user.id,
         )
 
     assert result["status"] == "success"
     assert "Записали Мурзика" in result["message"]
     async with database.session() as session:
-        appointments = await list_appointments(session)
+        appointments = await list_appointments(session, user_id=user.id)
     assert len(appointments) == 1
     assert appointments[0].date == "2026-11-04"
+    assert appointments[0].user_id == user.id
 
 
-async def test_execute_tool_set_reminder(database: Database) -> None:
+async def test_execute_tool_set_reminder(database: Database, user: User) -> None:
     async with database.session() as session:
         result = await execute_tool(
             "set_reminder",
             {"time": "20:00", "text": "Дать таблетку"},
             session=session,
+            user_id=user.id,
         )
 
     assert result["status"] == "success"
     assert "Дать таблетку" in result["message"]
     async with database.session() as session:
-        reminders = await list_reminders(session)
+        reminders = await list_reminders(session, user_id=user.id)
     assert len(reminders) == 1
     assert reminders[0].time == "20:00"
+    assert reminders[0].user_id == user.id
 
 
-async def test_execute_tool_rejects_unknown_name(database: Database) -> None:
+async def test_execute_tool_rejects_unknown_name(database: Database, user: User) -> None:
     async with database.session() as session:
         with pytest.raises(ToolExecutionError, match="неизвестный инструмент"):
-            await execute_tool("delete_database", {}, session=session)
+            await execute_tool("delete_database", {}, session=session, user_id=user.id)
 
 
-async def test_execute_tool_rejects_missing_arguments(database: Database) -> None:
+async def test_execute_tool_rejects_missing_arguments(
+    database: Database,
+    user: User,
+) -> None:
     async with database.session() as session:
         with pytest.raises(ToolExecutionError, match="pet_name"):
             await execute_tool(
                 "book_appointment",
                 {"date": "2026-11-04", "time": "10:00"},
                 session=session,
+                user_id=user.id,
             )
 
 

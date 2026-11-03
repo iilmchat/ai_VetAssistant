@@ -196,8 +196,12 @@ async def execute_tool(
     arguments: str | dict[str, Any] | None = None,
     *,
     session: AsyncSession,
+    user_id: int,
 ) -> dict[str, str]:
     """Выполнить инструмент и вернуть статус и человекочитаемое сообщение.
+
+    ``user_id`` берётся из JWT и никогда из аргументов модели, поэтому
+    запись всегда попадает владельцу текущей сессии.
 
     Raises:
         ToolExecutionError: неизвестный инструмент или некорректные аргументы.
@@ -207,6 +211,7 @@ async def execute_tool(
     if name == "book_appointment":
         appointment = await create_appointment(
             session,
+            user_id=user_id,
             pet_name=_required_string(parsed, "pet_name"),
             date=_required_string(parsed, "date"),
             time=_required_string(parsed, "time"),
@@ -222,6 +227,7 @@ async def execute_tool(
     if name == "set_reminder":
         reminder = await create_reminder(
             session,
+            user_id=user_id,
             text=_required_string(parsed, "text"),
             time=_required_string(parsed, "time"),
         )

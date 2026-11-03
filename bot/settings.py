@@ -50,6 +50,14 @@ class BotSettings(BaseSettings):
         min_length=1,
         description="URL /v1/chat/completions локального FastAPI",
     )
+    auth_secret: str = Field(
+        default="",
+        validation_alias="VET_BOT_AUTH_SECRET",
+        description=(
+            "Секрет для синтетических аккаунтов Telegram; "
+            "по умолчанию используется TELEGRAM_BOT_TOKEN"
+        ),
+    )
     model_id: str = Field(
         default=DEFAULT_MODEL_ID,
         validation_alias="VET_BOT_MODEL_ID",
@@ -86,6 +94,15 @@ class BotSettings(BaseSettings):
         le=100,
         description="Сколько последних сообщений хранить в истории",
     )
+
+    @property
+    def resolved_auth_secret(self) -> str:
+        """Секрет HMAC для аккаунтов Telegram (не хранит пароли в БД)."""
+        return (
+            self.auth_secret.strip()
+            or self.telegram_bot_token.strip()
+            or "vetassistant-bot-dev-secret"
+        )
 
 
 @lru_cache(maxsize=1)

@@ -72,6 +72,16 @@ class AppSettings(BaseSettings):
         min_length=1,
         description="SQLAlchemy async URL (PostgreSQL/asyncpg или SQLite/aiosqlite)",
     )
+    jwt_secret: str = Field(
+        default="dev-insecure-jwt-secret-change-me",
+        min_length=16,
+        description="Секрет подписи JWT (обязательно заменить в production)",
+    )
+    access_token_expire_minutes: int = Field(
+        default=60 * 24 * 7,
+        ge=1,
+        description="Срок жизни access-токена, минуты",
+    )
 
 
 @lru_cache(maxsize=1)

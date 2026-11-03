@@ -65,12 +65,18 @@ class FakeApi:
     def __init__(self, outcomes: Sequence[ChatResult | Exception]) -> None:
         self.outcomes = list(outcomes)
         self.calls: list[dict[str, Any]] = []
+        self.auth_calls: list[int] = []
         self.closed = False
+
+    async def authenticate(self, telegram_user_id: int) -> str:
+        self.auth_calls.append(telegram_user_id)
+        return f"jwt-{telegram_user_id}-{len(self.auth_calls)}"
 
     async def chat(
         self,
         messages: Sequence[dict[str, str]],
         *,
+        token: str,
         temperature: float,
         use_rag: bool,
         tools: Sequence[dict[str, Any]] | None = None,
@@ -78,6 +84,7 @@ class FakeApi:
         self.calls.append(
             {
                 "messages": [dict(message) for message in messages],
+                "token": token,
                 "temperature": temperature,
                 "use_rag": use_rag,
                 "tools": tools,
@@ -124,6 +131,7 @@ async def test_start_sends_disclaimer_and_clears_history() -> None:
     assert "не заменяют" in message.answers[0]
     assert store.history(1) == []
     assert api.calls == []
+    assert api.auth_calls == [1]
     assert message.bot.actions == []
 
 
@@ -153,6 +161,8 @@ async def test_text_uses_history_and_saves_assistant_reply() -> None:
     assert api.calls[0]["temperature"] == 0.3
     assert api.calls[0]["use_rag"] is True
     assert api.calls[0]["tools"] == AVAILABLE_TOOLS
+    assert api.calls[0]["token"] == "jwt-7-1"
+    assert api.auth_calls == [7]
     assert store.history(7)[-2:] == [
         {"role": "user", "content": "Новый вопрос"},
         {"role": "assistant", "content": "Новый ответ"},
@@ -247,6 +257,40 @@ async def test_unexpected_api_error_is_shown() -> None:
     await bot.handle_text(message)
 
     assert message.answers == [GENERIC_ERROR_TEXT]
+
+
+async def test_expired_token_triggers_reauthentication() -> None:
+    api = FakeApi(
+        [
+            VetApiError("expired", user_message="Сессия истекла", status=401),
+            ChatResult("Ответ после повторного входа"),
+        ]
+    )
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("Кот не ест", user_id=7)
+
+    await bot.handle_text(message)
+
+    assert message.answers == ["Ответ после повторного входа"]
+    assert api.auth_calls == [7, 7]
+    assert [call["token"] for call in api.calls] == ["jwt-7-1", "jwt-7-2"]
+
+
+async def test_start_still_answers_when_api_is_unavailable() -> None:
+    class FailingAuthApi(FakeApi):
+        async def authenticate(self, telegram_user_id: int) -> str:
+            self.auth_calls.append(telegram_user_id)
+            raise VetApiError("down", user_message="API недоступен")
+
+    api = FailingAuthApi([])
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/start", user_id=5)
+
+    await bot.start(message)
+
+    assert message.answers == [START_TEXT]
+    assert api.auth_calls == [5]
+    assert api.calls == []
 
 
 async def test_empty_text_is_ignored() -> None:

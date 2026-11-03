@@ -19,14 +19,33 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Protocol, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
-from app.database import Database, list_appointments, list_reminders
+from app.auth import (
+    AuthResponse,
+    LoginRequest,
+    RegisterRequest,
+    UserRead,
+    create_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
+from app.database import (
+    Database,
+    User,
+    create_user,
+    get_database,
+    get_user_by_email,
+    list_appointments,
+    list_reminders,
+)
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
@@ -220,12 +239,84 @@ app.add_middleware(
 )
 
 
-def get_database(request: Request) -> Database:
-    """FastAPI-зависимость: БД, созданная в lifespan."""
-    database = getattr(request.app.state, "db", None)
-    if not isinstance(database, Database):
-        raise HTTPException(status_code=503, detail="База данных недоступна")
-    return database
+def _auth_response(user: User, settings: AppSettings) -> AuthResponse:
+    """Собрать ответ с токеном и публичными данными пользователя."""
+    return AuthResponse(
+        access_token=create_access_token(
+            user_id=user.id,
+            email=user.email,
+            settings=settings,
+        ),
+        user=UserRead.model_validate(user),
+    )
+
+
+@app.post(
+    "/v1/auth/register",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register(
+    payload: RegisterRequest,
+    database: Annotated[Database, Depends(get_database)],
+    settings: Annotated[AppSettings, Depends(get_app_settings)],
+) -> AuthResponse:
+    """Зарегистрировать пользователя и сразу выдать JWT."""
+    email = str(payload.email).strip().lower()
+
+    async with database.session() as session:
+        if await get_user_by_email(session, email) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Пользователь с таким email уже зарегистрирован",
+            )
+
+        try:
+            user = await create_user(
+                session,
+                email=email,
+                hashed_password=hash_password(payload.password),
+            )
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Пользователь с таким email уже зарегистрирован",
+            ) from exc
+
+    logger.info("Auth: зарегистрирован пользователь {}", user.id)
+    return _auth_response(user, settings)
+
+
+@app.post("/v1/auth/login", response_model=AuthResponse)
+async def login(
+    payload: LoginRequest,
+    database: Annotated[Database, Depends(get_database)],
+    settings: Annotated[AppSettings, Depends(get_app_settings)],
+) -> AuthResponse:
+    """Проверить email и пароль, выдав JWT."""
+    email = str(payload.email).strip().lower()
+
+    async with database.session() as session:
+        user = await get_user_by_email(session, email)
+
+    if user is None or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный email или пароль",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    logger.info("Auth: вход пользователя {}", user.id)
+    return _auth_response(user, settings)
+
+
+@app.get("/v1/auth/me", response_model=UserRead)
+async def read_current_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserRead:
+    """Вернуть данные пользователя по действующему токену."""
+    return UserRead.model_validate(current_user)
 
 
 def build_messages(messages: Sequence[ChatMessage]) -> list[dict[str, str]]:
@@ -325,6 +416,7 @@ async def _execute_tool_calls(
     tool_calls: Sequence[ToolCall],
     *,
     database: Database,
+    user_id: int,
 ) -> list[dict[str, Any]]:
     """Выполнить вызовы и сформировать сообщения с ролью ``tool``."""
     messages: list[dict[str, Any]] = []
@@ -336,6 +428,7 @@ async def _execute_tool_calls(
                     name,
                     tool_call.function.arguments,
                     session=session,
+                    user_id=user_id,
                 )
             except ToolExecutionError as exc:
                 logger.warning("Agent: инструмент {} не выполнен — {}", name, exc)
@@ -365,6 +458,7 @@ async def _complete(
     model_name: str,
     *,
     database: Database,
+    user_id: int,
 ) -> ChatCompletionResponse:
     """Сгенерировать ответ, выполняя tool_calls в agentic loop."""
     working = [dict(message) for message in messages]
@@ -386,7 +480,13 @@ async def _complete(
                 "tool_calls": [tool_call.model_dump() for tool_call in tool_calls],
             }
         )
-        working.extend(await _execute_tool_calls(tool_calls, database=database))
+        working.extend(
+            await _execute_tool_calls(
+                tool_calls,
+                database=database,
+                user_id=user_id,
+            )
+        )
         response = await _generate_once(model, working, request, model_name)
 
     if executed:
@@ -407,6 +507,7 @@ async def _stream_with_tools(
     model_name: str,
     *,
     database: Database,
+    user_id: int,
 ) -> AsyncIterator[str]:
     """Отдать SSE-поток после выполнения agentic loop.
 
@@ -421,6 +522,7 @@ async def _stream_with_tools(
             request,
             model_name,
             database=database,
+            user_id=user_id,
         )
         message = response.choices[0].message
         delta: dict[str, Any] = {
@@ -464,6 +566,7 @@ async def _stream(
     model_name: str,
     *,
     database: Database,
+    user_id: int,
 ) -> AsyncIterator[str]:
     """Отдать ответ потоком SSE в формате OpenAI."""
     if request.tools:
@@ -473,6 +576,7 @@ async def _stream(
             request,
             model_name,
             database=database,
+            user_id=user_id,
         ):
             yield chunk
         return
@@ -512,6 +616,7 @@ async def chat_completions(
     model: Annotated[ChatModel, Depends(get_model)],
     knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
     database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> ChatCompletionResponse | StreamingResponse:
     """Сгенерировать ответ модели в формате OpenAI Chat Completions."""
     # Быстрый триаж до генерации: не тратим ресурсы LLM на prompt injection
@@ -558,6 +663,7 @@ async def chat_completions(
                 request,
                 model_name,
                 database=database,
+                user_id=current_user.id,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -569,26 +675,35 @@ async def chat_completions(
         request,
         model_name,
         database=database,
+        user_id=current_user.id,
     )
 
 
 @app.get("/v1/appointments", response_model=list[AppointmentRead])
 async def get_appointments(
     database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[AppointmentRead]:
-    """Вернуть все записи на приём."""
+    """Вернуть записи на приём текущего пользователя."""
     async with database.session() as session:
-        appointments = await list_appointments(session)
+        appointments = await list_appointments(
+            session,
+            user_id=current_user.id,
+        )
     return [AppointmentRead.model_validate(item) for item in appointments]
 
 
 @app.get("/v1/reminders", response_model=list[ReminderRead])
 async def get_reminders(
     database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[ReminderRead]:
-    """Вернуть все напоминания."""
+    """Вернуть напоминания текущего пользователя."""
     async with database.session() as session:
-        reminders = await list_reminders(session)
+        reminders = await list_reminders(
+            session,
+            user_id=current_user.id,
+        )
     return [ReminderRead.model_validate(item) for item in reminders]
 
 
@@ -596,8 +711,9 @@ async def get_reminders(
 async def execute_tool_endpoint(
     request: ToolExecutionRequest,
     database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
-    """Выполнить инструмент и сохранить результат в БД."""
+    """Выполнить инструмент и сохранить результат текущему пользователю."""
     logger.info("Tool execute: name={} arguments={}", request.name, request.arguments)
     async with database.session() as session:
         try:
@@ -605,6 +721,7 @@ async def execute_tool_endpoint(
                 request.name,
                 request.arguments,
                 session=session,
+                user_id=current_user.id,
             )
         except ToolExecutionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

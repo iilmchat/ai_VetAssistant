@@ -90,10 +90,13 @@ class TelegramMessage(Protocol):
 class ChatApi(Protocol):
     """Минимальный интерфейс клиента API (удобно подменять в тестах)."""
 
+    async def authenticate(self, telegram_user_id: int) -> str: ...
+
     async def chat(
         self,
         messages: Sequence[dict[str, str]],
         *,
+        token: str,
         temperature: float,
         use_rag: bool,
         tools: Sequence[dict[str, Any]] | None = None,
@@ -191,12 +194,33 @@ class VetAssistantBot:
         self._use_rag = use_rag
         self._use_tools = use_tools
         self._tools = tools
+        self._tokens: dict[int, str] = {}
+
+    async def _token_for(self, user_id: int) -> str:
+        """Вернуть JWT пользователя, при необходимости авторизовав его."""
+        token = self._tokens.get(user_id)
+        if token is not None:
+            return token
+        token = await self._api.authenticate(user_id)
+        self._tokens[user_id] = token
+        return token
 
     async def start(self, message: TelegramMessage) -> None:
-        """Обработать /start: очистить историю и показать дисклеймер."""
+        """Обработать /start: очистить историю и авторизовать пользователя."""
         user_id = _user_id(message)
         if user_id is not None:
             self._store.clear(user_id)
+            self._tokens.pop(user_id, None)
+            try:
+                self._tokens[user_id] = await self._api.authenticate(user_id)
+            except VetApiError as exc:
+                # Приветствие не должно зависеть от доступности API:
+                # повторная попытка входа произойдёт при первом сообщении.
+                logger.warning(
+                    "Bot: не удалось авторизовать Telegram user {}: {}",
+                    user_id,
+                    exc,
+                )
         await message.answer(START_TEXT)
 
     async def help(self, message: TelegramMessage) -> None:
@@ -214,6 +238,35 @@ class VetAssistantBot:
         """Ответить на нетекстовое сообщение."""
         await message.answer(UNSUPPORTED_TEXT)
 
+    async def _chat_once(
+        self,
+        user_id: int,
+        history: Sequence[dict[str, str]],
+    ) -> ChatResult:
+        """Вызвать API; при 401 один раз обновить токен и повторить."""
+        token = await self._token_for(user_id)
+        try:
+            return await self._api.chat(
+                history,
+                token=token,
+                temperature=self._temperature,
+                use_rag=self._use_rag,
+                tools=self._tools if self._use_tools else None,
+            )
+        except VetApiError as exc:
+            if exc.status != 401:
+                raise
+            logger.info("Bot: токен user {} истёк, повторная авторизация", user_id)
+            self._tokens.pop(user_id, None)
+            token = await self._token_for(user_id)
+            return await self._api.chat(
+                history,
+                token=token,
+                temperature=self._temperature,
+                use_rag=self._use_rag,
+                tools=self._tools if self._use_tools else None,
+            )
+
     async def handle_text(self, message: TelegramMessage) -> None:
         """Отправить текст в API и вернуть ответ с учётом истории."""
         text = (message.text or "").strip()
@@ -229,12 +282,7 @@ class VetAssistantBot:
         history = [*self._store.history(user_id), {"role": "user", "content": text}]
 
         try:
-            result = await self._api.chat(
-                history,
-                temperature=self._temperature,
-                use_rag=self._use_rag,
-                tools=self._tools if self._use_tools else None,
-            )
+            result = await self._chat_once(user_id, history)
         except VetApiError as exc:
             logger.warning("Bot: ошибка API для user {}: {}", user_id, exc)
             await message.answer(exc.user_message)

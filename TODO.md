@@ -268,6 +268,13 @@
 - **Оценка:** 1
 - **Статус:** выполнено: версия `0.5.0` обновлена во всех конфигурациях, CHANGELOG и README дополнены скриншотом и портами, release-workflow собирает оба Docker-образа; релизный коммит `9f26e90`, тег `v0.5.0` запушен. Release workflow (run `41610500708`) собрал API и Frontend и опубликовал GitHub Release: https://github.com/iilmchat/ai_VetAssistant/releases/tag/v0.5.0. CI (run `41610495022`): Lint & Test, Docker Build, Frontend — success.
 
+### [x] T-039. JWT-авторизация и мультитенантная изоляция данных
+- **Зависит от:** T-033, T-035, T-037
+- **Что:** таблица `users` (`id`, `email`, `hashed_password`, `created_at`) и `user_id` FK в `appointments`/`reminders`; bcrypt-хэши через `passlib[bcrypt]`; `/v1/auth/register`, `/v1/auth/login` и `/v1/auth/me`; зависимость `get_current_user` по `Authorization: Bearer <token>`; защита chat/appointments/reminders/tools и фильтрация по `user_id`; Agentic Loop пишет данные текущему пользователю; React-экран входа/регистрации с JWT в `localStorage` и кнопкой «Выйти»; Telegram-аккаунт на `/start`; тесты `401` и изоляции.
+- **DoD:** без токена защищённые эндпоинты возвращают `401`, с токеном каждый пользователь видит только свои данные; пароли хэшированы; веб, Streamlit и Telegram передают JWT; тесты, линтеры и сборки зелёные; коммит запушен.
+- **Оценка:** 3
+- **Статус:** выполнено: `app/auth.py` (JWT HS256, bcrypt, `get_current_user`), таблица `users` и `user_id` FK с мягкой миграцией, защита API и Agentic Loop; React (`AuthScreen`, `lib/auth.ts`, logout, per-user история), Streamlit auth-gate и Telegram-авторизация через HMAC-аккаунт с кэшем JWT и повтором при `401`; `pytest` 537 passed, React-тесты 29 passed, `ruff`/`mypy` и `npm run build` чисто.
+
 ---
 
 ## Backlog

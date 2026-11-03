@@ -161,9 +161,135 @@ def client(
     app.dependency_overrides[get_model] = lambda: fake_model
     app.dependency_overrides[get_knowledge_base] = lambda: None
     with TestClient(app) as test_client:
+        response = test_client.post(
+            "/v1/auth/register",
+            json={"email": "owner@example.com", "password": "secret-pass-1"},
+        )
+        assert response.status_code == 201
+        test_client.headers["Authorization"] = (
+            f"Bearer {response.json()['access_token']}"
+        )
         yield test_client
     app.dependency_overrides.clear()
     get_app_settings.cache_clear()
+
+
+def _register_second_user(client: TestClient) -> dict[str, str]:
+    """Зарегистрировать второго пользователя и вернуть его auth-заголовки."""
+    response = client.post(
+        "/v1/auth/register",
+        json={"email": "other@example.com", "password": "secret-pass-2"},
+    )
+    assert response.status_code == 201
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def test_auth_register_login_and_me(client: TestClient) -> None:
+    register = client.post(
+        "/v1/auth/register",
+        json={"email": "new@example.com", "password": "strong-pass-1"},
+    )
+
+    assert register.status_code == 201
+    data = register.json()
+    assert data["token_type"] == "bearer"
+    assert data["user"]["email"] == "new@example.com"
+    assert "hashed_password" not in data["user"]
+
+    login = client.post(
+        "/v1/auth/login",
+        json={"email": "new@example.com", "password": "strong-pass-1"},
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+
+    me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "new@example.com"
+
+
+def test_auth_rejects_duplicate_email_and_wrong_password(client: TestClient) -> None:
+    duplicate = client.post(
+        "/v1/auth/register",
+        json={"email": "owner@example.com", "password": "secret-pass-1"},
+    )
+    assert duplicate.status_code == 409
+
+    wrong = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "wrong-password"},
+    )
+    assert wrong.status_code == 401
+
+
+def test_protected_endpoints_require_token(client: TestClient) -> None:
+    client.headers.pop("Authorization")
+
+    for method, path in (
+        ("get", "/v1/appointments"),
+        ("get", "/v1/reminders"),
+        ("get", "/v1/auth/me"),
+    ):
+        response = getattr(client, method)(path)
+        assert response.status_code == 401, path
+        assert response.headers["www-authenticate"] == "Bearer"
+
+    chat = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Вопрос"}]},
+    )
+    assert chat.status_code == 401
+
+    tool = client.post(
+        "/v1/tools/execute",
+        json={"name": "book_appointment", "arguments": {}},
+    )
+    assert tool.status_code == 401
+
+
+def test_invalid_token_is_rejected(client: TestClient) -> None:
+    response = client.get(
+        "/v1/appointments",
+        headers={"Authorization": "Bearer not-a-jwt"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_user_records_are_isolated(client: TestClient) -> None:
+    other_headers = _register_second_user(client)
+
+    owner_record = client.post(
+        "/v1/tools/execute",
+        json={
+            "name": "book_appointment",
+            "arguments": {"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"},
+        },
+    )
+    assert owner_record.status_code == 200
+
+    other_record = client.post(
+        "/v1/tools/execute",
+        json={
+            "name": "set_reminder",
+            "arguments": {"time": "20:00", "text": "Купить корм"},
+        },
+        headers=other_headers,
+    )
+    assert other_record.status_code == 200
+
+    owner_appointments = client.get("/v1/appointments").json()
+    other_appointments = client.get(
+        "/v1/appointments",
+        headers=other_headers,
+    ).json()
+    owner_reminders = client.get("/v1/reminders").json()
+    other_reminders = client.get("/v1/reminders", headers=other_headers).json()
+
+    assert [item["pet_name"] for item in owner_appointments] == ["Мурзик"]
+    assert other_appointments == []
+    assert owner_reminders == []
+    assert [item["text"] for item in other_reminders] == ["Купить корм"]
 
 
 def test_chat_completion_returns_openai_shape(client: TestClient, fake_model: FakeModel) -> None:
@@ -524,6 +650,34 @@ def test_agent_loop_executes_tool_and_returns_final_text(
     assert len(appointments) == 1
     assert appointments[0]["pet_name"] == "Мурзик"
     assert appointments[0]["date"] == "2026-11-04"
+
+
+def test_agent_loop_writes_records_for_current_user(
+    client: TestClient,
+    fake_model: FakeModel,
+) -> None:
+    other_headers = _register_second_user(client)
+    fake_model.responses = [
+        _tool_response(arguments={"date": "2026-11-06", "time": "12:00", "pet_name": "Барсик"}),
+        _final_response("Записал Барсика."),
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Запиши Барсика на 6 ноября"}],
+            "tools": [BOOK_APPOINTMENT_TOOL],
+        },
+        headers=other_headers,
+    )
+
+    assert response.status_code == 200
+    assert client.get("/v1/appointments").json() == []
+    other_appointments = client.get(
+        "/v1/appointments",
+        headers=other_headers,
+    ).json()
+    assert [item["pet_name"] for item in other_appointments] == ["Барсик"]
 
 
 def test_agent_loop_parses_text_tool_call_and_persists_reminder(

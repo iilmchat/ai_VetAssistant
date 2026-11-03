@@ -6,6 +6,7 @@ import type {
   ToolCallDelta,
   ToolDefinition,
 } from '../types'
+import type { AuthSession, AuthUser } from './auth'
 import { isAbortError, isRecord } from './utils'
 
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000'
@@ -20,6 +21,17 @@ export const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL)
 export const MODEL_ID =
   (import.meta.env.VITE_MODEL_ID as string | undefined)?.trim() ||
   DEFAULT_MODEL_ID
+
+let authToken: string | null = null
+
+/** Задать JWT для всех последующих запросов к API. */
+export function setAuthToken(token: string | null): void {
+  authToken = token?.trim() || null
+}
+
+export function getAuthToken(): string | null {
+  return authToken
+}
 
 export interface ChatHistoryMessage {
   role: Role | 'system'
@@ -110,6 +122,9 @@ async function extractError(response: Response): Promise<string> {
     // Тело ошибки может быть не-JSON — ниже вернём сообщение по статусу.
   }
 
+  if (response.status === 401) {
+    return 'Требуется вход в систему. Войдите снова.'
+  }
   if (response.status === 400) {
     return 'Запрос отклонён системой безопасности.'
   }
@@ -119,12 +134,19 @@ async function extractError(response: Response): Promise<string> {
   return `Сервер вернул ошибку ${response.status}. Попробуйте позже.`
 }
 
+function withAuth(headers: Headers): Headers {
+  if (authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`)
+  }
+  return headers
+}
+
 async function requestJson<T>(
   path: string,
   options: RequestInit = {},
   baseUrl: string = API_BASE_URL,
 ): Promise<T> {
-  const headers = new Headers(options.headers)
+  const headers = withAuth(new Headers(options.headers))
   headers.set('Accept', 'application/json')
 
   let response: Response
@@ -144,6 +166,47 @@ async function requestJson<T>(
   }
 
   return (await response.json()) as T
+}
+
+export function register(
+  email: string,
+  password: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AuthSession> {
+  return requestJson<AuthSession>(
+    '/v1/auth/register',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    },
+    baseUrl,
+  )
+}
+
+export function login(
+  email: string,
+  password: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AuthSession> {
+  return requestJson<AuthSession>(
+    '/v1/auth/login',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    },
+    baseUrl,
+  )
+}
+
+export async function fetchCurrentUser(
+  token: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AuthUser> {
+  const headers = new Headers()
+  headers.set('Authorization', `Bearer ${token}`)
+  return requestJson<AuthUser>('/v1/auth/me', { headers }, baseUrl)
 }
 
 export function fetchHealth(
@@ -312,12 +375,13 @@ export async function* streamChat(
 
   let response: Response
   try {
+    const headers = withAuth(new Headers())
+    headers.set('Accept', 'text/event-stream')
+    headers.set('Content-Type', 'application/json')
+
     response = await fetch(apiUrl('/v1/chat/completions', baseUrl), {
       method: 'POST',
-      headers: {
-        Accept: 'text/event-stream',
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload),
       signal,
     })

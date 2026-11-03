@@ -9,6 +9,7 @@
 **Новое в v0.5.0:** React 19 UI, SSE-стриминг, Function Calling в браузере, Docker/Nginx
 **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
+**Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
 **Порты:** `3000` — Docker/Nginx, `5173` — Vite dev server
 **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
@@ -260,9 +261,13 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 
 В интерфейсе есть:
 
+- экран входа и регистрации: без JWT показывается форма, после входа токен
+  хранится в `localStorage`;
+- кнопка **«Выйти»** и email текущего пользователя в сайдбаре;
 - боковая панель с настройками `temperature`, RAG и Function Calling;
 - блок **«Мои записи»** с приёмами (`/v1/appointments`) и напоминаниями;
-- история диалога в `localStorage`, кнопка «Новый чат» и остановка генерации;
+- история диалога в `localStorage` отдельно для каждого пользователя,
+  кнопка «Новый чат» и остановка генерации;
 - индикатор доступности API и адаптивная вёрстка для телефона.
 
 ### Локальный запуск (порт 5173)
@@ -344,6 +349,11 @@ $env:VET_BOT_API_URL="http://127.0.0.1:8000/v1/chat/completions"
 ```
 
 После запуска откройте своего бота в Telegram и отправьте `/start`.
+При `/start` бот автоматически регистрирует или находит аккаунт
+`telegram-<id>@bot.vetassistant.local` и получает JWT, поэтому все записи
+привязаны к этому Telegram-пользователю и не пересекаются с веб-аккаунтами.
+Пароль синтетического аккаунта вычисляется из `VET_BOT_AUTH_SECRET`
+(или `TELEGRAM_BOT_TOKEN`) и в БД не хранится.
 
 ### 3. Запуск в Docker Compose
 
@@ -379,6 +389,7 @@ docker compose up -d bot
 | `VET_BOT_USE_RAG` | `true` | Использовать базу знаний |
 | `VET_BOT_USE_TOOLS` | `true` | Разрешить Function Calling |
 | `VET_BOT_MAX_HISTORY_MESSAGES` | `20` | Сколько сообщений помнить |
+| `VET_BOT_AUTH_SECRET` | `TELEGRAM_BOT_TOKEN` | Секрет HMAC для аккаунтов Telegram |
 
 История диалога хранится в памяти процесса: после перезапуска бота контекст
 сбрасывается, а созданные приёмы и напоминания остаются в PostgreSQL.
@@ -455,7 +466,8 @@ regex-роутер `app/router.py`:
 обратно модели и вернёт финальный текст. В чате останется бейдж
 **🛠️ Вызван инструмент: …** с параметрами — как визуальная индикация.
 
-Прямой запрос к API передаёт OpenAI-совместимый массив `tools`:
+Прямой запрос к API передаёт OpenAI-совместимый массив `tools` и требует
+JWT (см. раздел «Аутентификация и изоляция данных»):
 
 ```json
 {
@@ -484,20 +496,20 @@ regex-роутер `app/router.py`:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/tools/execute `
-  -Method Post -ContentType "application/json" `
+  -Method Post -ContentType "application/json" -Headers $headers `
   -Body '{"name":"book_appointment","arguments":{"date":"2026-11-04","time":"10:00","pet_name":"Мурзик"}}'
 ```
 
 Ответ: `{"status": "success", "message": "Записали Мурзика на 2026-11-04 в 10:00"}`.
-Записи и напоминания хранятся в таблицах `appointments` и `reminders`.
-В Docker используется PostgreSQL 16, локально — async SQLite
-(`data/vetassistant.db`).
+Записи и напоминания хранятся в таблицах `appointments` и `reminders` вместе
+с `user_id` владельца. В Docker используется PostgreSQL 16, локально — async
+SQLite (`data/vetassistant.db`).
 
-Чтение данных:
+Чтение данных (только записи текущего пользователя):
 
 ```powershell
-Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/appointments
-Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders
+Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/appointments -Headers $headers
+Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders -Headers $headers
 ```
 
 В Streamlit откройте в сайдбаре **«Мои записи»** — там показываются карточки
@@ -506,6 +518,67 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders
 > В финальном ответе agentic loop `tool_calls` остаются как визуальная
 > индикация для UI. Они уже выполнены; `finish_reason` при наличии финального
 > текста равен `stop`.
+
+## 🔐 Аутентификация и изоляция данных (T-039)
+
+Сервис теперь мультитенантный: каждый пользователь видит только своих
+питомцев, записи на приём и напоминания.
+
+- Пароли хранятся как bcrypt-хэши (`passlib[bcrypt]`).
+- Access-токен — JWT HS256 со сроком 7 дней (настраивается
+  `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES`).
+- Защищены `/v1/chat/completions`, `/v1/appointments`, `/v1/reminders`,
+  `/v1/tools/execute` и `/v1/auth/me`; без токена они возвращают `401`.
+- `user_id` берётся только из JWT и никогда из аргументов модели, поэтому
+  Agentic Loop записывает приём владельцу текущей сессии.
+
+### Регистрация и вход
+
+```powershell
+$auth = Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/v1/auth/register `
+  -Method Post -ContentType "application/json" `
+  -Body '{"email":"owner@example.com","password":"secret-pass-1"}'
+
+$headers = @{ Authorization = "Bearer $($auth.access_token)" }
+
+# Повторный вход в другом клиенте
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/v1/auth/login `
+  -Method Post -ContentType "application/json" `
+  -Body '{"email":"owner@example.com","password":"secret-pass-1"}'
+```
+
+`register` и `login` возвращают `access_token`, `token_type` и публичные
+данные пользователя. `GET /v1/auth/me` проверяет токен и возвращает текущего
+пользователя.
+
+### Клиенты
+
+- **React:** при отсутствии токена показывается экран входа/регистрации;
+  JWT сохраняется в `localStorage` и передаётся в `Authorization`. История
+  чата хранится отдельно для каждого `user_id`, в сайдбаре есть кнопка
+  «Выйти».
+- **Streamlit:** формы входа и регистрации, токен хранится в `session_state`,
+  кнопка выхода в сайдбаре.
+- **Telegram:** на `/start` бот создаёт или переиспользует синтетический
+  аккаунт `telegram-<id>@bot.vetassistant.local`. Пароль детерминированно
+  вычисляется через HMAC-SHA256 из Telegram ID и `VET_BOT_AUTH_SECRET`
+  (fallback — `TELEGRAM_BOT_TOKEN`), поэтому пароли не хранятся в открытом
+  виде. Бот кэширует JWT и при `401` автоматически входит повторно.
+
+### Настройки
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `VET_API_JWT_SECRET` | `dev-insecure-jwt-secret-change-me` | Секрет подписи JWT (замените в production) |
+| `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES` | `10080` | Срок жизни токена (7 дней) |
+| `VET_BOT_AUTH_SECRET` | `TELEGRAM_BOT_TOKEN` | Секрет HMAC для аккаунтов Telegram |
+
+> Для существующих баз `create_tables` мягко добавляет `user_id` в старые
+> таблицы `appointments`/`reminders`. Строки, созданные до T-039, остаются в
+> БД с `NULL` и не видны пользователям — при необходимости привяжите их к
+> владельцу вручную.
 
 ## 🐳 Запуск через Docker Compose
 
@@ -565,6 +638,9 @@ origin.
 | `POSTGRES_PASSWORD` | `vetassistant` | Пароль PostgreSQL |
 | `POSTGRES_DB` | `vetassistant` | Имя базы данных |
 | `VET_API_DATABASE_URL` | `postgresql+asyncpg://...@db:5432/...` | URL БД для SQLAlchemy |
+| `VET_API_JWT_SECRET` | `dev-insecure-jwt-secret-change-me` | Секрет подписи JWT (замените в production) |
+| `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES` | `10080` | Срок жизни access-токена |
+| `VET_BOT_AUTH_SECRET` | `TELEGRAM_BOT_TOKEN` | Секрет HMAC для аккаунтов Telegram |
 | `VET_API_MODEL_PATH` | `/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf` | Путь к GGUF внутри контейнера |
 | `VET_API_N_CTX` | `8192` | Размер контекста llama.cpp |
 | `VET_API_N_GPU_LAYERS` | `0` | Слоёв на GPU (0 — CPU) |
@@ -585,6 +661,7 @@ origin.
 - **RAG:** ChromaDB + sentence-transformers, TXT/PDF, реальные статьи MSD Vet Manual.
 - **Function Calling:** `book_appointment`, `set_reminder`, OpenAI-совместимые `tools`.
 - **База данных:** PostgreSQL 16 + async SQLAlchemy 2.0/asyncpg; SQLite/aiosqlite для локальных тестов.
+- **Аутентификация:** JWT HS256 (`PyJWT`), bcrypt (`passlib[bcrypt]`), изоляция данных по `user_id`.
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** React 19 + Vite + TypeScript + Tailwind CSS 4 (`frontend/`): SSE-стриминг, Markdown, бейджи инструментов, настройки и «Мои записи».
 - **Streamlit:** резервный UI (`app/ui.py`) с потоковым выводом и настройками температуры.

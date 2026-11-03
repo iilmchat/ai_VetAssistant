@@ -18,18 +18,27 @@ import type {
 import {
   ApiError,
   fetchAppointments,
+  fetchCurrentUser,
   fetchHealth,
   fetchReminders,
+  setAuthToken,
   streamChat,
 } from './lib/api'
+import {
+  clearAuthSession,
+  loadAuthSession,
+  messagesStorageKey,
+  saveAuthSession,
+} from './lib/auth'
+import type { AuthSession } from './lib/auth'
 import { AVAILABLE_TOOLS, mergeToolCalls } from './lib/tools'
 import { errorMessage, isAbortError, isRecord, uid } from './lib/utils'
 import { Sidebar } from './components/Sidebar'
 import { MessageBubble } from './components/MessageBubble'
 import { Composer } from './components/Composer'
 import { Welcome } from './components/Welcome'
+import { AuthScreen } from './components/AuthScreen'
 
-const STORAGE_KEY = 'vetassistant.messages.v1'
 const MAX_CONTEXT_MESSAGES = 20
 const DEFAULT_SETTINGS: ChatSettings = {
   temperature: 0.7,
@@ -49,9 +58,12 @@ function isToolCall(value: unknown): value is ToolCall {
   )
 }
 
-function loadStoredMessages(): UiMessage[] {
+function loadStoredMessages(userId: number | null): UiMessage[] {
+  if (userId === null) {
+    return []
+  }
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(messagesStorageKey(userId))
     if (!raw) {
       return []
     }
@@ -97,7 +109,12 @@ function apiStatusLabel(status: ApiStatus): string {
 }
 
 function App() {
-  const [messages, setMessages] = useState<UiMessage[]>(loadStoredMessages)
+  const [session, setSession] = useState<AuthSession | null>(() =>
+    loadAuthSession(),
+  )
+  const [messages, setMessages] = useState<UiMessage[]>(() =>
+    loadStoredMessages(loadAuthSession()?.user.id ?? null),
+  )
   const [input, setInput] = useState('')
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -112,6 +129,31 @@ function App() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottom = useRef(true)
 
+  const handleLogout = useCallback(() => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setAuthToken(null)
+    clearAuthSession()
+    setSession(null)
+    setMessages([])
+    setInput('')
+    setAppointments([])
+    setReminders([])
+    setRecordsError(null)
+    setRecordsLoading(true)
+    setSidebarOpen(false)
+  }, [])
+
+  const handleAuthenticated = useCallback((next: AuthSession) => {
+    setAuthToken(next.access_token)
+    saveAuthSession(next)
+    setSession(next)
+    setMessages(loadStoredMessages(next.user.id))
+    setRecordsLoading(true)
+    setRecordsError(null)
+    setSidebarOpen(false)
+  }, [])
+
   const patchMessage = useCallback(
     (id: string, patch: Partial<UiMessage>) => {
       setMessages((previous) =>
@@ -124,6 +166,9 @@ function App() {
   )
 
   const loadRecords = useCallback(async () => {
+    if (!session) {
+      return
+    }
     try {
       const [nextAppointments, nextReminders] = await Promise.all([
         fetchAppointments(),
@@ -133,13 +178,21 @@ function App() {
       setAppointments(nextAppointments)
       setReminders(nextReminders)
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleLogout()
+        return
+      }
       if (!isAbortError(error)) {
         setRecordsError(errorMessage(error))
       }
     } finally {
       setRecordsLoading(false)
     }
-  }, [])
+  }, [session, handleLogout])
+
+  useEffect(() => {
+    setAuthToken(session?.access_token ?? null)
+  }, [session])
 
   useEffect(() => {
     // Синхронизация с внешним API при монтировании; состояние обновляется
@@ -147,6 +200,23 @@ function App() {
     // oxlint-disable-next-line react/set-state-in-effect
     void loadRecords()
   }, [loadRecords])
+
+  useEffect(() => {
+    if (!session) {
+      return
+    }
+    let active = true
+
+    void fetchCurrentUser(session.access_token).catch((error: unknown) => {
+      if (active && error instanceof ApiError && error.status === 401) {
+        handleLogout()
+      }
+    })
+
+    return () => {
+      active = false
+    }
+  }, [session, handleLogout])
 
   useEffect(() => {
     let active = true
@@ -176,6 +246,9 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!session) {
+      return
+    }
     if (messages.some((message) => message.status === 'streaming')) {
       return
     }
@@ -191,16 +264,17 @@ function App() {
         toolCalls: message.toolCalls,
       }))
 
+    const key = messagesStorageKey(session.user.id)
     try {
       if (stored.length === 0) {
-        window.localStorage.removeItem(STORAGE_KEY)
+        window.localStorage.removeItem(key)
       } else {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+        window.localStorage.setItem(key, JSON.stringify(stored))
       }
     } catch {
       // Приватный режим или переполненное хранилище — история просто не сохранится.
     }
-  }, [messages])
+  }, [messages, session])
 
   useEffect(() => {
     if (!shouldStickToBottom.current) {
@@ -295,6 +369,10 @@ function App() {
         void loadRecords()
       }
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleLogout()
+        return
+      }
       if (controller.signal.aborted || isAbortError(error)) {
         patchMessage(assistantId, {
           content,
@@ -327,8 +405,11 @@ function App() {
     setMessages([])
     setInput('')
     setSidebarOpen(false)
+    if (!session) {
+      return
+    }
     try {
-      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.removeItem(messagesStorageKey(session.user.id))
     } catch {
       // Хранилище недоступно — ничего страшного.
     }
@@ -336,6 +417,10 @@ function App() {
 
   function updateSettings(patch: Partial<ChatSettings>) {
     setSettings((previous) => ({ ...previous, ...patch }))
+  }
+
+  if (!session) {
+    return <AuthScreen onAuthenticated={handleAuthenticated} />
   }
 
   return (
@@ -356,6 +441,8 @@ function App() {
           void loadRecords()
         }}
         apiStatus={apiStatus}
+        userEmail={session.user.email}
+        onLogout={handleLogout}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

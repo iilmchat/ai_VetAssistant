@@ -29,6 +29,7 @@ def create_service(settings: BotSettings) -> VetAssistantBot:
         settings.api_url,
         model_id=settings.model_id,
         timeout_s=settings.timeout_s,
+        auth_secret=settings.resolved_auth_secret,
     )
     store = ConversationStore(max_messages=settings.max_history_messages)
     return VetAssistantBot(
