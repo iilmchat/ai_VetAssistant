@@ -82,6 +82,75 @@ Ubuntu 24.04.
    apt update && apt upgrade -y
    ```
 
+### Настройка Git на сервере
+
+На сервере уже могут быть SSH-ключи других проектов. Чтобы не менять
+глобальный конфиг GitHub и не конфликтовать с ними, доступ к репозиторию
+VetAssistant идёт через SSH-алиас **`github.com-vetassistant`**, а не через
+стандартный `github.com`.
+
+Проверьте `~/.ssh/config` — инфраструктурный агент добавляет туда блок
+вида:
+
+```sshconfig
+Host github.com-vetassistant
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_vetassistant
+    IdentitiesOnly yes
+```
+
+`Host` — произвольное имя алиаса, `HostName` — реальный хост GitHub,
+`IdentityFile` — ключ, у которого есть доступ к `iilmchat/ai_VetAssistant`.
+`IdentitiesOnly yes` заставляет SSH использовать именно этот ключ, не
+перебирая остальные. Права на файл:
+
+```bash
+chmod 600 ~/.ssh/config
+```
+
+Проверка алиаса:
+
+```bash
+ssh -T git@github.com-vetassistant
+```
+
+Ожидаемо сообщение `Hi <user>! You've successfully authenticated...`
+(предупреждение об отсутствии shell-доступа — нормально).
+
+Клонирование репозитория через алиас:
+
+```bash
+git clone git@github.com-vetassistant:iilmchat/ai_VetAssistant.git \
+  /opt/vetassistant
+```
+
+Если репозиторий уже склонирован (например, в `/srv/vetassistant`) и нужно
+переключить `origin` на алиас:
+
+```bash
+cd /opt/vetassistant
+git remote add origin git@github.com-vetassistant:iilmchat/ai_VetAssistant.git
+```
+
+Если `origin` уже существует, замените URL:
+
+```bash
+git remote set-url origin git@github.com-vetassistant:iilmchat/ai_VetAssistant.git
+```
+
+Проверьте, что используется правильный remote, и обновите код:
+
+```bash
+git remote -v
+git fetch origin
+git pull --ff-only origin main
+```
+
+> Не заменяйте `github.com-vetassistant` на `github.com` в командах: без
+> алиаса SSH может выбрать ключ другого проекта, и доступ к репозиторию
+> завершится ошибкой `Permission denied (publickey)`.
+
 ## 3. DNS: A-запись на сервер
 
 В панели домена создайте записи:
@@ -185,6 +254,14 @@ export LETSENCRYPT_EMAIL=admin@vetassistant.ru
 sudo -E bash /tmp/deploy.sh --ssl
 ```
 
+Если на сервере настроен SSH-алиас `github.com-vetassistant` (см. раздел
+«Настройка Git на сервере»), передайте его в `REPO_URL`:
+
+```bash
+export REPO_URL=git@github.com-vetassistant:iilmchat/ai_VetAssistant.git
+sudo -E bash /tmp/deploy.sh --ssl
+```
+
 Что делает `deploy.sh`:
 
 1. Ставит `docker-ce`, `docker-compose-plugin`, `git`, `curl`, `openssl`.
@@ -230,7 +307,7 @@ apt update
 apt install -y git
 
 git clone --branch main \
-  https://github.com/iilmchat/ai_VetAssistant.git /opt/vetassistant
+  git@github.com-vetassistant:iilmchat/ai_VetAssistant.git /opt/vetassistant
 cd /opt/vetassistant
 
 cp .env.production.example .env
