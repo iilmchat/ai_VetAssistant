@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Loader2, Lock, Mail, PawPrint, ShieldCheck, UserPlus } from 'lucide-react'
 import type { AuthSession } from '../lib/auth'
 import { login } from '../lib/api'
+import { isAccessRequestMode } from '../lib/access'
 import { errorMessage } from '../lib/utils'
 import { AccessRequestDialog } from './AccessRequestDialog'
 
@@ -16,7 +17,22 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [accessDialogOpen, setAccessDialogOpen] = useState(false)
+  const [accessDialogOpen, setAccessDialogOpen] = useState(() =>
+    isAccessRequestMode(window.location.search),
+  )
+
+  function closeAccessDialog() {
+    setAccessDialogOpen(false)
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('mode') === 'request') {
+      url.searchParams.delete('mode')
+      window.history.replaceState(
+        {},
+        '',
+        `${url.pathname}${url.search}${url.hash}`,
+      )
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -156,7 +172,7 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
       {accessDialogOpen && (
         <AccessRequestDialog
           initialEmail={email.trim()}
-          onClose={() => setAccessDialogOpen(false)}
+          onClose={closeAccessDialog}
         />
       )}
     </div>

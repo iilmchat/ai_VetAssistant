@@ -1,13 +1,13 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.1.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.2.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.1.0** (2026-11-04)
-**Релиз:** смена пароля, оптимизация памяти, UFW и Git-деплой на сервере
+**Статус:** ✅ **Production Ready — v1.2.0** (2026-11-04)
+**Релиз:** закрытый доступ по заявкам, форма Access Request и статический лендинг
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»

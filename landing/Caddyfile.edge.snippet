@@ -1,0 +1,44 @@
+# Сниппет для ai-infra/Caddyfile.manual.
+# Заменяет текущий блок `ai-pets.ru` и добавляет `app.ai-pets.ru`.
+# Имена сервисов — из внешней сети edge (проект vetassistant).
+#
+# НЕ ПРИМЕНЯТЬ до готовности Пакета A и DNS-записи app.ai-pets.ru.
+# Перед reload: backup Caddyfile, `caddy validate`, затем `caddy reload`.
+
+ai-pets.ru {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+	}
+	handle {
+		reverse_proxy vetassistant-landing:80
+	}
+}
+
+app.ai-pets.ru {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		X-Robots-Tag "noindex, nofollow"
+	}
+	handle_path /api/* {
+		reverse_proxy vetassistant-api:8000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy vetassistant-frontend:80
+	}
+}
+
+www.ai-pets.ru {
+	redir https://ai-pets.ru{uri} permanent
+}
