@@ -498,13 +498,80 @@ scp data/gguf/qwen3-8b-vet-Q4_K_M.gguf \
 (см. `scripts/setup_remote.sh` и README).
 
 Без модели API запустится, но будет отвечать `503 Модель недоступна`.
-Индекс ChromaDB опционален: без него RAG просто не добавляет контекст.
-Построить индекс можно в контейнере:
+
+### RAG: ChromaDB в production (T-110)
+
+Статьи лежат в `data/knowledge/` и хранятся в Git (TXT/PDF, включая
+`data/knowledge/real/`). На сервере каталог монтируется в API как
+`/app/data/knowledge`, поэтому отдельная DVC-загрузка не нужна: достаточно
+`git pull`.
+
+Edge-стек автоматически строит индекс при старте API:
+
+- entrypoint проверяет коллекцию `msd_vet_manual` в `data/chroma_db`;
+- если коллекции нет или она пуста, запускается
+  `scripts/ingest_knowledge.py` **до** старта `uvicorn`;
+- модель эмбеддингов скачивается один раз и кешируется в volume `hf_cache`
+  (`/root/.cache/huggingface`), а не в контейнере;
+- после ingest процесс завершается, и только затем загружается API — это
+  важно на сервере с 6 ГБ RAM.
+
+Управление поведением в `.env`:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec api \
-  python scripts/ingest_knowledge.py
+VET_API_AUTO_INGEST=1       # 0 — отключить автоматический ingest
+VET_API_INGEST_STRICT=0     # 1 — падать деплоем при ошибке ingest
 ```
+
+Ручная пересборка индекса в контейнере:
+
+```bash
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/ingest_knowledge.py \
+  --knowledge-dir /app/data/knowledge \
+  --chroma-dir /app/data/chroma_db
+```
+
+> На 6 ГБ RAM запуск ingest внутри уже работающего API может привести к
+> OOM: embedding-модель загрузится рядом с 8B-моделью. Безопасный вариант —
+> остановить API, собрать индекс отдельным одноразовым контейнером и
+> поднять API снова:
+
+```bash
+docker compose -f docker-compose.edge.yml stop api
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  --entrypoint python api \
+  scripts/ingest_knowledge.py \
+  --knowledge-dir /app/data/knowledge \
+  --chroma-dir /app/data/chroma_db
+docker compose -f docker-compose.edge.yml up -d api
+```
+
+Проверить, что индекс собран:
+
+```bash
+docker compose -f docker-compose.edge.yml exec api python -c \
+  "from chromadb import PersistentClient; print(PersistentClient(path='/app/data/chroma_db').get_collection('msd_vet_manual').count())"
+```
+
+Число должно быть больше нуля. Логи ingest и RAG:
+
+```bash
+docker compose -f docker-compose.edge.yml logs api | grep -E "RAG|чанк"
+```
+
+Проверка в UI:
+
+1. Войдите на сайт и откройте сайдбар.
+2. Включите **«База знаний (RAG)»**.
+3. Задайте вопрос по статье, например: «Какие симптомы отравления
+   парацетамолом у кошек?» или «Что делать при геморрагической диарее у
+   собаки?».
+4. В логах API появится строка вида `RAG: добавлено чанков: N`; ответ
+   должен опираться на факты из статьи.
+
+Если RAG не отвечает, проверьте, что `data/knowledge/*.txt` есть на сервере
+и индекс пересобран после `git pull`.
 
 ## 9. Проверка после запуска
 

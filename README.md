@@ -488,6 +488,12 @@ python scripts/ingest_knowledge.py --dry-run
    **«Использовать базу знаний (RAG)»** — UI передаст `use_rag: true`.
 5. Для прямых запросов к API добавьте в JSON `"use_rag": true`.
 
+В production edge-стек (`docker-compose.edge.yml`) строит индекс
+автоматически при старте API, если ChromaDB ещё нет: entrypoint запускает
+`scripts/ingest_knowledge.py` до загрузки основной модели. Модель
+эмбеддингов кешируется в volume `hf_cache`, ручная пересборка описана в
+`DEPLOYMENT.md`.
+
 Если база не создана, пуста или RAG-зависимости не установлены, API
 продолжает работать как раньше — без справочного контекста.
 

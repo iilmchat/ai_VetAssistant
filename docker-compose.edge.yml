@@ -69,6 +69,9 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/app/data
+      # Кеш sentence-transformers/HuggingFace переживает пересоздание контейнера:
+      # модель эмбеддингов не скачивается заново при каждом деплое.
+      - hf_cache:/root/.cache/huggingface
     networks:
       - internal
       - edge
@@ -81,6 +84,12 @@ services:
       VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
       VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
       VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+      VET_API_KNOWLEDGE_DIR: ${VET_API_KNOWLEDGE_DIR:-/app/data/knowledge}
+      # Индекс строится entrypoint-скриптом до старта uvicorn, чтобы модель
+      # эмбеддингов не конкурировала за RAM с 8B-моделью.
+      VET_API_AUTO_INGEST: ${VET_API_AUTO_INGEST:-1}
+      VET_API_INGEST_STRICT: ${VET_API_INGEST_STRICT:-0}
+      HF_HOME: /root/.cache/huggingface
       VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
       VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:?VET_API_JWT_SECRET is required}
       VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
@@ -96,7 +105,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      # Первый запуск может скачивать модель эмбеддингов и строить индекс.
+      start_period: 300s
 
   frontend:
     build:
@@ -137,3 +147,4 @@ networks:
 
 volumes:
   postgres_data:
+  hf_cache:

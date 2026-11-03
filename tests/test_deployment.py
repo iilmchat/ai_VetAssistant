@@ -222,3 +222,42 @@ def test_deployment_documents_cicd_secrets_and_setup() -> None:
         assert secret in deployment
     assert "git pull --ff-only" in deployment
     assert "docker compose -f docker-compose.edge.yml up -d --build" in deployment
+
+
+def test_edge_compose_enables_rag_autofill_before_api_start() -> None:
+    edge_compose = _yaml("docker-compose.edge.yml")
+    api = edge_compose["services"]["api"]
+    environment = api["environment"]
+
+    assert environment["VET_API_AUTO_INGEST"] == "${VET_API_AUTO_INGEST:-1}"
+    assert environment["VET_API_INGEST_STRICT"] == "${VET_API_INGEST_STRICT:-0}"
+    assert (
+        environment["VET_API_KNOWLEDGE_DIR"]
+        == "${VET_API_KNOWLEDGE_DIR:-/app/data/knowledge}"
+    )
+    assert "hf_cache:/root/.cache/huggingface" in api["volumes"]
+    assert "hf_cache" in edge_compose["volumes"]
+    assert api["healthcheck"]["start_period"] == "300s"
+
+
+def test_docker_entrypoint_builds_rag_index_before_exec() -> None:
+    script = _read("scripts/docker_entrypoint.sh")
+    dockerfile = _read("Dockerfile")
+
+    assert 'AUTO_INGEST="${VET_API_AUTO_INGEST:-0}"' in script
+    assert "chroma.sqlite3" in script
+    assert 'python scripts/ingest_knowledge.py' in script
+    assert '--knowledge-dir "${KNOWLEDGE_DIR}"' in script
+    assert 'exec "$@"' in script
+    assert script.index("scripts/ingest_knowledge.py") < script.index('exec "$@"')
+    assert 'ENTRYPOINT ["/app/scripts/docker_entrypoint.sh"]' in dockerfile
+
+
+def test_rag_production_docs_cover_manual_ingest_and_ui_check() -> None:
+    deployment = _read("DEPLOYMENT.md")
+
+    assert "RAG: ChromaDB в production" in deployment
+    assert "docker compose -f docker-compose.edge.yml exec api" in deployment
+    assert "python scripts/ingest_knowledge.py" in deployment
+    assert "VET_API_AUTO_INGEST" in deployment
+    assert "парацетамолом" in deployment

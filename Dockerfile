@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     CMAKE_BUILD_PARALLEL_LEVEL=2 \
-    CMAKE_ARGS="-DGGML_NATIVE=OFF"
+    CMAKE_ARGS="-DGGML_NATIVE=OFF" \
+    HF_HOME=/root/.cache/huggingface
 
 WORKDIR /app
 
@@ -32,8 +33,11 @@ RUN python -m pip install --upgrade pip \
 
 COPY scripts ./scripts
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data \
+    && chmod +x /app/scripts/docker_entrypoint.sh
 
 EXPOSE 8000 8501
 
+# Entrypoint проверяет RAG-индекс до запуска API; обычный запуск — exec "$@".
+ENTRYPOINT ["/app/scripts/docker_entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
