@@ -158,3 +158,59 @@ def test_release_documents_exist_and_are_linked() -> None:
     assert "[DEPLOYMENT.md](DEPLOYMENT.md)" in readme
     assert "Production Ready" in readme
     assert "## [1.0.0] — 2026-11-03" in changelog
+
+
+def test_deploy_workflow_uses_secure_deployer_over_ssh() -> None:
+    workflow = _yaml(".github/workflows/deploy.yml")
+    triggers = workflow["on"]
+
+    assert triggers["push"]["tags"] == ["v*"]
+    assert workflow["permissions"]["contents"] == "read"
+    assert workflow["concurrency"]["group"] == "deploy-production"
+
+    steps = workflow["jobs"]["deploy"]["steps"]
+    deploy_step = next(
+        step
+        for step in steps
+        if step.get("uses") == "appleboy/ssh-action@v1.0.3"
+    )
+    inputs = deploy_step["with"]
+
+    assert inputs["host"] == "${{ secrets.SSH_HOST }}"
+    assert inputs["username"] == "${{ secrets.SSH_USER }}"
+    assert inputs["key"] == "${{ secrets.SSH_KEY }}"
+    assert inputs["script_stop"] is True
+    assert "cd /srv/vetassistant" in inputs["script"]
+    assert "git pull --ff-only" in inputs["script"]
+    assert (
+        "docker compose -f docker-compose.edge.yml up -d --build"
+        in inputs["script"]
+    )
+
+
+def test_setup_deploy_user_script_is_safe_and_idempotent() -> None:
+    script = _read("scripts/setup_deploy_user.sh")
+
+    assert script.startswith("#!/usr/bin/env bash")
+    assert "set -Eeuo pipefail" in script
+    assert 'DEPLOY_USER="${DEPLOY_USER:-deployer}"' in script
+    assert "useradd" in script
+    assert "usermod -aG docker" in script
+    assert 'install -d -m 700' in script
+    assert 'chmod 700 "${SSH_DIR}"' in script
+    assert 'chmod 600 "${AUTHORIZED_KEYS}"' in script
+    assert "authorized_keys" in script
+    assert "SSH_KEY" in script
+    assert "${EUID}" in script
+
+
+def test_deployment_documents_cicd_secrets_and_setup() -> None:
+    deployment = _read("DEPLOYMENT.md")
+
+    assert "## 6. Настройка CI/CD" in deployment
+    assert "scripts/setup_deploy_user.sh" in deployment
+    assert "appleboy/ssh-action" in deployment
+    for secret in ("SSH_HOST", "SSH_USER", "SSH_KEY"):
+        assert secret in deployment
+    assert "git pull --ff-only" in deployment
+    assert "docker compose -f docker-compose.edge.yml up -d --build" in deployment

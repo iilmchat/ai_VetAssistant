@@ -336,14 +336,14 @@
 - **Оценка:** 2
 - **Статус:** запланирована; не входит в релиз v1.1.0.
 
-### [ ] T-108. Автоматический деплой на сервер (CI/CD)
+### [x] T-108. Автоматический деплой на сервер (CI/CD)
 - **Зависит от:** T-104, T-106
-- **Что:** Настроить безопасный автоматический деплой edge-стека по пушу тега. GitHub Actions должен собирать образы, заходить по SSH на VPS под отдельным пользователем `deployer` и обновлять `/srv/vetassistant` без использования root.
+- **Что:** Настроить безопасный автоматический деплой edge-стека по пушу тега. GitHub Actions должен запускать пересборку образов, заходить по SSH на VPS под отдельным пользователем `deployer` и обновлять `/srv/vetassistant` без использования root.
 - **Решение:**
   1. На сервере создать отдельного пользователя `deployer` и добавить его в группу `docker`; убедиться, что у него есть доступ к `/srv/vetassistant` и Docker Compose.
-  2. Сгенерировать новую SSH-пару специально для GitHub Actions. Публичный ключ добавить в `~/.ssh/authorized_keys` пользователя `deployer`; приватный — в GitHub Actions secret `SSH_PRIVATE_KEY`, хост — в `SSH_HOST`.
-  3. Добавить `.github/workflows/deploy.yml`: по пушу тега `v*` checkout, сборка API/frontend-образов и вызов `appleboy/ssh-action` с `username: deployer`, `key: ${{ secrets.SSH_PRIVATE_KEY }}`, `host: ${{ secrets.SSH_HOST }}`; на сервере выполнить `cd /srv/vetassistant && git pull --ff-only && docker compose -f docker-compose.edge.yml up -d --build`.
+  2. Сгенерировать новую SSH-пару специально для GitHub Actions. Публичный ключ добавить в `~/.ssh/authorized_keys` пользователя `deployer`; приватный — в GitHub Actions secret `SSH_KEY`, хост — в `SSH_HOST`, пользователя — в `SSH_USER`.
+  3. Добавить `.github/workflows/deploy.yml`: по пушу тега `v*` вызвать `appleboy/ssh-action@v1.0.3` с `host: ${{ secrets.SSH_HOST }}`, `username: ${{ secrets.SSH_USER }}`, `key: ${{ secrets.SSH_KEY }}`; на сервере выполнить `cd /srv/vetassistant && git pull --ff-only && docker compose -f docker-compose.edge.yml up -d --build` (образы собираются на сервере).
   4. Обновить `DEPLOYMENT.md`: создание `deployer`, права Docker, генерация ключей, настройка secrets и проверка первого деплоя по тегу.
 - **DoD:** пуш тега `v*` автоматически деплоит edge-стек; деплой идёт под `deployer`, не под root; приватный ключ не попадает в репозиторий и логи; `docker compose -f docker-compose.edge.yml config` проходит; документация позволяет повторить настройку с нуля; при ошибке деплоя workflow завершается с ненулевым кодом.
 - **Оценка:** 3
-- **Статус:** запланирована; не входит в релиз v1.1.0.
+- **Статус:** выполнено: `.github/workflows/deploy.yml` (тег `v*`, `appleboy/ssh-action@v1.0.3`, secrets `SSH_HOST`/`SSH_USER`/`SSH_KEY`, `script_stop`), `scripts/setup_deploy_user.sh` (`deployer`, группа `docker`, `.ssh` 700, `authorized_keys` 600), раздел «Настройка CI/CD» в `DEPLOYMENT.md`; тесты workflow/скрипта/документации добавлены.

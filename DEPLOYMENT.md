@@ -44,6 +44,8 @@
 | `deploy/Caddyfile` | Caddy-блок `ai-pets.ru` и `www` для edge-сети |
 | `scripts/deploy.sh` | установка Docker, клонирование и запуск |
 | `scripts/setup_ufw.sh` | настройка UFW: SSH, HTTP, HTTPS и deny incoming |
+| `scripts/setup_deploy_user.sh` | пользователь `deployer` и SSH-каталог для CI/CD |
+| `.github/workflows/deploy.yml` | автодеплой edge-стека по тегу `v*` |
 | `scripts/renew_ssl.sh` | продление сертификата и reload Nginx |
 | `scripts/upload_model.py` | SFTP-загрузка GGUF с проверкой SHA-256 |
 | `scripts/check_ram.py` | проверка `/api/health`, GGUF и текущего `n_ctx` |
@@ -300,7 +302,142 @@ python scripts/smoke_test.py --base-url https://ai-pets.ru --email owner@example
 
 Подробнее — в разделе README «Edge-деплой для инфраструктурного агента».
 
-## 6. Ручной деплой (если не используете скрипт)
+## 6. Настройка CI/CD
+
+Автодеплой edge-стека по тегу `v*` выполняет
+`.github/workflows/deploy.yml`: GitHub Actions подключается по SSH под
+пользователем `deployer`, заходит в `/srv/vetassistant`, делает
+`git pull --ff-only` и пересобирает стек командой
+`docker compose -f docker-compose.edge.yml up -d --build`.
+
+### 6.1. Пользователь deployer на сервере
+
+Запустите скрипт от root:
+
+```bash
+cd /srv/vetassistant
+sudo bash scripts/setup_deploy_user.sh
+```
+
+Скрипт:
+
+1. создаёт пользователя `deployer` (если его ещё нет);
+2. добавляет его в группу `docker`;
+3. создаёт `~/.ssh` с правами `700` и `authorized_keys` с правами `600`;
+4. выводит инструкцию по добавлению публичного SSH-ключа.
+
+> Группа `docker` даёт доступ к Docker-сокету, то есть фактически
+> root-эквивалентные права на сервере. Приватный ключ `deployer` храните
+> только в GitHub Actions secrets.
+
+Для `git pull` пользователь `deployer` должен иметь право записи в
+`/srv/vetassistant`. Если репозиторий принадлежит `root`, выдайте права:
+
+```bash
+sudo chown -R deployer:deployer /srv/vetassistant
+```
+
+### 6.2. SSH-ключ для GitHub Actions
+
+Ключ генерируется **локально**, не на сервере. Не используйте личный
+ключ — создайте отдельную пару:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-vetassistant" \
+  -f ~/.ssh/vetassistant_deploy -N ""
+```
+
+`-N ""` создаёт ключ без пароля: workflow передаёт его в
+`appleboy/ssh-action` напрямую и не запрашивает passphrase.
+
+Добавьте публичный ключ пользователю `deployer`. Если SSH-вход по паролю
+разрешён:
+
+```bash
+ssh-copy-id -i ~/.ssh/vetassistant_deploy.pub deployer@203.0.113.10
+```
+
+Если вход по паролю закрыт, добавьте ключ через root:
+
+```bash
+cat ~/.ssh/vetassistant_deploy.pub | ssh root@203.0.113.10 \
+  'sudo -u deployer tee -a /home/deployer/.ssh/authorized_keys'
+```
+
+Проверьте вход и доступ к Docker:
+
+```bash
+ssh -i ~/.ssh/vetassistant_deploy deployer@203.0.113.10 'docker ps'
+```
+
+Если появляется `permission denied` на Docker, переподключитесь — новая
+группа применяется к новой SSH-сессии.
+
+### 6.3. Секреты GitHub Actions
+
+В GitHub откройте **Settings → Secrets and variables → Actions →
+New repository secret** и добавьте:
+
+| Secret | Значение |
+|---|---|
+| `SSH_HOST` | IP или домен сервера, например `203.0.113.10` |
+| `SSH_USER` | `deployer` |
+| `SSH_KEY` | полное содержимое приватного ключа `~/.ssh/vetassistant_deploy` |
+
+Приватный ключ копируется целиком, вместе со строками
+`-----BEGIN OPENSSH PRIVATE KEY-----` и
+`-----END OPENSSH PRIVATE KEY-----`:
+
+```bash
+cat ~/.ssh/vetassistant_deploy
+```
+
+В Windows PowerShell:
+
+```powershell
+Get-Content $HOME\.ssh\vetassistant_deploy | Set-Clipboard
+```
+
+Никогда не коммитьте приватный ключ в репозиторий и не публикуйте его в
+логах. При компрометации удалите ключ из `authorized_keys` и создайте новый.
+
+### 6.4. Проверка автоматического деплоя
+
+Workflow запускается при пуше тега `v*`:
+
+```bash
+git tag -a v1.1.1 -m "Deploy test"
+git push origin v1.1.1
+```
+
+Ход выполнения: вкладка **Actions → Deploy**, либо:
+
+```bash
+gh run list --workflow=deploy.yml
+```
+
+Проверьте на сервере:
+
+```bash
+cd /srv/vetassistant
+git log -1 --oneline
+docker compose -f docker-compose.edge.yml ps
+```
+
+> Важно: тег — только триггер workflow. На сервере выполняется
+> `git pull --ff-only` текущей ветки `main`, поэтому тег должен указывать
+> на коммит, который уже есть в `main`.
+
+Если деплой не прошёл, проверьте:
+
+| Симптом | Что проверить |
+|---|---|
+| `Permission denied (publickey)` | публичный ключ в `authorized_keys`, права `700`/`600`, `SSH_USER=deployer` |
+| `permission denied` на Docker | `groups deployer`, повторный SSH-вход после `usermod` |
+| `dubious ownership` в Git | владельца `/srv/vetassistant` и права `deployer` |
+| `git pull` не обновляет код | ветку `main`, `--ff-only` и наличие коммита на сервере |
+
+## 7. Ручной деплой (если не используете скрипт)
 
 ```bash
 apt update
@@ -344,7 +481,7 @@ bash scripts/deploy.sh --ssl
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-## 7. Модель GGUF и база знаний
+## 8. Модель GGUF и база знаний
 
 Модель не хранится в Git. Загрузите её в `data/gguf/` на сервере:
 
@@ -369,7 +506,7 @@ docker compose -f docker-compose.prod.yml exec api \
   python scripts/ingest_knowledge.py
 ```
 
-## 8. Проверка после запуска
+## 9. Проверка после запуска
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
@@ -407,7 +544,7 @@ docker stats
 docker compose -f docker-compose.prod.yml config
 ```
 
-## 9. HTTPS через Let's Encrypt / Certbot
+## 10. HTTPS через Let's Encrypt / Certbot
 
 HTTPS использует **webroot-режим**: frontend на :80 отдаёт
 `/.well-known/acme-challenge/`, Certbot кладёт туда файл, Let's Encrypt
@@ -482,7 +619,7 @@ docker compose \
   --profile tools run --rm certbot renew --dry-run
 ```
 
-## 10. Обновление приложения
+## 11. Обновление приложения
 
 ```bash
 cd /opt/vetassistant
@@ -495,7 +632,7 @@ sudo bash scripts/deploy.sh
 
 Перед обновлением рекомендуется сделать бэкап БД.
 
-## 11. Бэкап PostgreSQL
+## 12. Бэкап PostgreSQL
 
 Создать дамп:
 
@@ -517,7 +654,7 @@ cat backup-2026-11-03.sql | \
 в менеджере секретов: без `VET_API_JWT_SECRET` старые токены станут
 недействительны.
 
-## 12. Диагностика
+## 13. Диагностика
 
 | Симптом | Что проверить |
 |---|---|
@@ -539,7 +676,7 @@ curl -i http://vetassistant.ru/.well-known/acme-challenge/test
 уже включён, и запрос уходит на HTTPS; для диагностики временно
 используйте `curl -I` с `--resolve`.
 
-## 13. Security checklist
+## 14. Security checklist
 
 - [ ] `.env` имеет права `600` и не попал в Git.
 - [ ] `POSTGRES_PASSWORD` и `VET_API_JWT_SECRET` сгенерированы независимо
