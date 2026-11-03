@@ -59,8 +59,9 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 
 #### Production-инфраструктура
 
-- `docker-compose.prod.yml`: публикация только `frontend:80`; API,
-  PostgreSQL и бот доступны только внутри Docker-сети (T-040).
+- `docker-compose.prod.yml`: публикация только `frontend:80`; API и
+  PostgreSQL доступны только внутри Docker-сети; сервис бота удалён из
+  production (T-040, T-043).
 - `docker-compose.ssl.yml`: `443`, Certbot, Let's Encrypt, HSTS и
   HTTP→HTTPS-редирект; единый домен через Nginx (T-040).
 - `frontend/nginx.conf`: проксирование `/api/*` в `api:8000`, SSE без
@@ -70,11 +71,17 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 - `scripts/deploy.sh`: установка Docker/Compose на Ubuntu, клонирование,
   генерация секретов, запуск production-стека и опциональный `--ssl`;
   `scripts/renew_ssl.sh` для автопродления сертификата (T-040).
-- `scripts/deploy_prod.py`: Paramiko-оркестратор для Windows — SSH-настройка
-  Ubuntu, клонирование, генерация `.env`, сборка стека, SFTP-загрузка
-  GGUF-модели с прогресс-баром и выпуск SSL (T-042).
-- `scripts/smoke_test.py`: production smoke-тест главной страницы,
-  регистрации и чата с отчётом ✅/❌ (T-042).
+- `docker-compose.edge.yml`: edge-стек для общего VPS с Caddy — `api`,
+  `db`, `frontend`, внешняя сеть `edge`, изолированная `internal`, без
+  публикации 80/443, бота и Streamlit (T-043).
+- `deploy/Caddyfile`: `ai-pets.ru`, редирект `www`, `/api/*` → `api:8000`
+  со снятием префикса и SPA через `frontend:80` (T-043).
+- `scripts/upload_model.py`: SFTP-загрузка GGUF в
+  `/srv/vetassistant/data/gguf/` через `.part`, проверка размера и
+  SHA-256 (`45cccc...b10b`) и атомарное переименование (T-043).
+- `VET_API_ALLOW_PUBLIC_REGISTRATION`: production-флаг закрытия публичной
+  регистрации; при `false` `/v1/auth/register` возвращает `403`
+  «Регистрация временно закрыта» (T-043).
 - `DEPLOYMENT.md`: аренда VPS, DNS A-запись, firewall, модель GGUF, Certbot,
   HTTPS-редирект, обновления, бэкапы и диагностика (T-040).
 - `SECURITY.md`: политика безопасности, порядок сообщения об уязвимостях,
@@ -87,8 +94,8 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
   записей между пользователями (T-039).
 - Тесты production-конфигурации: compose, HTTPS-overlay, Nginx, шаблон
   секретов и скрипты деплоя (T-040).
-- Тесты оркестратора и smoke-теста: подстановка `.env`, URL API,
-  регистрация, чат и отчёт ✅/❌ (T-042).
+- Тесты edge-конфигурации, Caddyfile, SFTP-загрузчика и smoke-теста;
+  проверка закрытия регистрации (T-043).
 - CI: `ruff`, `mypy`, `pytest`, frontend lint/tests/build и Docker-сборка
   API + Frontend.
 - Версия `1.0.0` синхронизирована в `pyproject.toml`, FastAPI,
@@ -103,9 +110,11 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 - README дополнен разделами об аутентификации, production-деплое и
   финальным статусом **Production Ready** со ссылками на `SECURITY.md` и
   `DEPLOYMENT.md` (T-039, T-040, T-041).
-- README дополнен инструкцией по автоматизированному деплою через
-  `python scripts/deploy_prod.py` и smoke-тесту (T-042).
-- В зависимости добавлен `paramiko` для SSH/SFTP-оркестратора (T-042).
+- README дополнен разделом Edge-деплоя для инфраструктурного агента (T-043).
+- SSH-оркестратор `deploy_prod.py` и зависимость `paramiko` удалены:
+  управление VPS передано инфраструктурному агенту (T-043).
+- `deploy.sh` больше не запрашивает `TELEGRAM_BOT_TOKEN`; сервис `bot`
+  удалён из production-стека (T-043).
 - Dockerfile фронтенда копирует Nginx-конфигурацию с правилами `/api`, SPA
   и ACME для HTTP (T-040).
 
@@ -120,12 +129,15 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 - Добавлена публичная политика безопасности и обязательный чеклист смены
   `VET_API_JWT_SECRET`, `POSTGRES_PASSWORD` и `VET_BOT_AUTH_SECRET` перед
   публикацией сервиса (T-041).
+- Публичная регистрация в production закрывается флагом
+  `VET_API_ALLOW_PUBLIC_REGISTRATION=false`; API отвечает `403`
+  «Регистрация временно закрыта» (T-043).
 
 ### Результаты 1.0.0
 
 | Метрика | Значение |
 |---|---|
-| Python-тесты | **559 passed** |
+| Python-тесты | **566 passed** |
 | Frontend-тесты | **29 passed** |
 | Python-линтеры | `ruff check .`, `mypy app bot` — чисто |
 | Frontend | `oxlint`, `npm run build` — успешно |

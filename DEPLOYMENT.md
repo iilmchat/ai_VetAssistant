@@ -1,7 +1,7 @@
 # Production-деплой VetAssistant на VPS (T-040)
 
 Пошаговая инструкция: от аренды Ubuntu-сервера до работающего
-`https://vetassistant.ru` с JWT-авторизацией, PostgreSQL и Telegram-ботом.
+`https://vetassistant.ru` с JWT-авторизацией и PostgreSQL.
 
 ## Архитектура
 
@@ -19,27 +19,33 @@
         ┌─────────────┐        ┌──────────────────┐
         │ api:8000    │───────▶│ PostgreSQL 16    │
         │ FastAPI     │        │ volume postgres  │
-        └──────┬──────┘        └──────────────────┘
-               │
-        ┌──────▼──────┐
-        │ bot         │  исходящие запросы к Telegram API
-        └─────────────┘
+        └─────────────┘        └──────────────────┘
 ```
 
 Наружу открыты только `80` и `443`. Порты `8000` (API), `5432`
 (PostgreSQL) и `8501` (Streamlit) в production не публикуются.
+
+> **Общий VPS с Caddy:** если 80/443 уже заняты другим проектом, не
+> используйте `docker-compose.prod.yml`/`docker-compose.ssl.yml`. Для
+> изолированного `/srv/vetassistant` есть `docker-compose.edge.yml`
+> (внешняя сеть `edge`, без публикации портов), `deploy/Caddyfile` и
+> `scripts/upload_model.py`. TLS завершает Caddy инфраструктурного агента.
 
 Основные файлы:
 
 | Файл | Назначение |
 |---|---|
 | `.env.production.example` | шаблон production-секретов и настроек |
-| `docker-compose.prod.yml` | production-стек, публикует только `frontend:80` |
+| `docker-compose.prod.yml` | выделенный production-стек, публикует `frontend:80` |
 | `docker-compose.ssl.yml` | HTTPS-overlay: `443`, Certbot и сертификаты |
+| `docker-compose.edge.yml` | общий VPS: только сеть `edge`, без портов и бота |
 | `frontend/nginx.conf` | HTTP-сервер, `/api`, SPA и ACME |
 | `deploy/nginx/ssl.conf` | HTTPS-сервер и редирект с HTTP |
+| `deploy/Caddyfile` | Caddy-блок `ai-pets.ru` и `www` для edge-сети |
 | `scripts/deploy.sh` | установка Docker, клонирование и запуск |
 | `scripts/renew_ssl.sh` | продление сертификата и reload Nginx |
+| `scripts/upload_model.py` | SFTP-загрузка GGUF с проверкой SHA-256 |
+| `scripts/smoke_test.py` | проверка сайта, регистрации и чата |
 
 ## 1. Требования к серверу
 
@@ -137,7 +143,6 @@ sudo bash /tmp/deploy.sh --ssl
 ```bash
 export DOMAIN=vetassistant.ru
 export LETSENCRYPT_EMAIL=admin@vetassistant.ru
-export TELEGRAM_BOT_TOKEN='123456789:AA...'
 sudo -E bash /tmp/deploy.sh --ssl
 ```
 
@@ -146,38 +151,39 @@ sudo -E bash /tmp/deploy.sh --ssl
 1. Ставит `docker-ce`, `docker-compose-plugin`, `git`, `curl`, `openssl`.
 2. Клонирует `main` в `/opt/vetassistant` (или обновляет существующий клон).
 3. Если `.env` нет — копирует `.env.production.example` и генерирует
-   `POSTGRES_PASSWORD`, `VET_API_JWT_SECRET`, `VET_BOT_AUTH_SECRET`
-   через `openssl rand -hex 32`.
+   `POSTGRES_PASSWORD`, `VET_API_JWT_SECRET` через `openssl rand -hex 32`.
 4. Собирает и запускает `docker-compose.prod.yml`.
 5. Ждёт `http://127.0.0.1/healthz`.
 6. С флагом `--ssl` выпускает сертификат и включает HTTPS-overlay.
 
-Если бот не нужен, удалите сервис `bot` из `docker-compose.prod.yml` до
-запуска: production compose требует `TELEGRAM_BOT_TOKEN`, когда сервис
-включён.
-
 Повторный запуск скрипта обновляет код и пересобирает контейнеры. Секреты
 в существующем `.env` не перезаписываются.
 
-### Windows: автоматизированный деплой через Python
+### Edge-деплой на общем VPS (T-043)
 
-Если SSH-сессии из терминала неудобны, используйте Paramiko-оркестратор:
+Если 80/443 уже заняты Caddy инфраструктурного агента, используйте
+`docker-compose.edge.yml`, `deploy/Caddyfile` и `scripts/upload_model.py`.
+Стек не публикует порты, подключается к внешней сети `edge`, не содержит
+бота и Streamlit. Регистрация в production закрыта флагом
+`VET_API_ALLOW_PUBLIC_REGISTRATION=false`.
 
-```powershell
-pip install -e .
-python scripts/deploy_prod.py
+```bash
+docker network inspect edge
+docker compose -f docker-compose.edge.yml up -d --build
+python scripts/upload_model.py --host 62.109.1.230
 ```
 
-Скрипт запросит пароль root и выполнит установку Docker, клонирование,
-создание `.env`, сборку стека, SFTP-загрузку модели, перезапуск API и
-выпуск SSL. Токен Telegram можно передать через
-`$env:TELEGRAM_BOT_TOKEN`, email — через `--email`. После деплоя:
+После подключения Caddy-блока:
 
 ```powershell
 python scripts/smoke_test.py
 ```
 
-Подробнее — в разделе README «Автоматизированный деплой на VPS».
+Если публичная регистрация закрыта, используйте существующего пользователя:
+`python scripts/smoke_test.py --email owner@example.com` (пароль спросит
+`getpass`).
+
+Подробнее — в разделе README «Edge-деплой для инфраструктурного агента».
 
 ## 6. Ручной деплой (если не используете скрипт)
 
@@ -194,18 +200,16 @@ chmod 600 .env
 nano .env
 ```
 
-Сгенерируйте три независимых секрета:
+Сгенерируйте два независимых секрета:
 
 ```bash
 openssl rand -hex 32   # POSTGRES_PASSWORD
 openssl rand -hex 32   # VET_API_JWT_SECRET
-openssl rand -hex 32   # VET_BOT_AUTH_SECRET
 ```
 
 Заполните в `.env`:
 
-- `POSTGRES_PASSWORD`, `VET_API_JWT_SECRET`, `VET_BOT_AUTH_SECRET`;
-- `TELEGRAM_BOT_TOKEN` — токен от @BotFather;
+- `POSTGRES_PASSWORD`, `VET_API_JWT_SECRET`;
 - `VET_DOMAIN` — домен без `https://`;
 - `LETSENCRYPT_EMAIL` — email для Let's Encrypt.
 
@@ -385,8 +389,7 @@ cat backup-2026-11-03.sql | \
 
 Храните дампы вне сервера (S3 Selectel и т.п.). Отдельно сохраните `.env`
 в менеджере секретов: без `VET_API_JWT_SECRET` старые токены станут
-недействительны, а без `VET_BOT_AUTH_SECRET` бот не сможет войти в
-существующие Telegram-аккаунты.
+недействительны.
 
 ## 12. Диагностика
 
@@ -398,7 +401,6 @@ cat backup-2026-11-03.sql | \
 | Certbot: `unauthorized` | DNS ещё не обновился, закрыт `80`, неверный домен |
 | Certbot: `connection refused` | frontend не запущен или ACME-каталог не смонтирован |
 | Сайт открывается, API — нет | `docker compose ... logs frontend`; проверьте `/api/health` |
-| Telegram-бот молчит | `docker compose ... logs bot`; проверьте токен и `VET_BOT_AUTH_SECRET` |
 | После перезагрузки сервера ничего не работает | `systemctl status docker`; `docker compose ... up -d` |
 
 Проверка ACME-каталога вручную:
@@ -414,13 +416,14 @@ curl -i http://vetassistant.ru/.well-known/acme-challenge/test
 ## 13. Security checklist
 
 - [ ] `.env` имеет права `600` и не попал в Git.
-- [ ] `POSTGRES_PASSWORD`, `VET_API_JWT_SECRET`, `VET_BOT_AUTH_SECRET`
-      сгенерированы независимо через `openssl rand -hex 32`.
+- [ ] `POSTGRES_PASSWORD` и `VET_API_JWT_SECRET` сгенерированы независимо
+      через `openssl rand -hex 32`.
+- [ ] `VET_API_ALLOW_PUBLIC_REGISTRATION=false` для production.
 - [ ] Наружу открыты только `22`, `80`, `443`.
 - [ ] API и PostgreSQL не опубликованы на хост.
 - [ ] HTTPS работает, HTTP редиректит на HTTPS.
 - [ ] Автопродление сертификата добавлено в cron и проверено `--dry-run`.
 - [ ] Настроены бэкапы PostgreSQL и `.env`.
 - [ ] Включены обновления безопасности Ubuntu (`unattended-upgrades`).
-- [ ] Токен Telegram-бота и пароли не публиковались в чатах и issue.
+- [ ] Пароли и токены не публиковались в чатах и issue.
 - [ ] Для SSH отключён вход по паролю, используется ключ.

@@ -289,12 +289,26 @@
 - **Оценка:** 2
 - **Статус:** выполнено: версия `1.0.0` синхронизирована, создан `SECURITY.md`, CHANGELOG дополнен полной историей 1.0.0, README переведён в Production Ready со ссылками на security/deployment; `pytest` 548 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build` и `docker compose config` — успешно. Релизный коммит `b1d8cec`; CI (run `41627332784`): Lint & Test, Frontend и Docker Build — success. Тег **не создан** — ожидается сигнал «Сайт работает».
 
-### [x] T-042. Автоматизация деплоя и smoke-тест
+### [~] T-042. Автоматизация деплоя (отменена, заменена T-043)
 - **Зависит от:** T-040, T-041
-- **Что:** `paramiko` в зависимостях; `scripts/deploy_prod.py` — SSH/SFTP-оркестратор деплоя на VPS (базовая настройка Ubuntu, Docker, clone/pull, `.env` со случайными секретами, compose up, SFTP-загрузка GGUF с прогрессом, restart API, Certbot/SSL); `scripts/smoke_test.py` — проверка главной, регистрации и чата с отчётом ✅/❌; README-инструкция.
-- **DoD:** скрипт устойчив к повторному запуску (Docker/репозиторий/.env/сертификат уже есть), модель загружается через `sftp.put(callback=...)`, smoke-тест возвращает корректный exit code; тесты/линтеры зелёные; коммит и push.
+- **Что:** Изначально планировался SSH/SFTP-оркестратор `scripts/deploy_prod.py` с Paramiko.
+- **DoD:** Не актуально: управление VPS передано инфраструктурному агенту с Caddy и edge-сетями.
 - **Оценка:** 3
-- **Статус:** выполнено: добавлен `paramiko`, созданы `scripts/deploy_prod.py` и `scripts/smoke_test.py`, README дополнен разделом «Автоматизированный деплой на VPS»; `pytest` 559 passed, React-тесты 29 passed, `ruff`/`mypy` и сборки — успешно. Тег `v1.0.0` по-прежнему ожидает сигнала «Сайт работает».
+- **Статус:** отменена по требованию владельца проекта. `scripts/deploy_prod.py` удалён, `paramiko` и `types-paramiko` убраны из зависимостей/CI; безопасные артефакты выделены в T-043.
+
+### [x] T-043. Артефакты Edge-деплоя для инфраструктурного агента
+- **Зависит от:** T-040, T-041
+- **Что:** `docker-compose.edge.yml` без публикации портов и бота, с внешней сетью `edge` и изолированной `internal`; `deploy/Caddyfile` для `ai-pets.ru`/`www`, `/api/*` → `api:8000`, SPA → `frontend:80`; `scripts/upload_model.py` — SFTP-загрузка в `/srv/vetassistant/data/gguf/` через `.part` с проверкой SHA-256; флаг `VET_API_ALLOW_PUBLIC_REGISTRATION` (по умолчанию `false` в production) и `403` на регистрацию; удаление бота из production-стека и токена из `deploy.sh`.
+- **DoD:** edge-стек не публикует 80/443, Caddy получает доступ по сети `edge`, модель проверяется по размеру и SHA-256, регистрация закрывается флагом, тесты/линтеры зелёные.
+- **Оценка:** 3
+- **Статус:** выполнено: созданы `docker-compose.edge.yml`, `deploy/Caddyfile`, `scripts/upload_model.py`; добавлены `VET_API_ALLOW_PUBLIC_REGISTRATION`, тесты Edge/Caddy/загрузчика/регистрации; `pytest` 566 passed, React-тесты 29 passed, `ruff`/`mypy` и сборки — успешно.
+
+### [x] T-044. Исправление порта SFTP в upload_model.py
+- **Зависит от:** T-043
+- **Что:** Для OpenSSH `ssh` использует `-p <port>`, а `sftp` — заглавную `-P <port>`; исправить формирование опций и добавить регрессионный тест.
+- **DoD:** `_sftp_options` возвращает `-P`, `_ssh_options` — `-p`; тест покрывает оба случая; коммит `fix(deploy): correct sftp port flag in upload_model.py` запушен.
+- **Оценка:** 0.5
+- **Статус:** выполнено: `_sftp_options` явно заменяет порт на `-P`, `_ssh_options` сохраняет `-p`; регрессионный тест добавлен, `pytest` 566 passed, `ruff`/`mypy` чисто. Тег `v1.0.0` по-прежнему ожидает сигнала «Сайт работает».
 
 ---
 

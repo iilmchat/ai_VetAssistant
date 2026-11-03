@@ -1,0 +1,44 @@
+# Caddyfile для VetAssistant на общем VPS (T-043).
+#
+# Caddy и контейнеры VetAssistant подключены к внешней Docker-сети `edge`.
+# Caddy завершает TLS для ai-pets.ru и проксирует:
+#   /api/*  -> api:8000      (префикс /api снимается)
+#   /*      -> frontend:80   (React SPA)
+#
+# Caddy не публикует наши контейнеры: docker-compose.edge.yml не содержит
+# ports, поэтому 80/443 остаются только у Caddy.
+#
+# Подключение (пример для /srv/ai-infra):
+#   import /srv/vetassistant/deploy/Caddyfile
+#   caddy validate --config /etc/caddy/Caddyfile
+#   caddy reload --config /etc/caddy/Caddyfile
+
+ai-pets.ru {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# API: /api/v1/chat/completions -> http://api:8000/v1/chat/completions
+	handle_path /api/* {
+		reverse_proxy api:8000 {
+			# SSE от FastAPI должен проходить без задержек.
+			flush_interval -1
+		}
+	}
+
+	# Всё остальное — React SPA, которую раздаёт Nginx внутри frontend.
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+# www -> основной домен. Caddy выпустит отдельный сертификат для www,
+# если A/CNAME-запись www указывает на этот сервер.
+www.ai-pets.ru {
+	redir https://ai-pets.ru{uri} permanent
+}

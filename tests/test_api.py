@@ -222,6 +222,22 @@ def test_auth_rejects_duplicate_email_and_wrong_password(client: TestClient) -> 
     assert wrong.status_code == 401
 
 
+def test_public_registration_can_be_disabled(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VET_API_ALLOW_PUBLIC_REGISTRATION", "false")
+    get_app_settings.cache_clear()
+
+    response = client.post(
+        "/v1/auth/register",
+        json={"email": "closed@example.com", "password": "secret-pass-1"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Регистрация временно закрыта"
+
+
 def test_protected_endpoints_require_token(client: TestClient) -> None:
     client.headers.pop("Authorization")
 

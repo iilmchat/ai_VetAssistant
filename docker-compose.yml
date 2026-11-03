@@ -54,6 +54,7 @@ services:
       VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-vetassistant}:${POSTGRES_PASSWORD:-vetassistant}@db:5432/${POSTGRES_DB:-vetassistant}}
       VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:-dev-insecure-jwt-secret-change-me}
       VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      VET_API_ALLOW_PUBLIC_REGISTRATION: ${VET_API_ALLOW_PUBLIC_REGISTRATION:-true}
     healthcheck:
       test:
         - CMD

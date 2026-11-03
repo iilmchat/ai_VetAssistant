@@ -1,4 +1,4 @@
-"""Тесты оркестратора деплоя и smoke-теста (T-042)."""
+"""Тесты production smoke-теста (T-042/T-043)."""
 
 from __future__ import annotations
 
@@ -8,16 +8,12 @@ from typing import Any
 import pytest
 import requests
 
-from scripts.deploy_prod import (
-    parse_env,
-    render_env,
-    resolve_telegram_token,
-)
 from scripts.smoke_test import (
     CheckResult,
     api_base_url,
     check_chat,
     check_site,
+    login_user,
     normalize_base_url,
     print_report,
     register_user,
@@ -41,60 +37,16 @@ class FakeSession:
         return self.responses.pop(0)
 
 
-def make_response(
-    status: int,
-    payload: Any = None,
-    *,
-    text: str = "",
-) -> requests.Response:
+def make_response(status: int, payload: Any = None, *, text: str = "") -> requests.Response:
     response = requests.Response()
     response.status_code = status
     response.headers["Content-Type"] = "application/json"
-    if payload is None:
-        response._content = text.encode("utf-8")
-    else:
-        response._content = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    response._content = (
+        text.encode("utf-8")
+        if payload is None
+        else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    )
     return response
-
-
-def test_render_env_replaces_values_and_preserves_comments() -> None:
-    template = (
-        "# production env\n"
-        "POSTGRES_PASSWORD=\n"
-        "VET_API_JWT_SECRET=old\n"
-        "VET_DOMAIN=example.com\n"
-    )
-
-    rendered = render_env(
-        template,
-        {
-            "POSTGRES_PASSWORD": "postgres-secret",
-            "VET_API_JWT_SECRET": "jwt-secret",
-            "VET_DOMAIN": "ai-pets.ru",
-            "EXTRA": "value",
-        },
-    )
-
-    assert "# production env" in rendered
-    assert "POSTGRES_PASSWORD=postgres-secret" in rendered
-    assert "VET_API_JWT_SECRET=jwt-secret" in rendered
-    assert "VET_DOMAIN=ai-pets.ru" in rendered
-    assert "EXTRA=value" in rendered
-
-
-def test_parse_env_ignores_comments_and_empty_lines() -> None:
-    values = parse_env("# comment\nA=1\n\nB=two=three\n")
-
-    assert values == {"A": "1", "B": "two=three"}
-
-
-def test_resolve_telegram_token_prefers_explicit_and_env(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "env-token")
-
-    assert resolve_telegram_token("explicit-token") == "explicit-token"
-    assert resolve_telegram_token(None) == "env-token"
 
 
 def test_normalize_and_api_base_url() -> None:
@@ -106,9 +58,7 @@ def test_normalize_and_api_base_url() -> None:
 
 
 def test_response_detail_extracts_api_detail() -> None:
-    response = make_response(400, {"detail": "Запрос отклонён"})
-
-    assert response_detail(response) == "Запрос отклонён"
+    assert response_detail(make_response(400, {"detail": "Запрос отклонён"})) == ("Запрос отклонён")
 
 
 def test_check_site_accepts_200() -> None:
@@ -151,6 +101,26 @@ def test_register_user_returns_token_and_uses_api_prefix() -> None:
     assert "smoke-" in session.calls[0]["json"]["email"]
 
 
+def test_login_user_uses_existing_credentials() -> None:
+    session = FakeSession([make_response(200, {"access_token": "jwt-login"})])
+
+    result, token = login_user(
+        session,
+        "https://ai-pets.ru",
+        email="owner@example.com",
+        password="secret-pass-1",
+        timeout=5,
+    )
+
+    assert result.ok is True
+    assert token == "jwt-login"
+    assert session.calls[0]["url"] == "https://ai-pets.ru/api/v1/auth/login"
+    assert session.calls[0]["json"] == {
+        "email": "owner@example.com",
+        "password": "secret-pass-1",
+    }
+
+
 def test_check_chat_requires_non_empty_answer() -> None:
     session = FakeSession(
         [
@@ -169,12 +139,7 @@ def test_check_chat_requires_non_empty_answer() -> None:
 
 
 def test_check_chat_fails_without_token() -> None:
-    result = check_chat(
-        FakeSession([]),
-        "https://ai-pets.ru",
-        None,
-        timeout=5,
-    )
+    result = check_chat(FakeSession([]), "https://ai-pets.ru", None, timeout=5)
 
     assert result.ok is False
     assert "нет JWT" in result.detail

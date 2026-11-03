@@ -12,7 +12,7 @@
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
 - **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
-- **Production:** Ubuntu VPS, Docker Compose, единый домен и HTTPS через Let's Encrypt
+- **Production:** Ubuntu VPS, Docker Compose, единый домен и HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
 - **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
@@ -40,7 +40,7 @@ Telegram-бот.
   авторизация при `401`.
 - **AI-ядро**: Qwen3-8B GGUF на CPU, RAG по MSD Vet Manual, Agentic Loop с
   `book_appointment` и `set_reminder`.
-- **Качество**: **559** Python-тестов и **29** frontend-тестов, `ruff`,
+- **Качество**: **566** Python-тестов и **29** frontend-тестов, `ruff`,
   `mypy`, `oxlint`, Docker-сборки и CI на каждый коммит.
 - **Эксплуатация**: `scripts/deploy.sh`, `scripts/renew_ssl.sh`, бэкапы,
   диагностика и security-чеклист.
@@ -695,9 +695,12 @@ origin.
 
 Для боевого запуска на Ubuntu-сервере есть отдельная конфигурация:
 
-- `docker-compose.prod.yml` — публикует только `frontend:80`; API,
-  PostgreSQL и бот доступны только внутри Docker-сети;
+- `docker-compose.prod.yml` — выделенный сервер: публикует только
+  `frontend:80`; API и PostgreSQL доступны только внутри Docker-сети
+  (без бота);
 - `docker-compose.ssl.yml` — включает `443`, Certbot и HTTPS;
+- `docker-compose.edge.yml` — общий VPS с Caddy: без публикации портов,
+  только внешняя сеть `edge`; подробности в разделе Edge-деплоя;
 - `frontend/nginx.conf` — раздаёт SPA и проксирует `/api/*` в `api:8000`;
 - `.env.production.example` — шаблон секретов и production-настроек;
 - `scripts/deploy.sh` — установка Docker, клонирование, генерация секретов
@@ -716,38 +719,34 @@ sudo bash /tmp/deploy.sh --ssl
 Certbot, автопродление, бэкапы и диагностика — в
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
-### Автоматизированный деплой на VPS (T-042)
+### Edge-деплой для инфраструктурного агента (T-043)
 
-Для Windows удобен SSH/SFTP-оркестратор на Paramiko — он не требует
-интерактивных SSH-команд в терминале:
+Для общего VPS подготовлены артефакты, не претендующие на порты
+`80/443` и не управляющие Caddy:
 
-```powershell
-pip install -e .
-python scripts/deploy_prod.py
+- `docker-compose.edge.yml` — `api`, `db`, `frontend` без бота и
+  Streamlit; внешняя сеть `edge` для Caddy и изолированная `internal`
+  для `db`/`api`. Порты на хост не публикуются.
+- `deploy/Caddyfile` — `ai-pets.ru`, редирект `www`, `/api/*` →
+  `api:8000` со снятием префикса, остальное → `frontend:80`.
+- `scripts/upload_model.py` — SFTP-загрузка модели в
+  `/srv/vetassistant/data/gguf/` через `.part` с проверкой SHA-256.
+- `VET_API_ALLOW_PUBLIC_REGISTRATION=false` — регистрация закрыта в
+  production; включается осознанно через `.env`.
+
+Caddy и сеть `edge` обслуживает инфраструктурный агент:
+
+```bash
+docker network inspect edge
+docker compose -f docker-compose.edge.yml up -d --build
+python scripts/upload_model.py --host 62.109.1.230
 ```
 
-Скрипт запросит пароль root, подключится к `62.109.1.230`, установит
-Docker/Compose, клонирует репозиторий, создаст `.env` со случайными
-секретами, соберёт production-стек, загрузит GGUF-модель через SFTP с
-прогресс-баром, перезапустит API и выпустит SSL-сертификат для
-`ai-pets.ru`.
+`upload_model.py` использует системный OpenSSH (`ssh`/`sftp`), а не
+Paramiko, и не управляет контейнерами. Пароль запрашивается через
+`getpass`; пустой пароль означает вход по SSH-ключу.
 
-Токен Telegram можно заранее положить в переменную окружения:
-
-```powershell
-$env:TELEGRAM_BOT_TOKEN = "123456789:AA..."
-python scripts/deploy_prod.py
-```
-
-Полезные флаги:
-
-```powershell
-python scripts/deploy_prod.py --skip-model   # модель уже на сервере
-python scripts/deploy_prod.py --skip-ssl     # только HTTP
-python scripts/deploy_prod.py --email admin@ai-pets.ru
-```
-
-После деплоя запустите smoke-тест:
+После запуска контейнеров и настройки Caddy:
 
 ```powershell
 python scripts/smoke_test.py
@@ -755,6 +754,15 @@ python scripts/smoke_test.py
 
 Он проверит главную страницу, регистрацию через API и тестовый диалог с
 моделью, а затем выведет отчёт с ✅/❌.
+
+Если публичная регистрация закрыта (`VET_API_ALLOW_PUBLIC_REGISTRATION=false`),
+передайте существующего пользователя:
+
+```powershell
+python scripts/smoke_test.py --email owner@example.com
+```
+
+Пароль будет запрошен через `getpass`.
 
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
@@ -768,8 +776,8 @@ python scripts/smoke_test.py
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** React 19 + Vite + TypeScript + Tailwind CSS 4 (`frontend/`): SSE-стриминг, Markdown, бейджи инструментов, настройки и «Мои записи».
 - **Streamlit:** резервный UI (`app/ui.py`) с потоковым выводом и настройками температуры.
-- **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot`, история диалога на пользователя.
-- **Развёртывание:** Docker Compose, FastAPI + React/Streamlit UI + PostgreSQL + Telegram-бот; Nginx для фронтенда.
+- **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot` для dev/standalone; в production edge-стек бот не входит.
+- **Развёртывание:** Docker Compose для выделенного VPS и edge-стек для общего VPS с Caddy; Nginx/SSE и Caddy-блок.
 - **Production:** `docker-compose.prod.yml` + `docker-compose.ssl.yml`, единый домен, Let's Encrypt/Certbot, `scripts/deploy.sh`.
 - **CI/CD:** GitHub Actions — ruff, mypy, pytest, тесты и сборка React, Docker-образы.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`, `scripts/evaluate_router.py`.

@@ -82,6 +82,12 @@ class AppSettings(BaseSettings):
         ge=1,
         description="Срок жизни access-токена, минуты",
     )
+    allow_public_registration: bool = Field(
+        default=True,
+        description=(
+            "Разрешить публичную регистрацию; в production обычно false"
+        ),
+    )
 
 
 @lru_cache(maxsize=1)

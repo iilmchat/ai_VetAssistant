@@ -1,0 +1,139 @@
+# Edge-стек VetAssistant для общего VPS с Caddy (T-043).
+#
+# Контракт инфраструктурного агента:
+#   - 80/443 принадлежат Caddy, этот compose НЕ публикует порты;
+#   - Caddy и сервисы VetAssistant общаются через внешнюю сеть `edge`;
+#   - api и db дополнительно изолированы во внутренней сети `internal`;
+#   - bot и Streamlit в production не входят.
+#
+# Перед запуском сеть edge должна существовать:
+#   docker network inspect edge
+#
+# Запуск:
+#   docker compose -f docker-compose.edge.yml up -d --build
+
+name: vetassistant
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: vetassistant:1.0.0
+  restart: unless-stopped
+  logging: *default-logging
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vetassistant-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *app
+    container_name: vetassistant-api
+    command:
+      - uvicorn
+      - app.main:app
+      - --host=0.0.0.0
+      - --port=8000
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    # Только внутренние сети; на хост порт не публикуется.
+    expose:
+      - "8000"
+    mem_limit: 6g
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    networks:
+      - internal
+      - edge
+    environment:
+      VET_API_MODEL_PATH: ${VET_API_MODEL_PATH:-/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf}
+      VET_API_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
+      VET_API_N_CTX: ${VET_API_N_CTX:-8192}
+      VET_API_N_GPU_LAYERS: ${VET_API_N_GPU_LAYERS:-0}
+      VET_API_CHROMA_DIR: ${VET_API_CHROMA_DIR:-/app/data/chroma_db}
+      VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
+      VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+      VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
+      VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:?VET_API_JWT_SECRET is required}
+      VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      VET_API_ALLOW_PUBLIC_REGISTRATION: ${VET_API_ALLOW_PUBLIC_REGISTRATION:-false}
+      VET_API_N_THREADS: ${VET_API_N_THREADS:-3}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-3}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
+    image: vetassistant-frontend:1.0.0
+    container_name: vetassistant-frontend
+    restart: unless-stopped
+    logging: *default-logging
+    # Порты не публикуются: Caddy обращается к frontend:80 по сети edge.
+    expose:
+      - "80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edge
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - --spider
+        - "http://127.0.0.1/healthz"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  edge:
+    external: true
+  internal:
+    internal: true
+
+volumes:
+  postgres_data:

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import getpass
 import sys
 import time
 import uuid
@@ -169,6 +170,63 @@ def register_user(
     )
 
 
+def login_user(
+    session: requests.Session,
+    base_url: str,
+    *,
+    email: str,
+    password: str,
+    timeout: float,
+) -> tuple[CheckResult, str | None]:
+    """Войти существующим пользователем и вернуть JWT для smoke-теста."""
+    started = time.perf_counter()
+    url = f"{api_base_url(base_url)}/v1/auth/login"
+
+    try:
+        response = session.post(
+            url,
+            json={"email": email, "password": password},
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        return (
+            CheckResult(
+                "Вход",
+                False,
+                f"ошибка запроса: {exc}",
+                time.perf_counter() - started,
+            ),
+            None,
+        )
+
+    elapsed = time.perf_counter() - started
+    if response.status_code != 200:
+        return (
+            CheckResult(
+                "Вход",
+                False,
+                f"HTTP {response.status_code} — {response_detail(response)}",
+                elapsed,
+            ),
+            None,
+        )
+
+    try:
+        payload: Any = response.json()
+    except ValueError:
+        payload = None
+    token = payload.get("access_token") if isinstance(payload, dict) else None
+    if not isinstance(token, str) or not token:
+        return (
+            CheckResult("Вход", False, "API не вернул access_token", elapsed),
+            None,
+        )
+    return (
+        CheckResult("Вход", True, f"пользователь {email} авторизован", elapsed),
+        token,
+    )
+
+
 def check_chat(
     session: requests.Session,
     base_url: str,
@@ -182,7 +240,7 @@ def check_chat(
         return CheckResult(
             "Чат",
             False,
-            "пропущен: нет JWT после регистрации",
+            "пропущен: нет JWT после аутентификации",
             time.perf_counter() - started,
         )
 
@@ -263,7 +321,7 @@ def print_report(base_url: str, checks: list[CheckResult]) -> int:
     print("-" * 68)
     print(f"Итог: {passed}/{len(checks)} проверок пройдено")
     if passed == len(checks):
-        print("✅ Production готов: сайт, регистрация и чат работают.")
+        print("✅ Production готов: сайт, аутентификация и чат работают.")
         return 0
     print("❌ Есть ошибки. Смотрите детали выше и логи контейнеров.")
     return 1
@@ -288,6 +346,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_CHAT_TIMEOUT,
         help="Таймаут генерации ответа, секунды",
     )
+    parser.add_argument(
+        "--email",
+        default=None,
+        help=(
+            "Email существующего пользователя для входа. Нужен, если "
+            "публичная регистрация закрыта (VET_API_ALLOW_PUBLIC_REGISTRATION=false)."
+        ),
+    )
+    parser.add_argument(
+        "--password",
+        default=None,
+        help="Пароль для --email (если не задан, будет запрошен через getpass)",
+    )
     return parser
 
 
@@ -304,12 +375,22 @@ def main(argv: list[str] | None = None) -> int:
     session.headers["User-Agent"] = "VetAssistant-SmokeTest/1.0"
 
     checks = [check_site(session, base_url, timeout=args.timeout)]
-    registration, token = register_user(
-        session,
-        base_url,
-        timeout=args.timeout,
-    )
-    checks.append(registration)
+    if args.email:
+        password = args.password or getpass.getpass(f"Пароль {args.email}: ")
+        authentication, token = login_user(
+            session,
+            base_url,
+            email=args.email,
+            password=password,
+            timeout=args.timeout,
+        )
+    else:
+        authentication, token = register_user(
+            session,
+            base_url,
+            timeout=args.timeout,
+        )
+    checks.append(authentication)
     checks.append(
         check_chat(
             session,

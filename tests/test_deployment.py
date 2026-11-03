@@ -25,7 +25,8 @@ def test_prod_compose_publishes_only_frontend_http() -> None:
     compose = _yaml("docker-compose.prod.yml")
     services = compose["services"]
 
-    assert {"db", "api", "frontend", "bot"} <= set(services)
+    assert {"db", "api", "frontend"} <= set(services)
+    assert "bot" not in services
     assert services["frontend"]["ports"] == ["80:80"]
     assert "ports" not in services["api"]
     assert services["api"]["expose"] == ["8000"]
@@ -41,7 +42,7 @@ def test_prod_compose_requires_production_secrets() -> None:
 
     assert "VET_API_JWT_SECRET" in api_env
     assert "POSTGRES_PASSWORD" in db_env
-    assert "VET_BOT_AUTH_SECRET" in compose["services"]["bot"]["environment"]
+    assert "bot" not in compose["services"]
 
 
 def test_ssl_overlay_adds_https_and_certbot() -> None:
@@ -62,13 +63,13 @@ def test_env_production_example_documents_secrets() -> None:
     for key in (
         "POSTGRES_PASSWORD=",
         "VET_API_JWT_SECRET=",
-        "VET_BOT_AUTH_SECRET=",
-        "TELEGRAM_BOT_TOKEN=",
         "VET_DOMAIN=",
         "LETSENCRYPT_EMAIL=",
+        "VET_API_ALLOW_PUBLIC_REGISTRATION=false",
     ):
         assert key in template
     assert "openssl rand -hex 32" in template
+    assert "TELEGRAM_BOT_TOKEN" not in template
 
 
 def test_gitignore_keeps_env_secret_but_tracks_production_example() -> None:
@@ -109,6 +110,8 @@ def test_deploy_script_installs_docker_and_starts_prod_stack() -> None:
     assert "compose up -d --build" in script
     assert "openssl rand -hex 32" in script
     assert "certbot" in script
+    assert "TELEGRAM_BOT_TOKEN" not in script
+    assert "VET_BOT_AUTH_SECRET" not in script
 
 
 def test_renew_ssl_script_uses_prod_overlay() -> None:

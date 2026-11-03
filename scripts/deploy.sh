@@ -13,10 +13,10 @@
 #   sudo bash scripts/deploy.sh
 #   sudo bash scripts/deploy.sh --ssl
 #   DOMAIN=vetassistant.ru LETSENCRYPT_EMAIL=admin@vetassistant.ru \
-#     TELEGRAM_BOT_TOKEN=123:AA... sudo -E bash scripts/deploy.sh --ssl
+#     sudo -E bash scripts/deploy.sh --ssl
 #
 # Переменные: REPO_URL, BRANCH, PROJECT_DIR, DOMAIN/VET_DOMAIN,
-# LETSENCRYPT_EMAIL, TELEGRAM_BOT_TOKEN, GITHUB_TOKEN, ENABLE_SSL.
+# LETSENCRYPT_EMAIL, GITHUB_TOKEN, ENABLE_SSL.
 # =============================================================================
 set -Eeuo pipefail
 
@@ -192,11 +192,6 @@ if [[ ! -f .env ]]; then
     log "Создаю .env из .env.production.example"
     cp .env.production.example .env
 
-    BOT_ENABLED=0
-    if grep -qE '^  bot:' docker-compose.prod.yml; then
-        BOT_ENABLED=1
-    fi
-
     if [[ -z "${DOMAIN:-}" ]]; then
         DOMAIN="${VET_DOMAIN:-}"
     fi
@@ -209,25 +204,14 @@ if [[ ! -f .env ]]; then
     if [[ -z "${LETSENCRYPT_EMAIL:-}" && -t 0 ]]; then
         read -r -p "Email для Let's Encrypt: " LETSENCRYPT_EMAIL
     fi
-    if [[ "$BOT_ENABLED" -eq 1 && -z "${TELEGRAM_BOT_TOKEN:-}" && -t 0 ]]; then
-        read -r -s -p "Telegram bot token от @BotFather: " TELEGRAM_BOT_TOKEN
-        printf '\n'
-    fi
 
     [[ -n "${DOMAIN:-}" ]] || die "задайте DOMAIN (или VET_DOMAIN) для production"
     [[ -n "${LETSENCRYPT_EMAIL:-}" ]] || warn "LETSENCRYPT_EMAIL не задан — SSL можно настроить позже"
-    if [[ "$BOT_ENABLED" -eq 1 && -z "${TELEGRAM_BOT_TOKEN:-}" ]]; then
-        die "задайте TELEGRAM_BOT_TOKEN или удалите сервис bot из docker-compose.prod.yml"
-    fi
 
     set_env "POSTGRES_PASSWORD" "$(openssl rand -hex 32)"
     set_env "VET_API_JWT_SECRET" "$(openssl rand -hex 32)"
-    set_env "VET_BOT_AUTH_SECRET" "$(openssl rand -hex 32)"
     set_env "VET_DOMAIN" "$DOMAIN"
     set_env "LETSENCRYPT_EMAIL" "${LETSENCRYPT_EMAIL:-}"
-    if [[ "$BOT_ENABLED" -eq 1 ]]; then
-        set_env "TELEGRAM_BOT_TOKEN" "$TELEGRAM_BOT_TOKEN"
-    fi
     log "Секреты сгенерированы. Файл .env не попадёт в Git."
 else
     log ".env уже существует — секреты не перезаписываю"
@@ -235,14 +219,7 @@ fi
 
 chmod 600 .env 2>/dev/null || "${SUDO[@]}" chmod 600 .env
 
-BOT_ENABLED=0
-if grep -qE '^  bot:' docker-compose.prod.yml; then
-    BOT_ENABLED=1
-fi
 REQUIRED_ENV=(POSTGRES_PASSWORD VET_API_JWT_SECRET)
-if [[ "$BOT_ENABLED" -eq 1 ]]; then
-    REQUIRED_ENV+=(VET_BOT_AUTH_SECRET TELEGRAM_BOT_TOKEN)
-fi
 for key in "${REQUIRED_ENV[@]}"; do
     [[ -n "$(read_env "$key")" ]] || die "в .env не заполнено: $key"
 done

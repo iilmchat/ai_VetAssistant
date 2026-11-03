@@ -262,6 +262,11 @@ async def register(
     settings: Annotated[AppSettings, Depends(get_app_settings)],
 ) -> AuthResponse:
     """Зарегистрировать пользователя и сразу выдать JWT."""
+    if not settings.allow_public_registration:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Регистрация временно закрыта",
+        )
     email = str(payload.email).strip().lower()
 
     async with database.session() as session:
