@@ -287,7 +287,7 @@
 - **Что:** версия `1.0.0` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod), `frontend/package.json` и lockfile; `SECURITY.md` с политикой, порядком сообщения об уязвимостях и production-чеклистом; большая секция `[1.0.0]` в CHANGELOG с путём проекта; README со статусом Production Ready и ссылками на `SECURITY.md`/`DEPLOYMENT.md`; релизный коммит без тега.
 - **DoD:** версии согласованы, документация и security-политика готовы, тесты/линтеры/сборки зелёные, коммит `chore: release v1.0.0 (Production Ready)` запушен; тег `v1.0.0` создаётся только после подтверждения работы HTTPS на боевом сервере.
 - **Оценка:** 2
-- **Статус:** выполнено: версия `1.0.0` синхронизирована, создан `SECURITY.md`, CHANGELOG дополнен полной историей 1.0.0, README переведён в Production Ready со ссылками на security/deployment; `pytest` 548 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build` и `docker compose config` — успешно. Тег **не создан** — ожидается сигнал «Сайт работает».
+- **Статус:** выполнено: версия `1.0.0` синхронизирована, создан `SECURITY.md`, CHANGELOG дополнен полной историей 1.0.0, README переведён в Production Ready со ссылками на security/deployment; `pytest` 548 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build` и `docker compose config` — успешно. Релизный коммит `b1d8cec`; CI (run `41627332784`): Lint & Test, Frontend и Docker Build — success. Тег **не создан** — ожидается сигнал «Сайт работает».
 
 ---
 
