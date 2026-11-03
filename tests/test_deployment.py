@@ -123,32 +123,32 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_1_1_everywhere() -> None:
+def test_release_version_is_1_1_2_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
     dev_compose = _yaml("docker-compose.yml")
     prod_compose = _yaml("docker-compose.prod.yml")
     edge_compose = _yaml("docker-compose.edge.yml")
 
-    assert 'version = "1.1.1"' in _read("pyproject.toml")
-    assert 'version="1.1.1"' in _read("app/main.py")
-    assert package["version"] == "1.1.1"
-    assert lockfile["version"] == "1.1.1"
-    assert lockfile["packages"][""]["version"] == "1.1.1"
-    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.1.1"
+    assert 'version = "1.1.2"' in _read("pyproject.toml")
+    assert 'version="1.1.2"' in _read("app/main.py")
+    assert package["version"] == "1.1.2"
+    assert lockfile["version"] == "1.1.2"
+    assert lockfile["packages"][""]["version"] == "1.1.2"
+    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.1.2"
     assert (
         dev_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.1.1"
+        == "vetassistant-frontend:1.1.2"
     )
-    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.1.1"
+    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.1.2"
     assert (
         prod_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.1.1"
+        == "vetassistant-frontend:1.1.2"
     )
-    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.1.1"
+    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.1.2"
     assert (
         edge_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.1.1"
+        == "vetassistant-frontend:1.1.2"
     )
 
 
@@ -173,6 +173,7 @@ def test_deploy_workflow_uses_secure_deployer_over_ssh() -> None:
     assert triggers["push"]["tags"] == ["v*"]
     assert workflow["permissions"]["contents"] == "read"
     assert workflow["concurrency"]["group"] == "deploy-production"
+    assert workflow["jobs"]["deploy"]["timeout-minutes"] == 90
 
     steps = workflow["jobs"]["deploy"]["steps"]
     deploy_step = next(
@@ -186,6 +187,7 @@ def test_deploy_workflow_uses_secure_deployer_over_ssh() -> None:
     assert inputs["username"] == "${{ secrets.SSH_USER }}"
     assert inputs["key"] == "${{ secrets.SSH_KEY }}"
     assert inputs["script_stop"] is True
+    assert inputs["command_timeout"] == "80m"
     assert "cd /srv/vetassistant" in inputs["script"]
     assert "git pull --ff-only" in inputs["script"]
     assert (

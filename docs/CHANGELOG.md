@@ -4,6 +4,16 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.1.2] (Unreleased)
+
+### Исправлено
+
+- **Fix deploy timeout.** Полная Docker-сборка edge-стека на сервере занимает
+  около 50 минут, поэтому лимиты workflow увеличены: `timeout-minutes` с
+  `30` до `90`, `command_timeout` с `20m` до `80m`.
+- Версия поднята до `1.1.2`; тег `v1.1.2` проверяет автоматический деплой
+  с новыми таймаутами.
+
 ## [1.1.1] (Unreleased)
 
 ### Тестовый релиз
