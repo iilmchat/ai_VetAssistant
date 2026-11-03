@@ -70,6 +70,11 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 - `scripts/deploy.sh`: установка Docker/Compose на Ubuntu, клонирование,
   генерация секретов, запуск production-стека и опциональный `--ssl`;
   `scripts/renew_ssl.sh` для автопродления сертификата (T-040).
+- `scripts/deploy_prod.py`: Paramiko-оркестратор для Windows — SSH-настройка
+  Ubuntu, клонирование, генерация `.env`, сборка стека, SFTP-загрузка
+  GGUF-модели с прогресс-баром и выпуск SSL (T-042).
+- `scripts/smoke_test.py`: production smoke-тест главной страницы,
+  регистрации и чата с отчётом ✅/❌ (T-042).
 - `DEPLOYMENT.md`: аренда VPS, DNS A-запись, firewall, модель GGUF, Certbot,
   HTTPS-редирект, обновления, бэкапы и диагностика (T-040).
 - `SECURITY.md`: политика безопасности, порядок сообщения об уязвимостях,
@@ -82,6 +87,8 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
   записей между пользователями (T-039).
 - Тесты production-конфигурации: compose, HTTPS-overlay, Nginx, шаблон
   секретов и скрипты деплоя (T-040).
+- Тесты оркестратора и smoke-теста: подстановка `.env`, URL API,
+  регистрация, чат и отчёт ✅/❌ (T-042).
 - CI: `ruff`, `mypy`, `pytest`, frontend lint/tests/build и Docker-сборка
   API + Frontend.
 - Версия `1.0.0` синхронизирована в `pyproject.toml`, FastAPI,
@@ -96,6 +103,9 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 - README дополнен разделами об аутентификации, production-деплое и
   финальным статусом **Production Ready** со ссылками на `SECURITY.md` и
   `DEPLOYMENT.md` (T-039, T-040, T-041).
+- README дополнен инструкцией по автоматизированному деплою через
+  `python scripts/deploy_prod.py` и smoke-тесту (T-042).
+- В зависимости добавлен `paramiko` для SSH/SFTP-оркестратора (T-042).
 - Dockerfile фронтенда копирует Nginx-конфигурацию с правилами `/api`, SPA
   и ACME для HTTP (T-040).
 
@@ -115,7 +125,7 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 
 | Метрика | Значение |
 |---|---|
-| Python-тесты | **548 passed** |
+| Python-тесты | **559 passed** |
 | Frontend-тесты | **29 passed** |
 | Python-линтеры | `ruff check .`, `mypy app bot` — чисто |
 | Frontend | `oxlint`, `npm run build` — успешно |

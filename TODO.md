@@ -289,6 +289,13 @@
 - **Оценка:** 2
 - **Статус:** выполнено: версия `1.0.0` синхронизирована, создан `SECURITY.md`, CHANGELOG дополнен полной историей 1.0.0, README переведён в Production Ready со ссылками на security/deployment; `pytest` 548 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build` и `docker compose config` — успешно. Релизный коммит `b1d8cec`; CI (run `41627332784`): Lint & Test, Frontend и Docker Build — success. Тег **не создан** — ожидается сигнал «Сайт работает».
 
+### [x] T-042. Автоматизация деплоя и smoke-тест
+- **Зависит от:** T-040, T-041
+- **Что:** `paramiko` в зависимостях; `scripts/deploy_prod.py` — SSH/SFTP-оркестратор деплоя на VPS (базовая настройка Ubuntu, Docker, clone/pull, `.env` со случайными секретами, compose up, SFTP-загрузка GGUF с прогрессом, restart API, Certbot/SSL); `scripts/smoke_test.py` — проверка главной, регистрации и чата с отчётом ✅/❌; README-инструкция.
+- **DoD:** скрипт устойчив к повторному запуску (Docker/репозиторий/.env/сертификат уже есть), модель загружается через `sftp.put(callback=...)`, smoke-тест возвращает корректный exit code; тесты/линтеры зелёные; коммит и push.
+- **Оценка:** 3
+- **Статус:** выполнено: добавлен `paramiko`, созданы `scripts/deploy_prod.py` и `scripts/smoke_test.py`, README дополнен разделом «Автоматизированный деплой на VPS»; `pytest` 559 passed, React-тесты 29 passed, `ruff`/`mypy` и сборки — успешно. Тег `v1.0.0` по-прежнему ожидает сигнала «Сайт работает».
+
 ---
 
 ## Backlog

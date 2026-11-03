@@ -40,7 +40,7 @@ Telegram-бот.
   авторизация при `401`.
 - **AI-ядро**: Qwen3-8B GGUF на CPU, RAG по MSD Vet Manual, Agentic Loop с
   `book_appointment` и `set_reminder`.
-- **Качество**: **548** Python-тестов и **29** frontend-тестов, `ruff`,
+- **Качество**: **559** Python-тестов и **29** frontend-тестов, `ruff`,
   `mypy`, `oxlint`, Docker-сборки и CI на каждый коммит.
 - **Эксплуатация**: `scripts/deploy.sh`, `scripts/renew_ssl.sh`, бэкапы,
   диагностика и security-чеклист.
@@ -715,6 +715,46 @@ sudo bash /tmp/deploy.sh --ssl
 Пошаговая инструкция: аренда VPS, DNS A-запись, firewall, модель GGUF,
 Certbot, автопродление, бэкапы и диагностика — в
 [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Автоматизированный деплой на VPS (T-042)
+
+Для Windows удобен SSH/SFTP-оркестратор на Paramiko — он не требует
+интерактивных SSH-команд в терминале:
+
+```powershell
+pip install -e .
+python scripts/deploy_prod.py
+```
+
+Скрипт запросит пароль root, подключится к `62.109.1.230`, установит
+Docker/Compose, клонирует репозиторий, создаст `.env` со случайными
+секретами, соберёт production-стек, загрузит GGUF-модель через SFTP с
+прогресс-баром, перезапустит API и выпустит SSL-сертификат для
+`ai-pets.ru`.
+
+Токен Telegram можно заранее положить в переменную окружения:
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN = "123456789:AA..."
+python scripts/deploy_prod.py
+```
+
+Полезные флаги:
+
+```powershell
+python scripts/deploy_prod.py --skip-model   # модель уже на сервере
+python scripts/deploy_prod.py --skip-ssl     # только HTTP
+python scripts/deploy_prod.py --email admin@ai-pets.ru
+```
+
+После деплоя запустите smoke-тест:
+
+```powershell
+python scripts/smoke_test.py
+```
+
+Он проверит главную страницу, регистрацию через API и тестовый диалог с
+моделью, а затем выведет отчёт с ✅/❌.
 
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
