@@ -680,7 +680,7 @@ origin.
 | `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES` | `10080` | Срок жизни access-токена |
 | `VET_BOT_AUTH_SECRET` | `TELEGRAM_BOT_TOKEN` | Секрет HMAC для аккаунтов Telegram |
 | `VET_API_MODEL_PATH` | `/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf` | Путь к GGUF внутри контейнера |
-| `VET_API_N_CTX` | `8192` | Размер контекста llama.cpp |
+| `VET_API_N_CTX` | `4096` | Размер контекста llama.cpp (при OOM снижайте до `2048`) |
 | `VET_API_N_GPU_LAYERS` | `0` | Слоёв на GPU (0 — CPU) |
 | `VET_UI_API_URL` | `http://api:8000/v1/chat/completions` | Адрес API для Streamlit UI |
 | `VET_UI_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах UI |

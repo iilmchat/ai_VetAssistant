@@ -43,8 +43,10 @@
 | `deploy/nginx/ssl.conf` | HTTPS-сервер и редирект с HTTP |
 | `deploy/Caddyfile` | Caddy-блок `ai-pets.ru` и `www` для edge-сети |
 | `scripts/deploy.sh` | установка Docker, клонирование и запуск |
+| `scripts/setup_ufw.sh` | настройка UFW: SSH, HTTP, HTTPS и deny incoming |
 | `scripts/renew_ssl.sh` | продление сертификата и reload Nginx |
 | `scripts/upload_model.py` | SFTP-загрузка GGUF с проверкой SHA-256 |
+| `scripts/check_ram.py` | проверка `/api/health`, GGUF и текущего `n_ctx` |
 | `scripts/smoke_test.py` | проверка сайта, входа, чата и записей |
 
 ## 1. Требования к серверу
@@ -100,14 +102,48 @@ dig +short www.vetassistant.ru
 нескольких минут до часа. **Не выпускайте SSL, пока DNS не указывает
 на сервер** — Let's Encrypt не сможет пройти проверку.
 
-## 4. Firewall
+## 4. Безопасность сервера
 
-Откройте только SSH, HTTP и HTTPS:
+### Firewall (UFW)
+
+Наружу должны быть открыты только SSH, HTTP и HTTPS. На чистом Ubuntu
+настройте firewall готовым скриптом:
+
+```bash
+cd /opt/vetassistant
+sudo bash scripts/setup_ufw.sh
+```
+
+Что делает скрипт:
+
+1. устанавливает `ufw`, если он отсутствует;
+2. разрешает SSH (`22/tcp`), HTTP (`80/tcp`) и HTTPS (`443/tcp`);
+3. запрещает входящие соединения по умолчанию и разрешает исходящие;
+4. включает firewall и печатает итоговые правила.
+
+Скрипт идемпотентен: повторный запуск не сбрасывает существующие правила.
+Если SSH работает на нестандартном порту, укажите его через переменную
+окружения — порт `22` всё равно останется открытым как страховка:
+
+```bash
+sudo SSH_PORT=2222 bash scripts/setup_ufw.sh
+```
+
+Проверьте результат:
+
+```bash
+sudo ufw status verbose
+```
+
+Ожидаемо `Status: active` и разрешающие правила для `22`, `80` и `443`.
+Те же действия вручную:
 
 ```bash
 ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
+ufw default deny incoming
+ufw default allow outgoing
 ufw enable
 ufw status
 ```
@@ -119,6 +155,9 @@ ufw status
 > Docker публикует порты в обход некоторых правил UFW. В нашем compose
 > наружу публикуется только `frontend` (`80`/`443`), поэтому этого
 > достаточно. Не добавляйте `ports` для `api` и `db`.
+
+> Перед включением UFW убедитесь, что SSH-порт доступен и порт `22` не
+> закрыт firewall провайдера: иначе можно потерять доступ к серверу.
 
 ## 5. Быстрый деплой скриптом (рекомендуется)
 
@@ -265,6 +304,17 @@ curl -fsS http://vetassistant.ru/api/health
 `/api/health` проксируется в FastAPI `/health`. Затем откройте
 `http://vetassistant.ru`, зарегистрируйте пользователя и проверьте чат,
 записи и напоминания.
+
+Проверить наличие модели и текущий размер контекста (удобно для
+мониторинга памяти):
+
+```bash
+python scripts/check_ram.py --base-url https://vetassistant.ru
+```
+
+Скрипт печатает `model_path_exists`, `n_ctx`, `n_threads` и
+`n_gpu_layers`. Если `n_ctx` слишком велик и серверу не хватает RAM,
+снизьте `VET_API_N_CTX` до `2048` в `.env` и перезапустите стек.
 
 Полезные команды:
 

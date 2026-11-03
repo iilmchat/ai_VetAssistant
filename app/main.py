@@ -605,13 +605,18 @@ async def _stream(
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    """Проверка живости API и наличия файла модели."""
+    """Проверка живости API, файла модели и текущей конфигурации инференса."""
     settings = get_app_settings()
     return {
         "status": "ok",
         "model": settings.model_id,
         "model_path": str(settings.model_path),
         "model_path_exists": settings.model_path.exists(),
+        "config": {
+            "n_ctx": settings.n_ctx,
+            "n_threads": settings.n_threads,
+            "n_gpu_layers": settings.n_gpu_layers,
+        },
     }
 
 

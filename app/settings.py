@@ -26,6 +26,10 @@ DEFAULT_UI_API_URL = "http://127.0.0.1:8000/v1/chat/completions"
 #: Таймаут HTTP-запроса UI к API по умолчанию.
 DEFAULT_UI_TIMEOUT_S = 300.0
 
+#: Размер контекста llama.cpp по умолчанию.
+#: 4096 экономит RAM на CPU-инференсе; при OOM снижайте до 2048.
+DEFAULT_N_CTX = 4096
+
 #: Локальная async-SQLite БД по умолчанию; Docker Compose переопределяет на PostgreSQL.
 DEFAULT_DATABASE_URL = (
     f"sqlite+aiosqlite:///{(PROJECT_ROOT / 'data' / 'vetassistant.db').as_posix()}"
@@ -49,7 +53,7 @@ class AppSettings(BaseSettings):
         min_length=1,
         description="Имя модели в ответах API",
     )
-    n_ctx: int = Field(default=8192, ge=512, description="Размер контекста llama.cpp")
+    n_ctx: int = Field(default=DEFAULT_N_CTX, ge=512, description="Размер контекста llama.cpp")
     n_threads: int | None = Field(default=None, ge=1, description="Потоки CPU (None — авто)")
     n_gpu_layers: int = Field(default=0, ge=0, description="Слоёв на GPU (0 — только CPU)")
     chroma_dir: Path = Field(

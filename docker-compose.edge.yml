@@ -75,7 +75,7 @@ services:
     environment:
       VET_API_MODEL_PATH: ${VET_API_MODEL_PATH:-/app/data/gguf/qwen3-8b-vet-Q4_K_M.gguf}
       VET_API_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
-      VET_API_N_CTX: ${VET_API_N_CTX:-8192}
+      VET_API_N_CTX: ${VET_API_N_CTX:-4096}
       VET_API_N_GPU_LAYERS: ${VET_API_N_GPU_LAYERS:-0}
       VET_API_CHROMA_DIR: ${VET_API_CHROMA_DIR:-/app/data/chroma_db}
       VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}

@@ -849,3 +849,10 @@ def test_health_reports_model(client: TestClient) -> None:
     assert data["status"] == "ok"
     assert data["model"] == DEFAULT_MODEL_ID
     assert "model_path_exists" in data
+
+    settings = get_app_settings()
+    assert data["config"] == {
+        "n_ctx": settings.n_ctx,
+        "n_threads": settings.n_threads,
+        "n_gpu_layers": settings.n_gpu_layers,
+    }
