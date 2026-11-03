@@ -5,8 +5,9 @@
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ Стабильный релиз **v0.3.0** (2026-11-03); 🚧 **v0.4.0** в планировании
+**Статус:** ✅ Стабильный релиз **v0.3.0** (2026-11-03); 🚧 **v0.4.0** в разработке — Telegram-бот
 **Новое в v0.3.0:** Function Calling и Agentic Loop, PostgreSQL, реальный RAG по MSD Vet Manual
+**Telegram:** отдельный процесс/контейнер `bot` на aiogram 3.x, история диалога для каждого пользователя
 **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -211,6 +212,89 @@ Streamlit откроет браузер на `http://localhost:8501`. В инт�
 Если API выключен, UI покажет сообщение
 **«Сервер ветеринара спит, включите uvicorn»**.
 
+## 🤖 Telegram-бот
+
+Бот работает отдельным процессом, хранит историю диалога для каждого
+пользователя и обращается к тому же FastAPI. Поддерживаются команды
+`/start`, `/reset`, `/help`, а также Function Calling: запись питомца на
+приём и создание напоминания.
+
+### 1. Получите токен у @BotFather
+
+1. Откройте в Telegram бота **[@BotFather](https://t.me/BotFather)**.
+2. Отправьте команду `/newbot`.
+3. Задайте имя бота (например, `VetAssistant`) и username, который
+   заканчивается на `bot` (например, `vet_assistant_bot`).
+4. Скопируйте токен вида `123456789:AA...`.
+5. Добавьте его в `.env` в корне проекта:
+
+   ```dotenv
+   TELEGRAM_BOT_TOKEN=123456789:AA...
+   ```
+
+   Токен — секрет. Не коммитьте `.env` и не публикуйте токен в чатах.
+
+### 2. Локальный запуск
+
+Сначала запустите FastAPI (см. раздел выше), затем в новом терминале:
+
+```powershell
+pip install -e .
+$env:TELEGRAM_BOT_TOKEN="123456789:AA..."
+python -m bot
+```
+
+Для локального запуска бот по умолчанию обращается к
+`http://127.0.0.1:8000/v1/chat/completions`. Адрес можно переопределить:
+
+```powershell
+$env:VET_BOT_API_URL="http://127.0.0.1:8000/v1/chat/completions"
+```
+
+После запуска откройте своего бота в Telegram и отправьте `/start`.
+
+### 3. Запуск в Docker Compose
+
+Добавьте `TELEGRAM_BOT_TOKEN` в `.env` и поднимите стек:
+
+```powershell
+docker compose up --build
+```
+
+Сервис `bot` зависит от здорового `api` и автоматически использует
+`http://api:8000/v1/chat/completions`. Логи бота:
+
+```powershell
+docker compose logs -f bot
+```
+
+Если токен не задан, контейнер `bot` завершится с понятной ошибкой, а API и
+Streamlit UI продолжат работать. После добавления токена перезапустите бота:
+
+```powershell
+docker compose up -d bot
+```
+
+### 4. Настройки бота
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | — | Токен от @BotFather (обязателен) |
+| `VET_BOT_API_URL` | `http://127.0.0.1:8000/v1/chat/completions` | URL API |
+| `VET_BOT_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах |
+| `VET_BOT_TIMEOUT_S` | `300` | Таймаут запроса к API |
+| `VET_BOT_TEMPERATURE` | `0.7` | Температура генерации |
+| `VET_BOT_USE_RAG` | `true` | Использовать базу знаний |
+| `VET_BOT_USE_TOOLS` | `true` | Разрешить Function Calling |
+| `VET_BOT_MAX_HISTORY_MESSAGES` | `20` | Сколько сообщений помнить |
+
+История диалога хранится в памяти процесса: после перезапуска бота контекст
+сбрасывается, а созданные приёмы и напоминания остаются в PostgreSQL.
+Если модель вызывает `book_appointment` или `set_reminder`, API выполняет
+инструмент, а бот показывает подтверждение вида
+**«✅ Я записал вашего питомца на приём: Мурзик, 2026-11-04 в 10:00.»**
+и финальный текст модели.
+
 ## 📚 RAG: база знаний MSD Vet Manual
 
 Модель может дополнять ответы проверенными фрагментами локального
@@ -406,7 +490,8 @@ API по имени сервиса `http://api:8000`.
 - **База данных:** PostgreSQL 16 + async SQLAlchemy 2.0/asyncpg; SQLite/aiosqlite для локальных тестов.
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** Streamlit-чат (`app/ui.py`), потоковый вывод, настройки температуры.
-- **Развёртывание:** Docker Compose, FastAPI + Streamlit UI.
+- **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot`, история диалога на пользователя.
+- **Развёртывание:** Docker Compose, FastAPI + Streamlit UI + PostgreSQL + Telegram-бот.
 - **CI/CD:** GitHub Actions — ruff, mypy, pytest, сборка Docker-образа.
 - **Оценка:** `evaluate.py`, LLM-Judge, `scripts/test_safety.py`, `scripts/evaluate_router.py`.
 

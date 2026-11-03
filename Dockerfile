@@ -20,6 +20,7 @@ RUN apt-get update \
 # Сначала зависимости и код пакета — слой кешируется при изменении скриптов.
 COPY pyproject.toml README.md ./
 COPY app ./app
+COPY bot ./bot
 COPY configs ./configs
 COPY data_pipeline ./data_pipeline
 COPY evaluation ./evaluation

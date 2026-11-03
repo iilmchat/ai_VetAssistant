@@ -38,6 +38,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.29.0",
     "aiosqlite>=0.20.0",
+    "aiogram>=3.15,<4",
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
@@ -55,7 +57,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["app", "configs", "data_pipeline", "evaluation"]
+packages = ["app", "bot", "configs", "data_pipeline", "evaluation"]
 
 [tool.ruff]
 line-length = 100
