@@ -1,20 +1,39 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v0.2.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v0.3.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 
-> Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных с соблюдением медицинских рамок безопасности.
+> Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ Стабильный релиз **v0.2.0** (2026-11-03); 🚧 **v0.3.0** в разработке
-**В разработке v0.3.0:** Function Calling, Agentic Loop, PostgreSQL и реальный RAG по MSD Vet Manual
-**CI/CD:** GitHub Actions — линтеры, тесты и Docker-сборка (бейдж выше)
+**Статус:** ✅ Стабильный релиз **v0.3.0** (2026-11-03); 🚧 **v0.4.0** в планировании
+**Новое в v0.3.0:** Function Calling и Agentic Loop, PostgreSQL, реальный RAG по MSD Vet Manual
+**CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
 **API:** FastAPI, OpenAI-совместимый `POST /v1/chat/completions`
 **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
-## 🏁 Релиз v0.2.0
+## 🏁 Релиз v0.3.0 — Autonomous Agent
+
+- **Agentic Loop**: модель вызывает `book_appointment` и `set_reminder`, API
+  выполняет инструменты, передаёт результат обратно модели и возвращает
+  финальный ответ.
+- **База данных**: PostgreSQL 16 в Docker Compose и async SQLAlchemy 2.0;
+  записи и напоминания сохраняются в volume и не теряются при перезапуске.
+  Локально используется async SQLite.
+- **Реальный RAG**: загрузка статей MSD Vet Manual, поддержка TXT/PDF,
+  ChromaDB и мультиязычная модель эмбеддингов.
+- **Streamlit UI**: потоковый чат, RAG, Function Calling, бейджи инструментов
+  и раздел **«Мои записи»**.
+- **CI/CD**: GitHub Actions проверяет `ruff`, `mypy`, `pytest` (**487 тестов**),
+  собирает Docker-образ и публикует GitHub Release по тегу `v*`.
+- Подробности: [CHANGELOG.md](docs/CHANGELOG.md),
+  [EVAL_ROUTER.md](docs/development/reports/EVAL_ROUTER.md).
+
+## 🏁 Предыдущие релизы
+
+### v0.2.0 — 2026-11-03
 
 - **Streamlit UI** с потоковым выводом, историей чата и настройкой RAG.
 - **RAG на ChromaDB**: локальная база знаний MSD Vet Manual и
@@ -22,13 +41,13 @@
 - **Router & Triage**: мгновенная детекция экстренных симптомов и
   prompt injection до вызова LLM; F1 = **1.0000** на бенчмарке.
 - **Docker-дистрибутив**: FastAPI и Streamlit UI одной командой
-  `docker compose up --build`, модель и ChromaDB монтируются из `data/`.
-- **CI/CD**: GitHub Actions проверяет `ruff`, `mypy`, `pytest` (470+ тестов)
-  и собирает Docker-образ на каждый push/PR в `main`.
+  `docker compose up --build`.
+- **CI/CD**: GitHub Actions проверяет `ruff`, `mypy`, `pytest` и собирает
+  Docker-образ на каждый push/PR в `main`.
 - Подробности: [CHANGELOG.md](docs/CHANGELOG.md),
   [EVAL_ROUTER.md](docs/development/reports/EVAL_ROUTER.md).
 
-## 🏁 Предыдущий релиз v0.1.0
+### v0.1.0 — 2026-11-02
 
 - Дообучена **Qwen3-8B Vet** (QLoRA SFT, GGUF Q4_K_M); `train_loss=0.5922`,
   `eval_loss=0.483`.

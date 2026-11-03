@@ -6,36 +6,90 @@
 
 ## [Unreleased]
 
+### Планируется
+
+- Полноценный React-фронтенд или интеграция с Telegram.
+- Расширенный Safety-бенчмарк и независимые модели-судьи.
+- Расширение базы знаний и оценка качества RAG-ответов.
+
+## [0.3.0] — 2026-11-03
+
+> Стабильный релиз «Autonomous Agent». Тег: `v0.3.0`.
+
+Третий релиз: ассистент стал автономным агентом — вызывает инструменты,
+сохраняет записи в базе данных и опирается на реальные статьи MSD Vet Manual.
+
 ### Добавлено
+
+#### Function Calling и Agentic Loop
 
 - Function Calling: `app/tools.py` со схемами `book_appointment` и
   `set_reminder`, парсинг нативных и текстовых `tool_calls`, поддержка
-  параметра `tools` в `/v1/chat/completions`, заглушка
-  `POST /v1/tools/execute` (T-030).
-- Streamlit UI: переключатель Function Calling и бейджи
-  «🛠️ Вызван инструмент: …» с параметрами (T-030).
+  параметра `tools` в `/v1/chat/completions` (T-030).
 - Agentic Loop: API выполняет `tool_calls`, передаёт результат обратно модели
-  и возвращает финальный текст; в финальном ответе вызовы остаются как
-  индикация для UI (T-032).
-- SQLite-хранилище `app/database.py`: таблицы `appointments` и `reminders`,
-  реальное выполнение `book_appointment` и `set_reminder` (T-032; в T-033
-  заменено на async SQLAlchemy/PostgreSQL).
-- PostgreSQL 16 в Docker Compose (`db`), volume `postgres_data`, healthcheck
-  и переменные `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` (T-033).
+  и возвращает финальный текст; в ответе вызовы остаются как индикация для UI
+  (T-032).
+- Прямой эндпоинт `POST /v1/tools/execute` для выполнения инструментов (T-030).
+- Streamlit UI: переключатель Function Calling и бейджи
+  «🛠️ Вызван инструмент: …» с параметрами (T-030, T-032).
+
+#### База данных
+
+- PostgreSQL 16 в Docker Compose (`db`), volume `postgres_data`,
+  healthcheck и переменные `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`
+  (T-033).
 - Async SQLAlchemy 2.0: модели `Appointment`/`Reminder`, `asyncpg` для
   PostgreSQL и `aiosqlite` для локальных тестов; создание таблиц в lifespan
   FastAPI (T-033).
-- Эндпоинты `GET /v1/appointments` и `GET /v1/reminders` (T-033).
+- Реальное сохранение приёмов и напоминаний; read-эндпоинты
+  `GET /v1/appointments` и `GET /v1/reminders` (T-033).
 - Streamlit: expander **«Мои записи»** с карточками приёмов и напоминаний
   (T-033).
-- Реальный RAG: `scripts/download_msd.py` скачивает статьи MSD Vet Manual
-  в `data/knowledge/real/`; `scripts/ingest_knowledge.py` рекурсивно читает
-  TXT и PDF через `pypdf` (T-030).
+
+#### Реальный RAG
+
+- `scripts/download_msd.py` скачивает статьи MSD Vet Manual в
+  `data/knowledge/real/` (T-030).
+- `scripts/ingest_knowledge.py` рекурсивно читает TXT и PDF через `pypdf`,
+  режет текст на чанки и строит эмбеддинги в ChromaDB (T-030).
+- API добавляет найденные фрагменты в system prompt как «Справочная информация
+  из MSD Vet Manual» при `use_rag=true` (T-026, T-030).
+
+#### UI и релизная инфраструктура
+
+- Streamlit UI: потоковый чат, история, `temperature`, RAG, Function Calling
+  и «Мои записи» (T-025, T-030, T-033).
 - GitHub Release `v0.2.0 - VetAssistant MVP` с описанием из CHANGELOG (T-031).
 - Workflow `.github/workflows/release.yml`: на пуш тега `v*` собирает
   Docker-образ и создаёт GitHub Release через `softprops/action-gh-release@v2`
   (T-031).
 - Бейдж последнего релиза в README (T-031).
+
+### Изменено
+
+- SQLite-хранилище T-032 заменено на async SQLAlchemy/PostgreSQL (T-033).
+- README дополнен разделами о Function Calling, базе данных и реальном RAG.
+- Версия проекта и Docker-образа поднята до `0.3.0`.
+
+### Результаты v0.3.0
+
+| Метрика | Значение |
+|---|---|
+| Тесты | **487 passed** |
+| Линтеры | `ruff check .`, `mypy app` — чисто |
+| PostgreSQL 16 | проверено на реальном контейнере, данные сохраняются в volume |
+| RAG | 2 статьи MSD Vet Manual, поддержка TXT/PDF |
+| Инструменты | `book_appointment`, `set_reminder` + Agentic Loop |
+| CI (GitHub Actions) | Lint & Test + Docker Build — success |
+
+### Известные ограничения
+
+- База знаний пока небольшая (2 реальные статьи MSD + демо-файлы); качество
+  RAG-ответов отдельно не измерялось.
+- Function Calling зависит от способности модели формировать корректный JSON;
+  при ошибке API возвращает понятную ошибку выполнения инструмента.
+- Safety-набор по-прежнему мал, а LLM-Judge — та же модель, что и оцениваемая.
+- Возможны галлюцинации; ассистент не заменяет ветеринарного врача.
 
 ## [0.2.0] — 2026-11-03
 

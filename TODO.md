@@ -233,6 +233,13 @@
 - **Оценка:** 2
 - **Статус:** выполнено: PostgreSQL-сервис и volume, async SQLAlchemy, read-эндпоинты, UI «Мои записи», async-тесты; проверено на реальном PostgreSQL 16; `pytest` 487 passed, `ruff`/`mypy` чисто.
 
+### [x] T-034. Подготовка и выпуск релиза v0.3.0
+- **Зависит от:** T-030, T-031, T-032, T-033
+- **Что:** версия `0.3.0` в `pyproject.toml`, FastAPI и Docker-образе; секция `[0.3.0]` в CHANGELOG с реальным RAG (PDF), Function Calling/Agentic Loop, PostgreSQL и расширением Streamlit UI; README со статусом релиза; релизный коммит, тег `v0.3.0` и GitHub Release через `release.yml`.
+- **DoD:** версия и документация согласованы, тесты и линтеры зелёные, коммит и тег запушены, workflow Release успешно создал GitHub Release.
+- **Оценка:** 1
+- **Статус:** выполнено: версия `0.3.0`, CHANGELOG и README обновлены, `pytest` 487 passed, `ruff`/`mypy` чисто; коммит и тег `v0.3.0` запушены, GitHub Release создан workflow Release.
+
 ---
 
 ## Backlog
