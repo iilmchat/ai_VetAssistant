@@ -1,13 +1,13 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v0.3.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v0.4.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ Стабильный релиз **v0.3.0** (2026-11-03); 🚧 **v0.4.0** в разработке — Telegram-бот
-**Новое в v0.3.0:** Function Calling и Agentic Loop, PostgreSQL, реальный RAG по MSD Vet Manual
-**Telegram:** отдельный процесс/контейнер `bot` на aiogram 3.x, история диалога для каждого пользователя
+**Статус:** ✅ Релиз **v0.4.0** (2026-11-03) — Telegram-бот
+**Новое в v0.4.0:** Telegram-бот на aiogram 3.x, история диалогов для каждого пользователя, Function Calling
+**Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 **Дистрибуция:** Docker Compose (`docker compose up --build`)
 **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -15,7 +15,26 @@
 **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
-## 🏁 Релиз v0.3.0 — Autonomous Agent
+## 🏁 Релиз v0.4.0 — Telegram-бот
+
+- **Telegram-бот** на aiogram 3.x: отдельный процесс `python -m bot` и
+  контейнер `bot`; команды `/start`, `/reset` и `/help`.
+- **История диалогов** для каждого пользователя: бот передаёт предыдущие
+  сообщения в API и помнит контекст беседы.
+- **Function Calling**: запись питомца на приём и создание напоминаний с
+  понятными подтверждениями прямо в чате.
+- **Интеграция с API**: бот использует тот же локальный
+  `POST /v1/chat/completions` с RAG и инструментами; ошибки API
+  показываются пользователю человекочитаемо.
+- **Docker Compose**: сервис `bot` зависит от здорового `api` и читает
+  `TELEGRAM_BOT_TOKEN`; без токена API и Streamlit UI продолжают работать.
+- **Тесты**: **516** тестов, включая клиент API и логику бота с фейковыми
+  Telegram и FastAPI.
+- Подробности: [CHANGELOG.md](docs/CHANGELOG.md).
+
+## 🏁 Предыдущие релизы
+
+### v0.3.0 — 2026-11-03 — Autonomous Agent
 
 - **Agentic Loop**: модель вызывает `book_appointment` и `set_reminder`, API
   выполняет инструменты, передаёт результат обратно модели и возвращает
@@ -31,8 +50,6 @@
   собирает Docker-образ и публикует GitHub Release по тегу `v*`.
 - Подробности: [CHANGELOG.md](docs/CHANGELOG.md),
   [EVAL_ROUTER.md](docs/development/reports/EVAL_ROUTER.md).
-
-## 🏁 Предыдущие релизы
 
 ### v0.2.0 — 2026-11-03
 

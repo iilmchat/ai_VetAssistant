@@ -4,7 +4,7 @@ x-app: &app
   build:
     context: .
     dockerfile: Dockerfile
-  image: vetassistant:0.3.0
+  image: vetassistant:0.4.0
   restart: unless-stopped
 
 services:

@@ -200,7 +200,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="0.4.0", lifespan=lifespan)
 
 
 def get_database(request: Request) -> Database:
