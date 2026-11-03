@@ -1,27 +1,66 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v0.5.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.0.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ Релиз **v0.5.0** (2026-11-03) — полноценное веб-приложение
-**Новое в v0.5.0:** React 19 UI, SSE-стриминг, Function Calling в браузере, Docker/Nginx
-**Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
-**Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
-**Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
-**Production:** Ubuntu VPS, Docker Compose, единый домен и HTTPS через Let's Encrypt
-**Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
-**CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
-**Дистрибуция:** Docker Compose (`docker compose up --build`)
-**Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
-**API:** FastAPI, OpenAI-совместимый `POST /v1/chat/completions`
-**Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
-**Генерация данных:** Зарубежные LLM через API (слой абстракции)
+**Статус:** ✅ **Production Ready — v1.0.0** (2026-11-03)
+**Финальный релиз:** JWT Auth, Multi-tenancy, Production Docker, HTTPS и Telegram-бот
 
-## 🏁 Релиз v0.5.0 — полноценное веб-приложение
+- **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
+- **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
+- **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
+- **Production:** Ubuntu VPS, Docker Compose, единый домен и HTTPS через Let's Encrypt
+- **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
+- **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
+- **Дистрибуция:** Docker Compose (`docker compose up --build`)
+- **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
+- **API:** FastAPI, OpenAI-совместимый `POST /v1/chat/completions`
+- **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
+- **Генерация данных:** Зарубежные LLM через API (слой абстракции)
+
+**Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md)
+
+## 🚀 v1.0.0 — Production Ready
 
 [![React-интерфейс VetAssistant](docs/assets/react-ui.png)](docs/assets/react-ui.png)
+
+**Финальный аккорд:** проект прошёл путь от идеи и синтетических данных до
+полноценного multi-tenant SaaS. В 1.0.0 вошли JWT-авторизация, изоляция
+данных пользователей, production-деплой на одном домене, HTTPS и
+Telegram-бот.
+
+- **Multi-tenant SaaS**: регистрация/вход, bcrypt-пароли, JWT HS256 и
+  изоляция приёмов, напоминаний и истории по `user_id`.
+- **Production Ready**: `docker-compose.prod.yml`, единый домен через Nginx,
+  Let's Encrypt/Certbot, HSTS и автоматический HTTP→HTTPS-редирект.
+- **Telegram**: синтетические аккаунты на HMAC-пароле, кэш JWT и повторная
+  авторизация при `401`.
+- **AI-ядро**: Qwen3-8B GGUF на CPU, RAG по MSD Vet Manual, Agentic Loop с
+  `book_appointment` и `set_reminder`.
+- **Качество**: **548** Python-тестов и **29** frontend-тестов, `ruff`,
+  `mypy`, `oxlint`, Docker-сборки и CI на каждый коммит.
+- **Эксплуатация**: `scripts/deploy.sh`, `scripts/renew_ssl.sh`, бэкапы,
+  диагностика и security-чеклист.
+
+### Документация релиза
+
+| Документ | О чём |
+|---|---|
+| [SECURITY.md](SECURITY.md) | Политика безопасности, отчёты об уязвимостях и production-чеклист |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Пошаговый деплой на Ubuntu VPS, DNS, HTTPS и Certbot |
+| [CHANGELOG.md](docs/CHANGELOG.md) | Полная история проекта и детали v1.0.0 |
+| [README.md](README.md) | Обзор, локальный запуск, API, RAG и Telegram |
+
+> От первого seed-файла до `https://vetassistant.ru` — VetAssistant готов
+> к реальным пользователям, реальным питомцам и реальной ответственности.
+> Спасибо всем, кто прошёл этот путь. 🐾
+
+## 🏁 Предыдущие релизы
+
+### v0.5.0 — 2026-11-03 — React web interface
 
 - **React 19 Frontend**: новый SPA в `frontend/` на Vite, TypeScript и
   Tailwind CSS 4 — чат в стиле ChatGPT с боковой панелью и адаптивной
@@ -38,8 +77,6 @@
 - **CORS и тесты**: FastAPI разрешает `localhost:5173` для Vite; **22**
   фронтенд-теста и **518** тестов проекта.
 - Подробности: [CHANGELOG.md](docs/CHANGELOG.md).
-
-## 🏁 Предыдущие релизы
 
 ### v0.4.0 — 2026-11-03 — Telegram-бот
 

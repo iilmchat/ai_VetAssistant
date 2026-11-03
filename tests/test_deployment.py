@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -117,3 +118,40 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "docker-compose.ssl.yml" in script
     assert "renew --webroot" in script
     assert "nginx -s reload" in script
+
+
+def test_release_version_is_1_0_0_everywhere() -> None:
+    package = json.loads(_read("frontend/package.json"))
+    lockfile = json.loads(_read("frontend/package-lock.json"))
+    dev_compose = _yaml("docker-compose.yml")
+    prod_compose = _yaml("docker-compose.prod.yml")
+
+    assert 'version = "1.0.0"' in _read("pyproject.toml")
+    assert 'version="1.0.0"' in _read("app/main.py")
+    assert package["version"] == "1.0.0"
+    assert lockfile["version"] == "1.0.0"
+    assert lockfile["packages"][""]["version"] == "1.0.0"
+    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.0.0"
+    assert (
+        dev_compose["services"]["frontend"]["image"]
+        == "vetassistant-frontend:1.0.0"
+    )
+    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.0.0"
+    assert (
+        prod_compose["services"]["frontend"]["image"]
+        == "vetassistant-frontend:1.0.0"
+    )
+
+
+def test_release_documents_exist_and_are_linked() -> None:
+    security = _read("SECURITY.md")
+    readme = _read("README.md")
+    changelog = _read("docs/CHANGELOG.md")
+
+    assert "VET_API_JWT_SECRET" in security
+    assert "POSTGRES_PASSWORD" in security
+    assert "Report a vulnerability" in security
+    assert "[SECURITY.md](SECURITY.md)" in readme
+    assert "[DEPLOYMENT.md](DEPLOYMENT.md)" in readme
+    assert "Production Ready" in readme
+    assert "## [1.0.0] — 2026-11-03" in changelog

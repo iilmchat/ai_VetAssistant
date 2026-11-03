@@ -282,6 +282,13 @@
 - **Оценка:** 3
 - **Статус:** выполнено: `docker-compose.prod.yml` (только frontend `80:80`), `docker-compose.ssl.yml` (443, Certbot, HSTS и HTTP→HTTPS), Nginx-конфигурация с `/api/`, SSE, SPA и ACME; `.env.production.example`, `scripts/deploy.sh` (Docker, clone, secrets, `--ssl`), `scripts/renew_ssl.sh`, `DEPLOYMENT.md`, тесты `tests/test_deployment.py`; `pytest` 546 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build`, `docker compose config` и `nginx -t` — успешно. Коммит `eee9ad9`; CI (run `41623545986`): Lint & Test, Frontend и Docker Build — success.
 
+### [x] T-041. Финальный релиз v1.0.0 (Production Ready)
+- **Зависит от:** T-039, T-040
+- **Что:** версия `1.0.0` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod), `frontend/package.json` и lockfile; `SECURITY.md` с политикой, порядком сообщения об уязвимостях и production-чеклистом; большая секция `[1.0.0]` в CHANGELOG с путём проекта; README со статусом Production Ready и ссылками на `SECURITY.md`/`DEPLOYMENT.md`; релизный коммит без тега.
+- **DoD:** версии согласованы, документация и security-политика готовы, тесты/линтеры/сборки зелёные, коммит `chore: release v1.0.0 (Production Ready)` запушен; тег `v1.0.0` создаётся только после подтверждения работы HTTPS на боевом сервере.
+- **Оценка:** 2
+- **Статус:** выполнено: версия `1.0.0` синхронизирована, создан `SECURITY.md`, CHANGELOG дополнен полной историей 1.0.0, README переведён в Production Ready со ссылками на security/deployment; `pytest` 548 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build` и `docker compose config` — успешно. Тег **не создан** — ожидается сигнал «Сайт работает».
+
 ---
 
 ## Backlog

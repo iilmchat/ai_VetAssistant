@@ -6,7 +6,38 @@
 
 ## [Unreleased]
 
-### Добавлено
+### Планируется
+
+- Расширенный Safety-бенчмарк и независимые модели-судьи.
+- Расширение базы знаний и оценка качества RAG-ответов.
+- Rate limiting на `/v1/auth/login` и публичных эндпоинтах.
+
+## [1.0.0] — 2026-11-03
+
+> **Первый production-ready релиз VetAssistant.** Тег: `v1.0.0`
+> (публикуется после боевой проверки HTTPS на VPS).
+
+VetAssistant прошёл путь от идеи и синтетических данных до полноценного
+multi-tenant SaaS: локальная LLM-модель, RAG по MSD Vet Manual, Agentic
+Loop с записью к ветеринару, React-интерфейс, Telegram-бот, JWT-авторизация
+и production-деплой на одном домене с HTTPS.
+
+### Путь к 1.0.0
+
+| Этап | Что появилось |
+|---|---|
+| v0.1.0 | Пайплайн генерации данных, первые промпты, RAG-заготовка |
+| v0.2.0 | FastAPI, Streamlit UI, живая GGUF-модель, MSD Vet Manual |
+| v0.3.0 | Autonomous Agent: `book_appointment`, `set_reminder`, PostgreSQL |
+| v0.4.0 | Telegram-бот на aiogram 3.x, история диалогов, Function Calling |
+| v0.5.0 | React 19 SPA: SSE-стриминг, Markdown, «Мои записи», Docker/Nginx |
+| T-039 | JWT Auth, bcrypt, `user_id` FK и мультитенантная изоляция |
+| T-040 | Production Docker, единый домен, Let's Encrypt/Certbot, deploy.sh |
+| **v1.0.0** | **Production Ready: безопасность, HTTPS, эксплуатационная документация** |
+
+### Добавлено в 1.0.0
+
+#### Multi-tenant SaaS и безопасность
 
 - JWT-аутентификация (`PyJWT`, HS256) и bcrypt-хэширование паролей через
   `passlib[bcrypt]`; эндпоинты `/v1/auth/register`, `/v1/auth/login` и
@@ -25,11 +56,13 @@
 - Telegram: синтетический аккаунт `telegram-<id>@bot.vetassistant.local`,
   детерминированный HMAC-пароль, кэш JWT и повторная авторизация при `401`
   (T-039).
-- Тесты авторизации: `401` без токена, `409` при дубле email, изоляция
-  записей между пользователями; всего **546** тестов (T-039, T-040).
-- Production-конфигурация для VPS: `docker-compose.prod.yml` с публикацией
-  только `frontend:80`, отдельный HTTPS-overlay `docker-compose.ssl.yml`
-  (`443`, Certbot, Let's Encrypt) и единый домен через Nginx (T-040).
+
+#### Production-инфраструктура
+
+- `docker-compose.prod.yml`: публикация только `frontend:80`; API,
+  PostgreSQL и бот доступны только внутри Docker-сети (T-040).
+- `docker-compose.ssl.yml`: `443`, Certbot, Let's Encrypt, HSTS и
+  HTTP→HTTPS-редирект; единый домен через Nginx (T-040).
 - `frontend/nginx.conf`: проксирование `/api/*` в `api:8000`, SSE без
   буферизации, SPA fallback, ACME webroot и security-заголовки (T-040).
 - `.env.production.example` с обязательными секретами и инструкцией
@@ -39,18 +72,32 @@
   `scripts/renew_ssl.sh` для автопродления сертификата (T-040).
 - `DEPLOYMENT.md`: аренда VPS, DNS A-запись, firewall, модель GGUF, Certbot,
   HTTPS-редирект, обновления, бэкапы и диагностика (T-040).
+- `SECURITY.md`: политика безопасности, порядок сообщения об уязвимостях,
+  модель угроз, известные ограничения и обязательный production-чеклист
+  (T-041).
+
+#### Качество и релизная инженерия
+
+- Тесты авторизации: `401` без токена, `409` при дубле email, изоляция
+  записей между пользователями (T-039).
+- Тесты production-конфигурации: compose, HTTPS-overlay, Nginx, шаблон
+  секретов и скрипты деплоя (T-040).
+- CI: `ruff`, `mypy`, `pytest`, frontend lint/tests/build и Docker-сборка
+  API + Frontend.
+- Версия `1.0.0` синхронизирована в `pyproject.toml`, FastAPI,
+  `docker-compose.yml`, `docker-compose.prod.yml`, `frontend/package.json`
+  и lockfile (T-041).
 
 ### Изменено
 
 - `VET_API_JWT_SECRET` и `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES` добавлены в
   настройки, `.env.example` и Docker Compose; `VET_BOT_AUTH_SECRET` — в
   настройки бота и Compose (T-039).
-- README дополнен разделом об аутентификации, примерами запросов с токеном
-  и таблицей новых переменных (T-039).
-- README дополнен разделом о production-деплое и ссылкой на
-  `DEPLOYMENT.md` (T-040).
-- Dockerfile фронтенда копирует Nginx-конфигурацию с едиными правилами
-  `/api`, SPA и ACME для HTTP (T-040).
+- README дополнен разделами об аутентификации, production-деплое и
+  финальным статусом **Production Ready** со ссылками на `SECURITY.md` и
+  `DEPLOYMENT.md` (T-039, T-040, T-041).
+- Dockerfile фронтенда копирует Nginx-конфигурацию с правилами `/api`, SPA
+  и ACME для HTTP (T-040).
 
 ### Безопасность
 
@@ -60,11 +107,30 @@
   включая Telegram-аккаунты (T-039).
 - Production-стек не публикует API и PostgreSQL наружу; наружу открыты
   только `80`/`443`, а HTTPS включается с HSTS и редиректом с HTTP (T-040).
+- Добавлена публичная политика безопасности и обязательный чеклист смены
+  `VET_API_JWT_SECRET`, `POSTGRES_PASSWORD` и `VET_BOT_AUTH_SECRET` перед
+  публикацией сервиса (T-041).
 
-### Планируется
+### Результаты 1.0.0
 
-- Расширенный Safety-бенчмарк и независимые модели-судьи.
-- Расширение базы знаний и оценка качества RAG-ответов.
+| Метрика | Значение |
+|---|---|
+| Python-тесты | **548 passed** |
+| Frontend-тесты | **29 passed** |
+| Python-линтеры | `ruff check .`, `mypy app bot` — чисто |
+| Frontend | `oxlint`, `npm run build` — успешно |
+| Docker Compose | dev, prod и SSL-overlay — валидны |
+| Nginx | `nginx -t` для HTTP и HTTPS — успешно |
+| Production-проверки | HTTP→HTTPS, HSTS, `/healthz`, SPA fallback |
+| CI | Lint & Test, Frontend, Docker Build — success |
+
+### Известные ограничения
+
+- Нет rate limiting, подтверждения email, восстановления пароля и 2FA.
+- JWT хранится в `localStorage`; требуется защита от XSS.
+- История Telegram-диалога хранится в памяти процесса.
+- Модель не заменяет ветеринарного врача; медицинские ограничения описаны
+  в README и системном промпте.
 
 ## [0.5.0] — 2026-11-03
 
