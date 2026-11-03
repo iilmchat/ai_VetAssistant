@@ -40,7 +40,7 @@ Telegram-бот.
   авторизация при `401`.
 - **AI-ядро**: Qwen3-8B GGUF на CPU, RAG по MSD Vet Manual, Agentic Loop с
   `book_appointment` и `set_reminder`.
-- **Качество**: **566** Python-тестов и **29** frontend-тестов, `ruff`,
+- **Качество**: **569** Python-тестов и **29** frontend-тестов, `ruff`,
   `mypy`, `oxlint`, Docker-сборки и CI на каждый коммит.
 - **Эксплуатация**: `scripts/deploy.sh`, `scripts/renew_ssl.sh`, бэкапы,
   диагностика и security-чеклист.
@@ -749,20 +749,12 @@ Paramiko, и не управляет контейнерами. Пароль за
 После запуска контейнеров и настройки Caddy:
 
 ```powershell
-python scripts/smoke_test.py
+python scripts/smoke_test.py --base-url https://ai-pets.ru --email owner@example.com
 ```
 
-Он проверит главную страницу, регистрацию через API и тестовый диалог с
-моделью, а затем выведет отчёт с ✅/❌.
-
-Если публичная регистрация закрыта (`VET_API_ALLOW_PUBLIC_REGISTRATION=false`),
-передайте существующего пользователя:
-
-```powershell
-python scripts/smoke_test.py --email owner@example.com
-```
-
-Пароль будет запрошен через `getpass`.
+Пароль будет запрошен через `getpass`. Smoke-тест входит существующим
+пользователем (регистрация в production закрыта) и проверяет главную
+страницу, чат и `GET /api/v1/appointments`, а затем выводит отчёт с ✅/❌.
 
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).

@@ -1,4 +1,4 @@
-"""Тесты production smoke-теста (T-042/T-043)."""
+"""Тесты production smoke-теста (T-042/T-045)."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ import requests
 from scripts.smoke_test import (
     CheckResult,
     api_base_url,
+    check_appointments,
     check_chat,
     check_site,
     login_user,
     normalize_base_url,
     print_report,
-    register_user,
     response_detail,
 )
 
@@ -80,27 +80,6 @@ def test_check_site_reports_http_error() -> None:
     assert "HTTP 502" in result.detail
 
 
-def test_register_user_returns_token_and_uses_api_prefix() -> None:
-    session = FakeSession(
-        [
-            make_response(
-                201,
-                {
-                    "access_token": "jwt-token",
-                    "user": {"id": 42, "email": "smoke@example.com"},
-                },
-            )
-        ]
-    )
-
-    result, token = register_user(session, "https://ai-pets.ru", timeout=5)
-
-    assert result.ok is True
-    assert token == "jwt-token"
-    assert session.calls[0]["url"] == "https://ai-pets.ru/api/v1/auth/register"
-    assert "smoke-" in session.calls[0]["json"]["email"]
-
-
 def test_login_user_uses_existing_credentials() -> None:
     session = FakeSession([make_response(200, {"access_token": "jwt-login"})])
 
@@ -119,6 +98,23 @@ def test_login_user_uses_existing_credentials() -> None:
         "email": "owner@example.com",
         "password": "secret-pass-1",
     }
+
+
+def test_login_user_reports_closed_or_bad_credentials() -> None:
+    session = FakeSession([make_response(401, {"detail": "Неверный email или пароль"})])
+
+    result, token = login_user(
+        session,
+        "https://ai-pets.ru",
+        email="owner@example.com",
+        password="wrong",
+        timeout=5,
+    )
+
+    assert result.ok is False
+    assert token is None
+    assert "401" in result.detail
+    assert "Неверный email" in result.detail
 
 
 def test_check_chat_requires_non_empty_answer() -> None:
@@ -140,6 +136,62 @@ def test_check_chat_requires_non_empty_answer() -> None:
 
 def test_check_chat_fails_without_token() -> None:
     result = check_chat(FakeSession([]), "https://ai-pets.ru", None, timeout=5)
+
+    assert result.ok is False
+    assert "нет JWT" in result.detail
+
+
+def test_check_appointments_accepts_empty_list() -> None:
+    session = FakeSession([make_response(200, [])])
+
+    result = check_appointments(
+        session,
+        "https://ai-pets.ru",
+        "jwt-token",
+        timeout=5,
+    )
+
+    assert result.ok is True
+    assert "записей: 0" in result.detail
+    assert session.calls[0]["url"] == "https://ai-pets.ru/api/v1/appointments"
+    assert session.calls[0]["headers"] == {"Authorization": "Bearer jwt-token"}
+
+
+def test_check_appointments_accepts_user_records() -> None:
+    session = FakeSession(
+        [
+            make_response(
+                200,
+                [
+                    {
+                        "id": 1,
+                        "pet_name": "Мурзик",
+                        "date": "2026-11-04",
+                        "time": "10:00",
+                    }
+                ],
+            )
+        ]
+    )
+
+    result = check_appointments(
+        session,
+        "https://ai-pets.ru",
+        "jwt-token",
+        timeout=5,
+    )
+
+    assert result.ok is True
+    assert "записей: 1" in result.detail
+
+
+def test_check_appointments_requires_token() -> None:
+    result = check_appointments(
+        FakeSession([]),
+        "https://ai-pets.ru",
+        None,
+        timeout=5,
+    )
 
     assert result.ok is False
     assert "нет JWT" in result.detail

@@ -1,15 +1,17 @@
-"""Smoke-тест production-деплоя VetAssistant (T-042).
+"""Smoke-тест production-деплоя VetAssistant (T-042/T-045).
 
 Запуск с Windows::
 
-    python scripts/smoke_test.py
+    python scripts/smoke_test.py --email owner@example.com
 
 Проверяет:
 1. главную страницу ``https://ai-pets.ru`` (HTTP 200);
-2. регистрацию пользователя через ``/api/v1/auth/register``;
-3. тестовое сообщение в ``/api/v1/chat/completions`` с JWT.
+2. вход существующего пользователя через ``/api/v1/auth/login``;
+3. тестовое сообщение «Привет!» в ``/api/v1/chat/completions``;
+4. ``GET /api/v1/appointments`` с JWT.
 
 Скрипт печатает отчёт с ✅/❌ и возвращает exit code 0 только при успехе.
+Регистрация не выполняется: в production она намеренно закрыта.
 """
 
 from __future__ import annotations
@@ -19,7 +21,6 @@ import contextlib
 import getpass
 import sys
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,7 +29,7 @@ import requests
 DEFAULT_BASE_URL = "https://ai-pets.ru"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_CHAT_TIMEOUT = 600.0
-TEST_PROMPT = "Здравствуйте! Ответьте одним коротким предложением: кошка не ест сутки — это срочно?"
+TEST_PROMPT = "Привет!"
 
 
 @dataclass(frozen=True)
@@ -99,75 +100,6 @@ def check_site(
     if not ok:
         detail += f" — {response_detail(response)}"
     return CheckResult("Главная страница", ok, detail, elapsed)
-
-
-def register_user(
-    session: requests.Session,
-    base_url: str,
-    *,
-    timeout: float,
-) -> tuple[CheckResult, str | None]:
-    """Зарегистрировать уникального smoke-пользователя и вернуть JWT."""
-    started = time.perf_counter()
-    email = f"smoke-{uuid.uuid4().hex[:12]}@example.com"
-    password = f"Smoke-{uuid.uuid4().hex[:16]}"
-    url = f"{api_base_url(base_url)}/v1/auth/register"
-
-    try:
-        response = session.post(
-            url,
-            json={"email": email, "password": password},
-            timeout=timeout,
-        )
-    except requests.RequestException as exc:
-        return (
-            CheckResult(
-                "Регистрация",
-                False,
-                f"ошибка запроса: {exc}",
-                time.perf_counter() - started,
-            ),
-            None,
-        )
-
-    elapsed = time.perf_counter() - started
-    if response.status_code != 201:
-        return (
-            CheckResult(
-                "Регистрация",
-                False,
-                f"HTTP {response.status_code} — {response_detail(response)}",
-                elapsed,
-            ),
-            None,
-        )
-
-    try:
-        payload: Any = response.json()
-    except ValueError:
-        payload = None
-    token = payload.get("access_token") if isinstance(payload, dict) else None
-    user = payload.get("user") if isinstance(payload, dict) else None
-    user_id = user.get("id") if isinstance(user, dict) else "?"
-    if not isinstance(token, str) or not token:
-        return (
-            CheckResult(
-                "Регистрация",
-                False,
-                "API не вернул access_token",
-                elapsed,
-            ),
-            None,
-        )
-    return (
-        CheckResult(
-            "Регистрация",
-            True,
-            f"создан пользователь id={user_id} ({email})",
-            elapsed,
-        ),
-        token,
-    )
 
 
 def login_user(
@@ -307,6 +239,63 @@ def check_chat(
     )
 
 
+def check_appointments(
+    session: requests.Session,
+    base_url: str,
+    token: str | None,
+    *,
+    timeout: float,
+) -> CheckResult:
+    """Проверить GET /api/v1/appointments для текущего пользователя."""
+    started = time.perf_counter()
+    if token is None:
+        return CheckResult(
+            "Мои записи",
+            False,
+            "пропущен: нет JWT после аутентификации",
+            time.perf_counter() - started,
+        )
+
+    url = f"{api_base_url(base_url)}/v1/appointments"
+    try:
+        response = session.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        return CheckResult(
+            "Мои записи",
+            False,
+            f"ошибка запроса: {exc}",
+            time.perf_counter() - started,
+        )
+
+    elapsed = time.perf_counter() - started
+    if response.status_code != 200:
+        return CheckResult(
+            "Мои записи",
+            False,
+            f"HTTP {response.status_code} — {response_detail(response)}",
+            elapsed,
+        )
+
+    try:
+        data: Any = response.json()
+    except ValueError:
+        return CheckResult("Мои записи", False, "API вернул не-JSON", elapsed)
+    if not isinstance(data, list):
+        return CheckResult("Мои записи", False, "ответ не является списком", elapsed)
+
+    count = len(data)
+    return CheckResult(
+        "Мои записи",
+        True,
+        f"HTTP 200, записей: {count}",
+        elapsed,
+    )
+
+
 def print_report(base_url: str, checks: list[CheckResult]) -> int:
     """Напечатать красивый отчёт и вернуть exit code."""
     passed = sum(1 for check in checks if check.ok)
@@ -321,7 +310,7 @@ def print_report(base_url: str, checks: list[CheckResult]) -> int:
     print("-" * 68)
     print(f"Итог: {passed}/{len(checks)} проверок пройдено")
     if passed == len(checks):
-        print("✅ Production готов: сайт, аутентификация и чат работают.")
+        print("✅ Production готов: сайт, вход, чат и «Мои записи» работают.")
         return 0
     print("❌ Есть ошибки. Смотрите детали выше и логи контейнеров.")
     return 1
@@ -338,7 +327,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT,
-        help="Таймаут главной и регистрации, секунды",
+        help="Таймаут главной, входа и записей, секунды",
     )
     parser.add_argument(
         "--chat-timeout",
@@ -349,15 +338,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--email",
         default=None,
-        help=(
-            "Email существующего пользователя для входа. Нужен, если "
-            "публичная регистрация закрыта (VET_API_ALLOW_PUBLIC_REGISTRATION=false)."
-        ),
+        help="Email существующего пользователя (если не задан, будет запрошен)",
     )
     parser.add_argument(
         "--password",
         default=None,
-        help="Пароль для --email (если не задан, будет запрошен через getpass)",
+        help="Пароль (если не задан, будет запрошен через getpass)",
     )
     return parser
 
@@ -374,22 +360,23 @@ def main(argv: list[str] | None = None) -> int:
     session = requests.Session()
     session.headers["User-Agent"] = "VetAssistant-SmokeTest/1.0"
 
+    email = (args.email or input("Email пользователя: ")).strip()
+    if not email:
+        print("❌ Email не задан", file=sys.stderr)
+        return 2
+    password = args.password or getpass.getpass(f"Пароль {email}: ")
+    if not password:
+        print("❌ Пароль не задан", file=sys.stderr)
+        return 2
+
     checks = [check_site(session, base_url, timeout=args.timeout)]
-    if args.email:
-        password = args.password or getpass.getpass(f"Пароль {args.email}: ")
-        authentication, token = login_user(
-            session,
-            base_url,
-            email=args.email,
-            password=password,
-            timeout=args.timeout,
-        )
-    else:
-        authentication, token = register_user(
-            session,
-            base_url,
-            timeout=args.timeout,
-        )
+    authentication, token = login_user(
+        session,
+        base_url,
+        email=email,
+        password=password,
+        timeout=args.timeout,
+    )
     checks.append(authentication)
     checks.append(
         check_chat(
@@ -397,6 +384,14 @@ def main(argv: list[str] | None = None) -> int:
             base_url,
             token,
             timeout=args.chat_timeout,
+        )
+    )
+    checks.append(
+        check_appointments(
+            session,
+            base_url,
+            token,
+            timeout=args.timeout,
         )
     )
     return print_report(base_url, checks)

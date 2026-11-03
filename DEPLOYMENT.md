@@ -45,7 +45,7 @@
 | `scripts/deploy.sh` | установка Docker, клонирование и запуск |
 | `scripts/renew_ssl.sh` | продление сертификата и reload Nginx |
 | `scripts/upload_model.py` | SFTP-загрузка GGUF с проверкой SHA-256 |
-| `scripts/smoke_test.py` | проверка сайта, регистрации и чата |
+| `scripts/smoke_test.py` | проверка сайта, входа, чата и записей |
 
 ## 1. Требования к серверу
 
@@ -176,12 +176,11 @@ python scripts/upload_model.py --host 62.109.1.230
 После подключения Caddy-блока:
 
 ```powershell
-python scripts/smoke_test.py
+python scripts/smoke_test.py --base-url https://ai-pets.ru --email owner@example.com
 ```
 
-Если публичная регистрация закрыта, используйте существующего пользователя:
-`python scripts/smoke_test.py --email owner@example.com` (пароль спросит
-`getpass`).
+Пароль будет запрошен через `getpass`. Скрипт входит существующим
+пользователем, проверяет главную, чат и `/api/v1/appointments`.
 
 Подробнее — в разделе README «Edge-деплой для инфраструктурного агента».
 

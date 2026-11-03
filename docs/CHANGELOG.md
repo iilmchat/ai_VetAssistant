@@ -96,6 +96,8 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
   секретов и скрипты деплоя (T-040).
 - Тесты edge-конфигурации, Caddyfile, SFTP-загрузчика и smoke-теста;
   проверка закрытия регистрации (T-043).
+- Smoke-тест адаптирован под закрытую регистрацию: вход существующим
+  пользователем, проверка `/api/v1/appointments` (T-045).
 - CI: `ruff`, `mypy`, `pytest`, frontend lint/tests/build и Docker-сборка
   API + Frontend.
 - Версия `1.0.0` синхронизирована в `pyproject.toml`, FastAPI,
@@ -137,7 +139,7 @@ Loop с записью к ветеринару, React-интерфейс, Telegr
 
 | Метрика | Значение |
 |---|---|
-| Python-тесты | **566 passed** |
+| Python-тесты | **569 passed** |
 | Frontend-тесты | **29 passed** |
 | Python-линтеры | `ruff check .`, `mypy app bot` — чисто |
 | Frontend | `oxlint`, `npm run build` — успешно |
