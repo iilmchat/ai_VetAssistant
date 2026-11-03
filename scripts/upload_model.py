@@ -115,10 +115,15 @@ def parse_sha256(output: str) -> str:
 
 
 def build_sftp_batch(local_path: Path, remote_path: str) -> str:
-    """Собрать batch-команду для OpenSSH sftp."""
+    """Собрать batch-команду для OpenSSH sftp.
+
+    ``reput`` (а не ``put``) докачивает уже существующий ``.part`` с места
+    обрыва. Это важно для 5 ГБ по нестабильному каналу: ``put`` начал бы
+    заново с нуля.
+    """
     local = str(local_path).replace("\\", "/").replace('"', '\\"')
     remote = remote_path.replace('"', '\\"')
-    return f'put "{local}" "{remote}"\n'
+    return f'reput "{local}" "{remote}"\n'
 
 
 def _ssh_options(
