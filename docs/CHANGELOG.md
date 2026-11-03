@@ -4,7 +4,36 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [1.1.3] (Unreleased)
+## [1.2.0] — 2026-11-04
+
+### Добавлено
+
+#### Закрытый доступ (Access Requests)
+
+- Таблица `access_requests` (`email`, `reason`, `status`, `created_at`) и
+  публичный эндпоинт `POST /v1/access/request` с ответом `202 Accepted`.
+- `slowapi` и лимит **3 заявки в час с одного IP**; повторная заявка с тем же
+  email не создаёт дубликат и не раскрывает наличие аккаунта.
+- Публичная регистрация закрыта: `POST /v1/auth/register` всегда возвращает
+  `403 Регистрация только по заявкам`.
+- React: вкладка регистрации убрана, добавлена кнопка «Запросить доступ» с
+  модальной формой; `?mode=request` автоматически открывает её (deep-link с
+  лендинга).
+- Админские скрипты: `scripts/list_access_requests.py` и
+  `scripts/create_user.py` для ручного создания аккаунта после одобрения.
+
+#### Лендинг и Nginx
+
+- Каталог `landing/`: статический лендинг `ai-pets.ru`, страницы
+  `/privacy/`, `/terms/`, `404.html`, `robots.txt`, `sitemap.xml`, OG-карточка.
+- `landing/nginx.conf`: кеширование статики, security-заголовки, `/healthz` и
+  отдача юридических страниц.
+- Фрагменты `landing/compose.edge.fragment.yml` и
+  `landing/Caddyfile.edge.snippet` для последующего переключения Caddy и
+  поддомена `app.ai-pets.ru` (в этом релизе не применяются).
+- `landing/DEPLOY.md` с порядком выкладки, smoke-проверками и откатом.
+
+## [1.1.3] — 2026-11-04
 
 ### Безопасность
 
