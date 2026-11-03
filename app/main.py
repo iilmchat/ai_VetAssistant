@@ -232,7 +232,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.1.1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

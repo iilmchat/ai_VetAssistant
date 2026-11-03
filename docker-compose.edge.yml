@@ -24,7 +24,7 @@ x-app: &app
   build:
     context: .
     dockerfile: Dockerfile
-  image: vetassistant:1.1.0
+  image: vetassistant:1.1.1
   restart: unless-stopped
   logging: *default-logging
 
@@ -105,7 +105,7 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
-    image: vetassistant-frontend:1.1.0
+    image: vetassistant-frontend:1.1.1
     container_name: vetassistant-frontend
     restart: unless-stopped
     logging: *default-logging
