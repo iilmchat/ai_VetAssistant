@@ -9,9 +9,10 @@ type AuthMode = 'login' | 'register'
 
 interface AuthScreenProps {
   onAuthenticated: (session: AuthSession) => void
+  notice?: string | null
 }
 
-export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
+export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -71,6 +72,16 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#1b1b1b]/95 p-5 shadow-2xl shadow-black/40 backdrop-blur">
+          {notice && (
+            <div
+              role="status"
+              className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-2.5 text-[12px] leading-5 text-emerald-300"
+            >
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{notice}</span>
+            </div>
+          )}
+
           <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-white/[0.06] bg-black/25 p-1">
             <button
               type="button"

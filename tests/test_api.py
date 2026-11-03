@@ -222,6 +222,75 @@ def test_auth_rejects_duplicate_email_and_wrong_password(client: TestClient) -> 
     assert wrong.status_code == 401
 
 
+def test_change_password_updates_hash_and_login(client: TestClient) -> None:
+    response = client.post(
+        "/v1/auth/change-password",
+        json={
+            "old_password": "secret-pass-1",
+            "new_password": "new-secret-pass-2",
+            "new_password_confirm": "new-secret-pass-2",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Пароль изменён"
+
+    old_login = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "secret-pass-1"},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "new-secret-pass-2"},
+    )
+    assert new_login.status_code == 200
+    assert new_login.json()["user"]["email"] == "owner@example.com"
+
+
+def test_change_password_rejects_wrong_old_password(client: TestClient) -> None:
+    response = client.post(
+        "/v1/auth/change-password",
+        json={
+            "old_password": "wrong-password",
+            "new_password": "new-secret-pass-2",
+            "new_password_confirm": "new-secret-pass-2",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Неверный старый пароль"
+
+    old_login = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "secret-pass-1"},
+    )
+    assert old_login.status_code == 200
+
+
+def test_change_password_rejects_mismatched_confirmation(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/v1/auth/change-password",
+        json={
+            "old_password": "secret-pass-1",
+            "new_password": "new-secret-pass-2",
+            "new_password_confirm": "new-secret-pass-3",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Новые пароли не совпадают"
+
+    old_login = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "secret-pass-1"},
+    )
+    assert old_login.status_code == 200
+
+
 def test_public_registration_can_be_disabled(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -261,6 +330,16 @@ def test_protected_endpoints_require_token(client: TestClient) -> None:
         json={"name": "book_appointment", "arguments": {}},
     )
     assert tool.status_code == 401
+
+    change_password = client.post(
+        "/v1/auth/change-password",
+        json={
+            "old_password": "secret-pass-1",
+            "new_password": "new-secret-pass-2",
+            "new_password_confirm": "new-secret-pass-2",
+        },
+    )
+    assert change_password.status_code == 401
 
 
 def test_invalid_token_is_rejected(client: TestClient) -> None:

@@ -7,6 +7,7 @@ import {
   PawPrint,
   Plus,
   RefreshCw,
+  Settings,
   ShieldAlert,
   SlidersHorizontal,
   UserRound,
@@ -36,6 +37,7 @@ interface SidebarProps {
   onRefreshRecords: () => void
   apiStatus: ApiStatus
   userEmail: string
+  onOpenSettings: () => void
   onLogout: () => void
 }
 
@@ -72,6 +74,7 @@ export function Sidebar({
   onRefreshRecords,
   apiStatus,
   userEmail,
+  onOpenSettings,
   onLogout,
 }: SidebarProps) {
   return (
@@ -274,6 +277,15 @@ export function Sidebar({
             >
               {userEmail}
             </span>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              aria-label="Настройки"
+              title="Настройки"
+              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200"
+            >
+              <Settings className="h-3.5 w-3.5" />
+            </button>
             <button
               type="button"
               onClick={onLogout}

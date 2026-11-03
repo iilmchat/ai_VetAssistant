@@ -1,0 +1,195 @@
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import { KeyRound, Loader2, ShieldCheck, X } from 'lucide-react'
+import { changePassword } from '../lib/api'
+import { errorMessage } from '../lib/utils'
+
+interface ChangePasswordDialogProps {
+  onClose: () => void
+  onPasswordChanged: () => void
+}
+
+export function ChangePasswordDialog({
+  onClose,
+  onPasswordChanged,
+}: ChangePasswordDialogProps) {
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !loading) {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [loading, onClose])
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setError('Заполните все поля.')
+      return
+    }
+    if (newPassword.length < 8) {
+      setError('Новый пароль должен содержать минимум 8 символов.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Новые пароли не совпадают.')
+      return
+    }
+    if (newPassword === oldPassword) {
+      setError('Новый пароль должен отличаться от старого.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      await changePassword(oldPassword, newPassword, confirmPassword)
+      onPasswordChanged()
+    } catch (requestError) {
+      setError(errorMessage(requestError))
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !loading) {
+          onClose()
+        }
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="change-password-title"
+        className="relative w-full max-w-[420px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl shadow-black/50"
+      >
+        <div className="mb-5 flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2
+              id="change-password-title"
+              className="text-[15px] font-semibold text-white"
+            >
+              Смена пароля
+            </h2>
+            <p className="mt-0.5 text-[11.5px] leading-4 text-zinc-500">
+              После сохранения потребуется войти заново.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            aria-label="Закрыть"
+            className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(event) => void handleSubmit(event)}
+          className="space-y-3.5"
+        >
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Старый пароль
+            </span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              required
+              disabled={loading}
+              value={oldPassword}
+              onChange={(event) => setOldPassword(event.target.value)}
+              placeholder="Текущий пароль"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[14px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-500/40 disabled:opacity-60"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Новый пароль
+            </span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              disabled={loading}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="Минимум 8 символов"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[14px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-500/40 disabled:opacity-60"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Повторите новый пароль
+            </span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              disabled={loading}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="Ещё раз"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[14px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-500/40 disabled:opacity-60"
+            />
+          </label>
+
+          {error && (
+            <div
+              role="alert"
+              className="rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2.5 text-[12px] leading-5 text-rose-300"
+            >
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] font-medium text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[13px] font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading ? 'Сохраняю…' : 'Сменить пароль'}
+            </button>
+          </div>
+        </form>
+
+        <p className="mt-4 flex items-start gap-2 text-[10.5px] leading-4 text-zinc-600">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Пароль хранится только в виде bcrypt-хэша.
+        </p>
+      </div>
+    </div>
+  )
+}

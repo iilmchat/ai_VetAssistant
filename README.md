@@ -566,7 +566,8 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders -Headers $headers
 - Access-токен — JWT HS256 со сроком 7 дней (настраивается
   `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES`).
 - Защищены `/v1/chat/completions`, `/v1/appointments`, `/v1/reminders`,
-  `/v1/tools/execute` и `/v1/auth/me`; без токена они возвращают `401`.
+  `/v1/tools/execute`, `/v1/auth/me` и `/v1/auth/change-password`; без токена
+  они возвращают `401`.
 - `user_id` берётся только из JWT и никогда из аргументов модели, поэтому
   Agentic Loop записывает приём владельцу текущей сессии.
 
@@ -591,12 +592,29 @@ Invoke-RestMethod `
 данные пользователя. `GET /v1/auth/me` проверяет токен и возвращает текущего
 пользователя.
 
+### Смена пароля
+
+`POST /v1/auth/change-password` принимает `old_password`, `new_password` и
+необязательное `new_password_confirm`. Старый пароль проверяется по
+bcrypt-хэшу, после успеха в БД сохраняется новый хэш:
+
+```powershell
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/v1/auth/change-password `
+  -Method Post -Headers $headers -ContentType "application/json" `
+  -Body '{"old_password":"secret-pass-1","new_password":"new-secret-pass-2","new_password_confirm":"new-secret-pass-2"}'
+```
+
+В React-интерфейсе форма доступна по кнопке-шестерёнке «Настройки» рядом с
+«Выйти». После успешной смены показывается уведомление «Пароль изменен», а
+пользователь разлогинивается для входа с новым паролем.
+
 ### Клиенты
 
 - **React:** при отсутствии токена показывается экран входа/регистрации;
   JWT сохраняется в `localStorage` и передаётся в `Authorization`. История
   чата хранится отдельно для каждого `user_id`, в сайдбаре есть кнопка
-  «Выйти».
+  «Выйти» и шестерёнка «Настройки» со сменой пароля.
 - **Streamlit:** формы входа и регистрации, токен хранится в `session_state`,
   кнопка выхода в сайдбаре.
 - **Telegram:** на `/start` бот создаёт или переиспользует синтетический

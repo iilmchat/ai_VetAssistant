@@ -44,6 +44,10 @@ export interface HealthResponse {
   model_path_exists: boolean
 }
 
+export interface ChangePasswordResponse {
+  message: string
+}
+
 export interface StreamEvent {
   content?: string
   toolCalls?: ToolCallDelta[]
@@ -207,6 +211,27 @@ export async function fetchCurrentUser(
   const headers = new Headers()
   headers.set('Authorization', `Bearer ${token}`)
   return requestJson<AuthUser>('/v1/auth/me', { headers }, baseUrl)
+}
+
+export function changePassword(
+  oldPassword: string,
+  newPassword: string,
+  newPasswordConfirm?: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<ChangePasswordResponse> {
+  return requestJson<ChangePasswordResponse>(
+    '/v1/auth/change-password',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        old_password: oldPassword,
+        new_password: newPassword,
+        new_password_confirm: newPasswordConfirm,
+      }),
+    },
+    baseUrl,
+  )
 }
 
 export function fetchHealth(

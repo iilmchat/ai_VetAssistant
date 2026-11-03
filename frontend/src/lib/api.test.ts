@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildChatPayload,
+  changePassword,
   normalizeBaseUrl,
   parseSSEEvent,
+  setAuthToken,
 } from './api'
 import { AVAILABLE_TOOLS } from './tools'
 import type { ChatSettings } from '../types'
@@ -12,6 +14,11 @@ const settings: ChatSettings = {
   useRag: true,
   useTools: true,
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  setAuthToken(null)
+})
 
 describe('normalizeBaseUrl', () => {
   it('убирает завершающий слеш', () => {
@@ -55,6 +62,57 @@ describe('buildChatPayload', () => {
     )
 
     expect(payload).not.toHaveProperty('tools')
+  })
+})
+
+describe('changePassword', () => {
+  it('отправляет старый и новый пароль с Bearer-токеном', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: 'Пароль изменён' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const result = await changePassword(
+      'secret-pass-1',
+      'new-secret-pass-2',
+      'new-secret-pass-2',
+    )
+
+    expect(result.message).toBe('Пароль изменён')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/auth/change-password')
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer jwt-token',
+    )
+    expect(JSON.parse(String(init.body))).toEqual({
+      old_password: 'secret-pass-1',
+      new_password: 'new-secret-pass-2',
+      new_password_confirm: 'new-secret-pass-2',
+    })
+  })
+
+  it('передаёт сообщение об ошибке от API', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ detail: 'Неверный старый пароль' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+
+    await expect(
+      changePassword('wrong', 'new-secret-pass-2', 'new-secret-pass-2'),
+    ).rejects.toThrow('Неверный старый пароль')
   })
 })
 

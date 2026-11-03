@@ -29,6 +29,8 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from app.auth import (
     AuthResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     LoginRequest,
     RegisterRequest,
     UserRead,
@@ -43,8 +45,10 @@ from app.database import (
     create_user,
     get_database,
     get_user_by_email,
+    get_user_by_id,
     list_appointments,
     list_reminders,
+    update_user_password,
 )
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
 from app.router import triage_message, with_emergency_instruction
@@ -322,6 +326,50 @@ async def read_current_user(
 ) -> UserRead:
     """Вернуть данные пользователя по действующему токену."""
     return UserRead.model_validate(current_user)
+
+
+@app.post("/v1/auth/change-password", response_model=ChangePasswordResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    database: Annotated[Database, Depends(get_database)],
+) -> ChangePasswordResponse:
+    """Сменить пароль текущего пользователя после проверки старого."""
+    if (
+        payload.new_password_confirm is not None
+        and payload.new_password_confirm != payload.new_password
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Новые пароли не совпадают",
+        )
+
+    async with database.session() as session:
+        user = await get_user_by_id(session, current_user.id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Требуется авторизация",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if not verify_password(payload.old_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Неверный старый пароль",
+            )
+        if verify_password(payload.new_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Новый пароль должен отличаться от старого",
+            )
+        await update_user_password(
+            session,
+            user_id=user.id,
+            hashed_password=hash_password(payload.new_password),
+        )
+
+    logger.info("Auth: пользователь {} сменил пароль", current_user.id)
+    return ChangePasswordResponse(message="Пароль изменён")
 
 
 def build_messages(messages: Sequence[ChatMessage]) -> list[dict[str, str]]:

@@ -169,6 +169,22 @@ async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def update_user_password(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    hashed_password: str,
+) -> User | None:
+    """Заменить bcrypt-хэш пароля пользователя."""
+    user = await get_user_by_id(session, user_id)
+    if user is None:
+        return None
+    user.hashed_password = hashed_password
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 async def book_appointment(
     session: AsyncSession,
     *,

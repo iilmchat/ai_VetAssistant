@@ -28,6 +28,13 @@ bearer_scheme = HTTPBearer(auto_error=False)
 UNAUTHORIZED_DETAIL = "Недействительный или просроченный токен"
 
 
+def _ensure_bcrypt_length(value: str) -> str:
+    """Проверить, что пароль помещается в лимит bcrypt (72 байта)."""
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError("пароль длиннее 72 байт")
+    return value
+
+
 class RegisterRequest(BaseModel):
     """Тело запроса ``POST /v1/auth/register``."""
 
@@ -40,9 +47,7 @@ class RegisterRequest(BaseModel):
     @classmethod
     def password_fits_bcrypt(cls, value: str) -> str:
         """bcrypt принимает не больше 72 байт, а не символов."""
-        if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
-            raise ValueError("пароль длиннее 72 байт")
-        return value
+        return _ensure_bcrypt_length(value)
 
 
 class LoginRequest(BaseModel):
@@ -52,6 +57,28 @@ class LoginRequest(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=1, max_length=MAX_PASSWORD_BYTES)
+
+
+class ChangePasswordRequest(BaseModel):
+    """Тело запроса ``POST /v1/auth/change-password``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    old_password: str = Field(min_length=1, max_length=MAX_PASSWORD_BYTES)
+    new_password: str = Field(min_length=8, max_length=MAX_PASSWORD_BYTES)
+    # Необязательное подтверждение: UI присылает его, API-клиенты могут нет.
+    new_password_confirm: str | None = Field(
+        default=None,
+        max_length=MAX_PASSWORD_BYTES,
+    )
+
+    @field_validator("new_password", "new_password_confirm")
+    @classmethod
+    def password_fits_bcrypt(cls, value: str | None) -> str | None:
+        """Проверить лимит bcrypt для нового пароля и подтверждения."""
+        if value is None:
+            return None
+        return _ensure_bcrypt_length(value)
 
 
 class UserRead(BaseModel):
@@ -70,6 +97,12 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     user: UserRead
+
+
+class ChangePasswordResponse(BaseModel):
+    """Ответ успешной смены пароля."""
+
+    message: str
 
 
 def hash_password(password: str) -> str:

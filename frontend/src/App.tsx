@@ -38,6 +38,7 @@ import { MessageBubble } from './components/MessageBubble'
 import { Composer } from './components/Composer'
 import { Welcome } from './components/Welcome'
 import { AuthScreen } from './components/AuthScreen'
+import { ChangePasswordDialog } from './components/ChangePasswordDialog'
 
 const MAX_CONTEXT_MESSAGES = 20
 const DEFAULT_SETTINGS: ChatSettings = {
@@ -124,6 +125,8 @@ function App() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [recordsLoading, setRecordsLoading] = useState(true)
   const [recordsError, setRecordsError] = useState<string | null>(null)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [authNotice, setAuthNotice] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -142,6 +145,7 @@ function App() {
     setRecordsError(null)
     setRecordsLoading(true)
     setSidebarOpen(false)
+    setPasswordDialogOpen(false)
   }, [])
 
   const handleAuthenticated = useCallback((next: AuthSession) => {
@@ -151,8 +155,14 @@ function App() {
     setMessages(loadStoredMessages(next.user.id))
     setRecordsLoading(true)
     setRecordsError(null)
+    setAuthNotice(null)
     setSidebarOpen(false)
   }, [])
+
+  const handlePasswordChanged = useCallback(() => {
+    setAuthNotice('Пароль изменен')
+    handleLogout()
+  }, [handleLogout])
 
   const patchMessage = useCallback(
     (id: string, patch: Partial<UiMessage>) => {
@@ -420,7 +430,7 @@ function App() {
   }
 
   if (!session) {
-    return <AuthScreen onAuthenticated={handleAuthenticated} />
+    return <AuthScreen onAuthenticated={handleAuthenticated} notice={authNotice} />
   }
 
   return (
@@ -442,8 +452,19 @@ function App() {
         }}
         apiStatus={apiStatus}
         userEmail={session.user.email}
+        onOpenSettings={() => {
+          setSidebarOpen(false)
+          setPasswordDialogOpen(true)
+        }}
         onLogout={handleLogout}
       />
+
+      {passwordDialogOpen && (
+        <ChangePasswordDialog
+          onClose={() => setPasswordDialogOpen(false)}
+          onPasswordChanged={handlePasswordChanged}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#212121]/95 px-3 backdrop-blur sm:px-4 lg:px-6">
