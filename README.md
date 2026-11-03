@@ -1,13 +1,13 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.0.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.1.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.0.0** (2026-11-03)
-**Финальный релиз:** JWT Auth, Multi-tenancy, Production Docker, HTTPS и Telegram-бот
+**Статус:** ✅ **Production Ready — v1.1.0** (2026-11-04)
+**Релиз:** смена пароля, оптимизация памяти, UFW и Git-деплой на сервере
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
@@ -22,6 +22,21 @@
 - **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
 **Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md)
+
+## 🚀 v1.1.0 — Security and Memory Optimizations
+
+**Релиз:** смена пароля, экономия RAM и базовая защита сервера.
+
+- **Смена пароля (T-103):** `POST /v1/auth/change-password`, модальная форма
+  в React-сайдбаре, уведомление и разлогин после успеха.
+- **Память (T-101):** `VET_API_N_CTX=4096` по умолчанию, конфигурация в
+  `/health` и скрипт `scripts/check_ram.py` для мониторинга.
+- **Безопасность (T-104):** `scripts/setup_ufw.sh` открывает только
+  `22`/`80`/`443` и включает UFW.
+- **Git-деплой (T-106):** документация SSH-алиаса
+  `github.com-vetassistant` для сервера с несколькими ключами.
+- **Качество:** 572 Python-теста и 31 frontend-тест, `ruff`, `mypy`,
+  `oxlint`, Docker-сборки и CI.
 
 ## 🚀 v1.0.0 — Production Ready
 
