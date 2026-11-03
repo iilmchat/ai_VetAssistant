@@ -280,7 +280,7 @@
 - **Что:** production-стек для одного домена: `docker-compose.prod.yml` с публикацией только `frontend:80`; `frontend/nginx.conf` с проксированием `/api/*` в `api:8000` и SPA fallback; `.env.production.example` со всеми обязательными секретами и инструкцией генерации через `openssl rand -hex 32`; bash-скрипт установки Docker/Compose, клонирования и запуска; HTTPS через Let's Encrypt/Certbot; пошаговый `DEPLOYMENT.md`.
 - **DoD:** `.env` исключён из Git, production-шаблон закоммичен; приложение доступно на одном домене, API проксируется через Nginx, наружу открыты только `80`/`443`; скрипт деплоя запускает стек на чистом Ubuntu; документация описывает VPS, DNS, деплой и SSL; тесты и линтеры зелёные.
 - **Оценка:** 3
-- **Статус:** выполнено: `docker-compose.prod.yml` (только frontend `80:80`), `docker-compose.ssl.yml` (443, Certbot, HSTS и HTTP→HTTPS), Nginx-конфигурация с `/api/`, SSE, SPA и ACME; `.env.production.example`, `scripts/deploy.sh` (Docker, clone, secrets, `--ssl`), `scripts/renew_ssl.sh`, `DEPLOYMENT.md`, тесты `tests/test_deployment.py`; `pytest` 546 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build`, `docker compose config` и `nginx -t` — успешно.
+- **Статус:** выполнено: `docker-compose.prod.yml` (только frontend `80:80`), `docker-compose.ssl.yml` (443, Certbot, HSTS и HTTP→HTTPS), Nginx-конфигурация с `/api/`, SSE, SPA и ACME; `.env.production.example`, `scripts/deploy.sh` (Docker, clone, secrets, `--ssl`), `scripts/renew_ssl.sh`, `DEPLOYMENT.md`, тесты `tests/test_deployment.py`; `pytest` 546 passed, React-тесты 29 passed, `ruff`/`mypy`, `npm run build`, `docker compose config` и `nginx -t` — успешно. Коммит `eee9ad9`; CI (run `41623545986`): Lint & Test, Frontend и Docker Build — success.
 
 ---
 
