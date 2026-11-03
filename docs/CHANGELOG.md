@@ -4,6 +4,16 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.1.3] (Unreleased)
+
+### Безопасность
+
+- **Security key rotation.** SSH-ключ пользователя `deployer` перевыпущен,
+  старый отозван; GitHub Secret `SSH_KEY` обновлён. Тег `v1.1.3` проверяет
+  автоматический деплой с новым ключом.
+- В релиз также входит T-110: автоматическая сборка ChromaDB перед стартом
+  API и кеширование модели эмбеддингов в volume `hf_cache`.
+
 ## [1.1.2] (Unreleased)
 
 ### Исправлено
