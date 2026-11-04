@@ -23,4 +23,7 @@ jobs:
         run: |
           cd /srv/vetassistant
           git pull --ff-only
-          docker compose -f docker-compose.edge.yml up -d --build
+          # api и bot используют один image tag; собираем api/frontend по
+          # отдельности, иначе параллельный export падает с "image already exists".
+          docker compose -f docker-compose.edge.yml build api frontend
+          docker compose -f docker-compose.edge.yml up -d --no-build
