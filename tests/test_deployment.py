@@ -180,8 +180,8 @@ def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     assert job["timeout-minutes"] == 90
 
     steps = job["steps"]
-    assert len(steps) == 2
-    deploy_step = steps[1]
+    assert len(steps) == 3
+    deploy_step = steps[2]
     assert "uses" not in deploy_step
     script = deploy_step["run"]
     assert "cd /srv/vetassistant" in script
@@ -202,9 +202,54 @@ def test_deploy_workflow_passes_image_version_from_tag() -> None:
     expected_echo = 'echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"'
     assert expected_echo in resolve["run"]
 
-    deploy = steps[1]
+    deploy = steps[2]
     env = deploy["env"]
     assert env["VETASSISTANT_VERSION"] == "${{ steps.version.outputs.version }}"
+
+
+def test_deploy_workflow_persists_version_to_env_file() -> None:
+    """T-132: версия должна остаться в `.env`, иначе ручной up уйдёт в latest."""
+    workflow = _yaml(".github/workflows/deploy.yml")
+    steps = workflow["jobs"]["deploy"]["steps"]
+
+    persist = steps[1]
+    assert persist["name"] == "Persist image version to .env"
+    assert (
+        persist["env"]["VETASSISTANT_VERSION"]
+        == "${{ steps.version.outputs.version }}"
+    )
+
+    script = persist["run"]
+    assert "cd /srv/vetassistant" in script
+    assert ".env" in script
+    # Идемпотентная запись: sed при наличии строки, printf при отсутствии.
+    assert "grep -q '^VETASSISTANT_VERSION='" in script
+    assert "sed -i" in script
+    assert "printf 'VETASSISTANT_VERSION=%s\\n'" in script
+
+
+def test_restart_prod_script_uses_git_tag_and_skips_build() -> None:
+    """T-132: ручной перезапуск только через скрипт, с версией из тега."""
+    script = _read("scripts/restart_prod.sh")
+
+    assert script.startswith("#!/usr/bin/env bash")
+    assert "set -Eeuo pipefail" in script
+    assert "git describe --tags --exact-match" in script
+    assert "git describe --tags --abbrev=0" in script
+    assert "VETASSISTANT_VERSION" in script
+    assert "docker compose -f \"${COMPOSE_FILE}\" up -d --no-build" in script
+    assert "docker-compose.edge.yml" in script
+    assert "docker-compose.prod.yml" in script
+    # Скрипт не должен сам собирать образы: это работа deploy.yml.
+    assert "build api" not in script
+    assert "up -d --build" not in script
+
+
+def test_env_example_documents_image_version() -> None:
+    env_example = _read(".env.production.example")
+
+    assert "VETASSISTANT_VERSION=latest" in env_example
+    assert "restart_prod.sh" in env_example
 
 
 def test_all_workflows_use_self_hosted_label_set() -> None:

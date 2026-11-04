@@ -355,6 +355,13 @@
 - **Оценка:** 1
 - **Статус:** выполнено: служебные файлы перенесены в `docs/landing/` (не `landing/docs/`, иначе они остались бы в web-root); `NGINX_CONF` в `apply-package-b.sh` указывает на `docs/landing/nginx.conf`; `@landing_private` удалён из сниппета и встроенного Caddy-блока; smoke-проверка 404 для служебных путей сохранена; обновлены `docs/landing/README.md`, `docs/landing/DEPLOY.md`, `DEPLOYMENT.md`, `README.md` и план Phase 2.
 
+### [x] T-132. Персистентность версии образов и план Фазы 5
+- **Зависит от:** T-131
+- **Что:** `VETASSISTANT_VERSION` передавалась только через `env` шага деплоя и не сохранялась в `.env`, поэтому ручной `docker compose up -d` на сервере мог поднять образ `:latest`. Записывать версию в `.env` из workflow, добавить безопасный скрипт ручного перезапуска и задокументировать запрет прямого `docker compose` на проде; подготовить backlog Фазы 5.
+- **DoD:** после деплоя по тегу `VETASSISTANT_VERSION=<версия>` есть в `/srv/vetassistant/.env` и не дублируется при повторных деплоях; `scripts/restart_prod.sh` сам определяет версию из git-тега (или аргумента), пишет её в `.env` и поднимает стек `up -d --no-build`; `DEPLOYMENT.md` предупреждает запускать только скрипт; `bash -n` чистый; тесты обновлены.
+- **Оценка:** 0.5
+- **Статус:** выполнено: в `deploy.yml` добавлен шаг `Persist image version to .env` (идемпотентные `sed`/`printf`), создан `scripts/restart_prod.sh` (версия из `git describe --tags`, проверка формата, обновление `.env`, `docker compose up -d --no-build`), переменная описана в `.env.production.example`, `DEPLOYMENT.md` §6.4 и новый §6.6; backlog Фазы 5 — T-133…T-136.
+
 ### [ ] T-133. Расширение RAG: ещё 5–10 статей MSD Vet Manual
 - **Зависит от:** T-124
 - **Что:** Догрузить 5–10 статей (вакцинация, паразиты, экстренная помощь — отравления, травмы, тепловой удар), прогнать `scripts/ingest_knowledge.py` (upsert безопасен) и расширить индекс `msd_vet_manual` с текущих 204 чанков.
@@ -371,7 +378,7 @@
 
 ### [ ] T-135. Аналитика в админ-панели на метриках Prometheus
 - **Зависит от:** T-122 (перенесена в v1.6.0), T-117
-- **Что:** Метрики уже собираются в `app/metrics.py` (`vet_llm_generation_requests_total`, `vet_llm_prompt_tokens_total`, `vet_llm_completion_tokens_total`, `vet_llm_generation_seconds`, `vet_rag_searches_total`), но админка их не показывает, а `/metrics` закрыт наружу. Добавить графики: запросы по времени, сожжённые токены, латентность (TTFT, токенов/с), RAG hit rate. Для «топа пользователей» нужна новая размерность: сейчас в метриках нет `user_id`.
+- **Что:** Метрики уже собираются в `app/metrics.py` (`vet_llm_generation_requests_total`, `vet_llm_prompt_tokens_total`, `vet_llm_completion_tokens_total`, `vet_llm_generation_seconds`, `vet_rag_searches_total`), но админка их не показывает, а `/metrics` закрыт наружу. Вывести графики прямо в `AdminDashboard`: запросы по времени, сожжённые токены, латентность (TTFT, токенов/с), RAG hit rate и топ пользователей. Для топа нужна новая размерность: сейчас в метриках нет `user_id`.
 - **DoD:** админка показывает графики за 24 часа и 7 дней; API отдаёт агрегаты через админский эндпоинт с проверкой `is_admin`; `/metrics` остаётся недоступным снаружи; высококардинальные метки не появляются; тесты агрегации и прав доступа.
 - **Оценка:** 2
 - **Статус:** запланирована.

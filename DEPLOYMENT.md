@@ -457,6 +457,18 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 показывает запущенную сборку, а без переменной (локальный запуск) используется
 `latest`.
 
+Шаг `Persist image version to .env` (T-132) дополнительно записывает версию в
+`/srv/vetassistant/.env` — идемпотентно, без дубликатов строк:
+
+```bash
+# как это выглядит на сервере после деплоя
+grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
+# VETASSISTANT_VERSION=1.5.5
+```
+
+Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
+сервера: compose читает `.env` сам и не откатывается на `latest`.
+
 ### 6.5. Порядок релиза: сначала зелёный CI, потом тег
 
 Тег и CI используют один self-hosted runner с одним слотом, поэтому теговые
@@ -473,6 +485,33 @@ git tag -a v1.5.5 -m "VetAssistant v1.5.5"
 git push origin v1.5.5
 ```
 
+### 6.6. Ручной перезапуск: только `scripts/restart_prod.sh`
+
+> **Не запускайте `docker compose up -d` на сервере вручную.** Если
+> `VETASSISTANT_VERSION` не задана в текущей оболочке и отсутствует в `.env`,
+> compose возьмёт тег `latest`, и на проде окажется не тот образ. Для ручного
+> перезапуска есть скрипт, который сам подставляет версию.
+
+```bash
+cd /srv/vetassistant
+./scripts/restart_prod.sh                # версия из ближайшего git-тега
+./scripts/restart_prod.sh 1.5.5          # явная версия
+COMPOSE_FILE=docker-compose.prod.yml ./scripts/restart_prod.sh   # другой стек
+```
+
+Что делает скрипт:
+
+1. определяет версию: `git describe --tags --exact-match`, иначе ближайший тег
+   (с предупреждением в stderr), либо берёт аргумент командной строки;
+2. проверяет формат версии (`^[0-9A-Za-z._-]+$`) и наличие `.env` и
+   compose-файла;
+3. идемпотентно обновляет `VETASSISTANT_VERSION` в `.env` и экспортирует её;
+4. поднимает стек **без сборки**: `docker compose up -d --no-build`;
+5. печатает таблицу `service / image / status`, чтобы сразу видеть теги.
+
+Сборка образов остаётся за `deploy.yml` и тегом — скрипт ничего не пересобирает,
+поэтому не может подменить версию «на лету».
+
 Если деплой не прошёл, проверьте:
 
 | Симптом | Что проверить |
@@ -482,6 +521,7 @@ git push origin v1.5.5
 | `dubious ownership` в Git | владельца `/srv/vetassistant` и права `runner` |
 | `git pull` не обновляет код | ветку `main`, `--ff-only` и наличие коммита на сервере |
 | `docker compose` падает на переменных | `.env` в `/srv/vetassistant` (JWT, PostgreSQL, Telegram) |
+| В `docker ps` тег `latest` | `VETASSISTANT_VERSION` в `.env`; запускать `scripts/restart_prod.sh` |
 | В `docker ps` старый тег образа | `VETASSISTANT_VERSION` в логе шага, тег `v*` и `git pull` на сервере |
 
 ## 7. Ручной деплой (если не используете скрипт)

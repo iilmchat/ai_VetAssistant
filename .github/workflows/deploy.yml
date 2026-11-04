@@ -27,6 +27,22 @@ jobs:
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           echo "Deploying image version: ${GITHUB_REF_NAME#v}"
 
+      # T-132: версия должна переживать ручной `docker compose up` и ребут.
+      # Пишем её в .env сервера идемпотентно: повторные деплои не плодят
+      # дубликаты строк, а compose читает значение из файла сам.
+      - name: Persist image version to .env
+        env:
+          VETASSISTANT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd /srv/vetassistant
+          if grep -q '^VETASSISTANT_VERSION=' .env; then
+            sed -i "s|^VETASSISTANT_VERSION=.*|VETASSISTANT_VERSION=${VETASSISTANT_VERSION}|" .env
+          else
+            printf 'VETASSISTANT_VERSION=%s\n' "${VETASSISTANT_VERSION}" >> .env
+          fi
+          echo "VETASSISTANT_VERSION в .env:"
+          grep '^VETASSISTANT_VERSION=' .env
+
       - name: Pull and rebuild on server
         env:
           VETASSISTANT_VERSION: ${{ steps.version.outputs.version }}
