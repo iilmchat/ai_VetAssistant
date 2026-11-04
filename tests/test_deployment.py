@@ -185,7 +185,8 @@ def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     script = deploy_step["run"]
     assert "cd /srv/vetassistant" in script
     assert "git pull --ff-only" in script
-    assert "docker compose -f docker-compose.edge.yml up -d --build" in script
+    assert "docker compose -f docker-compose.edge.yml build api frontend" in script
+    assert "docker compose -f docker-compose.edge.yml up -d --no-build" in script
     assert "appleboy" not in json.dumps(workflow)
 
 
