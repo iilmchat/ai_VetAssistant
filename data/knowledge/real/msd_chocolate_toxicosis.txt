@@ -1,0 +1,144 @@
+Chocolate Toxicosis in Animals - Toxicology - MSD Veterinary Manual
+Source: https://www.msdvetmanual.com/toxicology/food-hazards/chocolate-toxicosis-in-animals
+Retrieved: 2026-11-04
+Language: en
+
+Chocolate Toxicosis in Animals
+Sept 2024
+By
+Cristine Hayes
+,
+DVM
+,
+ASPCA Animal Poison Control Center
+Peer reviewed by
+Ahna Brutlag
+,
+DVM, DABT, DABVT
+,
+College of Veterinary Medicine, University of Minnesota
+Last updated: Feb 2026
+Chocolate toxicosis results from ingestion of excessive amounts of methylxanthine-containing chocolate products. Clinical effects include vomiting, restlessness, agitation, hyperthermia, tachycardia, and, in severe cases, seizures. Treatment is aimed at decreasing cardiovascular and CNS effects via administration of antiarrhythmics and sedatives. No readily accessible diagnostic tests for chocolate intoxication exist.
+Etiology
+Pathogenesis
+Clinical Findings
+Diagnosis
+Treatment
+Key Points
+For More Information
+References
+Chocolate toxicosis in animals may result in potentially life-threatening cardiac arrhythmias and CNS dysfunction. Chocolate poisoning occurs most commonly in dogs, although many species are susceptible. Dogs are most often affected because of their indiscriminate eating habits and easy access to sources of chocolate.
+Deaths have also been reported in livestock fed cocoa byproducts and in animals consuming mulch from cocoa bean hulls.
+Etiology of Chocolate Toxicosis in Animals
+Chocolate is derived from roasted seeds of
+Theobroma cacao
+.
+The primary toxic principles in chocolate are the methylxanthines theobromine (3,7-dimethylxanthine) and caffeine (1,3,7-trimethylxanthine). Although the concentration of theobromine in chocolate is 3–10 times the concentration of caffeine, both constituents contribute to chocolate toxicosis.
+The exact amount of methylxanthines in chocolate varies because of both the natural variation in cocoa beans and the variation among different chocolate product brands. See the table
+for general guidelines.
+Table
+Methylxanthine Content of Various Types of Chocolate
+Table
+Methylxanthine Content of Various Types of Chocolate
+Methylxanthine Content of Various Types of Chocolate
+Source
+Methylxanthine Concentration
+Cocoa powder
+28.5 mg/g (807 mg/oz)
+Unsweetened (baker's) chocolate
+15.5 mg/g (440 mg/oz)
+Semisweet and sweet dark chocolate
+5.3–5.6 mg/g (150–160 mg/oz)
+Milk chocolate
+2.3 mg/g (64 mg/oz)
+Cocoa bean hulls
+a
+9 mg/g (255 mg/oz)
+White chocolate
+b
+0.04 mg/g (1.1 mg/oz)
+a
+Some cocoa bean hulls have had methylxanthines removed before being marketed.
+b
+White chocolate is a negligible source of methylxanthines.
+a
+Some cocoa bean hulls have had methylxanthines removed before being marketed.
+b
+White chocolate is a negligible source of methylxanthines.
+The percentage of cocoa listed on some chocolate bar labels indicates the quantity of unsweetened chocolate they contain; ie, a 65% cocoa bar would contain approximately 10.1 mg (15.5 mg × 0.65) of methylxanthines per gram (286 mg/oz).
+Although cocoa bean hulls contain approximately 9 mg/g (255 mg/oz) of methylxanthines, some cocoa bean hull mulches have had methylxanthines removed during manufacturing.
+The oral LD
+50
+in dogs of both caffeine and theobromine is reportedly 100–200 mg/kg, but severe clinical signs and death may occur at much lower doses, and individual susceptibility to methylxanthines varies. In general, mild clinical signs (vomiting, diarrhea, polydipsia) may occur in dogs ingesting 20 mg/kg; cardiotoxic effects occur after ingesting 40–50 mg/kg, and seizures occur after ingesting doses ≥ 60 mg/kg.
+For milk chocolate, approximately 62 g/kg (1 oz/lb) is potentially lethal to dogs.
+A
+chocolate toxicity calculator
+can determine toxicity based on an animal's weight and the amount and type of chocolate ingested.
+Clinical Calculator
+Pathogenesis of Chocolate Toxicosis in Animals
+Theobromine and caffeine, the toxic principles involved in chocolate toxicosis, are readily absorbed from the GI tract and widely distributed throughout the body. After hepatic metabolism, they undergo enterohepatic recycling. Methylxanthines are excreted in urine as metabolites and unchanged parent compounds.
+The half-lives of theobromine and caffeine in dogs are 17.5 hours and 4.5 hours, respectively.
+Theobromine and caffeine competitively inhibit cellular adenosine receptors, resulting in CNS stimulation, diuresis, and tachycardia. Methylxanthines also increase intracellular calcium levels by increasing cellular calcium entry and inhibiting intracellular sequestration of calcium by the sarcoplasmic reticulum of striated muscle. The net effect is increased strength and contractility of skeletal and cardiac muscle.
+Methylxanthines may also compete for benzodiazepine receptors within the CNS and inhibit phosphodiesterase, resulting in increased levels of cyclic adenosine monophosphate (cyclic AMP). Methylxanthines may also increase circulating levels of epinephrine and norepinephrine.
+Clinical Findings of Chocolate Toxicosis in Animals
+Clinical signs of chocolate toxicosis usually occur within 6–12 hours after ingestion. Initial clinical signs may include polydipsia, vomiting, diarrhea, abdominal distention, and restlessness.
+Clinical signs may progress to hyperactivity, polyuria, ataxia, rigidity, tremors, and seizures. Tachycardia, premature ventricular contractions, tachypnea, cyanosis, hypertension, hyperthermia, bradycardia, hypotension, or coma may occur. Hypokalemia, contributing to cardiac dysfunction, may occur late in the course of toxicosis.
+Death is generally due to cardiac arrhythmias, hyperthermia, or respiratory failure. The high fat content of chocolate products also may trigger pancreatitis in susceptible animals.
+Lesions
+Chocolate toxicosis does not cause specific lesions. Hyperemia, hemorrhages, or congestion of multiple organs may occur as agonal changes. Severe arrhythmias may result in pulmonary edema or congestion. Chocolate or cocoa bean hulls may be present in the GI tract at necropsy.
+Diagnosis of Chocolate Toxicosis in Animals
+Clinical signs
+History of exposure
+Diagnosis of chocolate toxicosis is based on history of exposure and clinical signs.
+Amphetamine toxicosis
+,
+ma huang/guarana (ephedra/caffeine) toxicosis
+,
+pseudoephedrine toxicosis
+,
+cocaine toxicosis
+, and ingestion of
+antihistamines
+,
+antidepressants
+, or other CNS stimulants should be considered as differential diagnoses.
+Treatment of Chocolate Toxicosis in Animals
+Emesis induction in patients that remain clinically normal
+Management of potentially life-threatening clinical signs
+Supportive care
+In patients that remain clinically normal, induction of emesis should be considered with recent exposures (eg, within 2 hours of chocolate ingestion). Emesis may be induced via administration of one of the following drugs:
+ropinirole (dogs only; 2.7–5.4 mg/m
+2
+in the conjunctival sac, repeated in 20 minutes)
+apomorphine (dogs only; 0.03–0.04 mg/kg, IM, IV, SC, or in the subconjunctival sac, although IV is now preferred due to its speed)
+3% hydrogen peroxide (dogs; 1–2 mL/kg, PO, maximum of 45 mL)
+dexmedetomidine (cats; 7–40 mcg/kg, IM, or 3.5 mcg/kg, IV)
+Note: Use of emetic drugs licensed for use in dogs should be prioritized over extra-label use of other drugs to ensure emesis and to avoid unintended adverse events.
+The decision to administer activated charcoal should be carefully considered. Chocolate exposure results in dehydration due to the diuretic effect of methylxanthines and the high sugar content of chocolate. Electrolyte abnormalities, such as hypernatremia, have occurred with activated charcoal administration, particularly with chocolate exposure. A single low dose of activated charcoal (1–2 g/kg, PO, once) should only be considered with lethal exposures to chocolate as long as the benefits outweigh the risks (
+1
+,
+2
+).
+Stabilizing patients with clinical signs is a priority in treating chocolate toxicosis.
+Vomiting may be controlled with administration of maropitant (1 mg/kg, SC or IV, every 24 hours) or ondansetron (0.5 mg/kg, slow IV, every 8 hours).
+Methocarbamol (50–220 mg/kg, slow IV, no more than 330 mg/kg every 24 hours) or diazepam (0.5–2 mg/kg, slow IV) may be used for tremors or mild seizures; levetiracetam, barbiturates, or other general anesthetics may be required for severe seizures.
+Arrhythmias should be treated as needed: administration of propranolol (0.02–0.06 mg/kg, slow IV), esmolol (0.05–0.1 mg/kg, slow IV, followed by 0.01–0.2 mg/kg/min, IV, constant-rate infusion [CRI]); or metoprolol (0.2–0.4 mg/kg, PO) for tachyarrhythmias; atropine (0.01–0.02 mg/kg) for bradyarrhythmias; and lidocaine (1–2 mg/kg, IV, followed by 25–80 mcg/kg/min, IV, CRI) for refractory ventricular tachyarrhythmias. Fluid therapy promotes diuresis and may help stabilize cardiovascular function and hasten urinary excretion of methylxanthines.
+Other treatments for clinically affected patients include electrocardiographic monitoring of cardiac status, correction of acid-base and electrolyte abnormalities, management of body temperature, and urinary catheter placement in nonambulatory patients to minimize the reabsorption of methylxanthines and their metabolites from urine.
+Clinical signs may persist for up to 72 hours in severe cases.
+Key Points
+Chocolate ingestion can lead to clinically detrimental cardiovascular and CNS effects.
+Early GI decontamination can decrease severity of clinical effects.
+Treatment is supportive, including management of CNS excitation and cardiac arrhythmias.
+For More Information
+Also see pet owner content regarding
+chocolate poisoning
+.
+References
+Mix KA, Stafford J, Hofmeister E.
+Effect of single dose administration activated charcoal containing sorbitol on serum sodium concentration and hydration status in dogs
+.
+J Vet Emerg Crit Care (San Antonio)
+. 2019;29:616-621. doi:10.1111/vec.12887
+Stern L. Methylxanthine toxicosis. In Cohn LA, Cote E, eds.
+Cote's Clinical Veterinary Advisor: Dogs and Cats
+. 4th ed. Mosby; 2019.

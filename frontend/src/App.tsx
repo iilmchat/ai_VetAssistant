@@ -136,10 +136,12 @@ function App() {
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottom = useRef(true)
+  const refreshedTokenRef = useRef<string | null>(null)
 
   const handleLogout = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
+    refreshedTokenRef.current = null
     setAuthToken(null)
     clearAuthSession()
     setSession(null)
@@ -208,6 +210,11 @@ function App() {
 
   useEffect(() => {
     setAuthToken(session?.access_token ?? null)
+    if (session) {
+      // Держим localStorage в актуальном состоянии после /auth/me:
+      // старые сессии могли быть сохранены до появления is_admin.
+      saveAuthSession(session)
+    }
   }, [session])
 
   useEffect(() => {
@@ -226,16 +233,39 @@ function App() {
   }, [loadRecords])
 
   useEffect(() => {
-    if (!session) {
+    const token = session?.access_token
+    if (!token || refreshedTokenRef.current === token) {
       return
     }
+    // Один refresh на токен: логин/старая сессия из localStorage. Результат
+    // /auth/me обязательно применяем к session, иначе is_admin из БД не
+    // доедет до Sidebar (баг: ответ запроса раньше игнорировался).
+    refreshedTokenRef.current = token
     let active = true
 
-    void fetchCurrentUser(session.access_token).catch((error: unknown) => {
-      if (active && error instanceof ApiError && error.status === 401) {
-        handleLogout()
-      }
-    })
+    void fetchCurrentUser(token)
+      .then((user) => {
+        if (!active) {
+          return
+        }
+        setSession((previous) => {
+          if (!previous || previous.access_token !== token) {
+            return previous
+          }
+          return { ...previous, user }
+        })
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return
+        }
+        if (error instanceof ApiError && error.status === 401) {
+          handleLogout()
+        } else {
+          // Сеть/5xx: попробуем снова при следующем изменении сессии.
+          refreshedTokenRef.current = null
+        }
+      })
 
     return () => {
       active = false

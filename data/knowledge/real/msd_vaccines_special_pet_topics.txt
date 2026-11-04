@@ -1,0 +1,41 @@
+Vaccines - Special Pet Topics - MSD Veterinary Manual
+Source: https://www.msdvetmanual.com/special-pet-topics/drugs-and-vaccines/vaccines
+Retrieved: 2026-11-04
+Language: en
+
+Vaccines
+Nov 2025
+By
+Natalie Antinoff
+,
+DVM, DABVP (Avian Practice)
+,
+Texas Avian & Exotic Hospital
+Peer reviewed by
+Manuals Staff
+Last updated: Nov 2025
+What Are the Different Types of Vaccines?
+When Should Vaccinations Be Given?
+Do Vaccines Have Side Effects?
+What Is Passive Immunity?
+The immune system defends the body against harmful microorganisms (such as viruses, bacteria, fungi, and parasites) by recognizing these invaders as foreign, reacting to them, and producing substances called antibodies, which are proteins that target and neutralize these microorganisms if the body is exposed to them again in the future. Vaccines introduce a weakened or inactive version of a microorganism into the body, triggering the immune system to respond to and fight infection without causing illness. This way, if the animal is exposed to this same harmful microorganism in the future, its body is prepared to quickly fight off the invader without getting sick.
+What Are the Different Types of Vaccines?
+Killed (inactivated) vaccines
+contain microorganisms that can't reproduce. They are relatively safe and cannot cause disease, but the immune system response they stimulate is often fairly weak.
+Attenuated (modified live) vaccines
+contain live organisms that are weakened so that they don’t usually cause disease. These vaccines stimulate a strong response by the immune system and strong protection against future infection.
+Recombinant vaccines
+consist of either microorganisms with the disease-causing genes removed so that the organisms can no longer cause disease, or the disease-causing genes themselves are put inside another harmless microorganism (such as a virus or bacteria that does not cause disease) called a "vector." Once the vector is injected into an animal (the host), the vector makes the proteins from the genes that it's carrying and gives the host strong protection against infection without causing disease.
+DNA and RNA vaccines
+use a harmless piece of DNA or RNA (both forms of genetic material) from which a protective protein is made. Because there is no actual virus in the vaccine, they cannot cause disease. DNA vaccines can also be used to treat some diseases, including certain cancers.
+Vaccine production is strictly regulated by government authorities for safety and potency (effectiveness). Methods of giving vaccines include injection (most common), intranasal spray, feed or water delivery (mainly in poultry), immersion for delivery to fish, and transdermal (through the skin) methods (which are being developed). See
+How Drugs Are Given to Animals
+.
+When Should Vaccinations Be Given?
+Immunity (protection against infection) provided by vaccination lasts different lengths of time, depending on the vaccine. Young animals need a series of vaccinations as the protection they receive at birth from their mother decreases and their own immune systems develop. Adults might need a booster every year for some vaccines or every 2–3 years for others.
+Work with your veterinarian to set the best vaccination schedule for your pet.
+What Are the Side Effects of Vaccines?
+Most modern, approved vaccines are safe. Possible problems with vaccination include injection site reactions, allergic responses, and rare neurological complications. Anaphylaxis (a severe allergic reaction) can occur with any medication, including vaccines. In rare cases in cats, certain vaccines have been linked to tumors forming at injection sites.
+Monitor your pet for any problems after vaccination, and follow your vet’s guidance.
+What Is Passive Immunity?
+Passive immunity is temporary protection provided by antibodies that are transferred from one animal to another. Natural passive immunity occurs when mothers pass antibodies to their offspring via the placenta or colostrum (first milk they suckle from the mother). Passive immunity protects newborns while they are developing their own immune system and until they can be safely vaccinated.
