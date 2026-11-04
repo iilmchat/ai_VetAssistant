@@ -25,6 +25,10 @@ API_ERROR_MESSAGE = "Не удалось получить ответ ветер�
 EMPTY_RESPONSE_MESSAGE = "Модель не вернула ответ. Попробуйте переформулировать вопрос."
 AUTH_ERROR_MESSAGE = "Не удалось войти в сервис. Попробуйте позже."
 AUTH_EXPIRED_MESSAGE = "Сессия истекла. Напишите /start, чтобы войти заново."
+ACCOUNT_NOT_PROVISIONED_MESSAGE = (
+    "Аккаунт для этого Telegram не создан. "
+    "Запросите доступ на сайте ai-pets.ru и дождитесь одобрения."
+)
 
 
 class VetApiError(RuntimeError):
@@ -227,7 +231,10 @@ class VetApiClient:
         return data
 
     async def authenticate(self, telegram_user_id: int) -> str:
-        """Войти или зарегистрировать синтетический аккаунт Telegram-пользователя.
+        """Войти в синтетический аккаунт Telegram-пользователя.
+
+        Аккаунт создаёт только администратор после одобрения заявки; бот не
+        регистрирует новых пользователей самостоятельно (T-121).
 
         Returns:
             JWT access-токен для запросов к защищённым эндпоинтам.
@@ -240,13 +247,11 @@ class VetApiClient:
         except VetApiError as exc:
             if exc.status != 401:
                 raise
-            try:
-                data = await self._auth_request("/v1/auth/register", credentials)
-            except VetApiError as register_error:
-                if register_error.status != 409:
-                    raise
-                # Аккаунт успел создаться параллельно — просто входим снова.
-                data = await self._auth_request("/v1/auth/login", credentials)
+            raise VetApiError(
+                "Аккаунт Telegram не создан",
+                user_message=ACCOUNT_NOT_PROVISIONED_MESSAGE,
+                status=401,
+            ) from exc
 
         token = data.get("access_token")
         if not isinstance(token, str) or not token:

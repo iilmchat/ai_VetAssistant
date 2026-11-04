@@ -283,9 +283,9 @@ sudo -E bash /tmp/deploy.sh --ssl
 
 Если 80/443 уже заняты Caddy инфраструктурного агента, используйте
 `docker-compose.edge.yml`, `deploy/Caddyfile` и `scripts/upload_model.py`.
-Стек не публикует порты, подключается к внешней сети `edge`, не содержит
-бота и Streamlit. Регистрация в production закрыта флагом
-`VET_API_ALLOW_PUBLIC_REGISTRATION=false`.
+Стек не публикует порты, подключается к внешней сети `edge`, содержит API,
+frontend и Telegram-бота с allowlist; Streamlit в него не входит. Регистрация
+в production закрыта флагом `VET_API_ALLOW_PUBLIC_REGISTRATION=false`.
 
 ```bash
 docker network inspect edge
@@ -303,6 +303,34 @@ python scripts/smoke_test.py --base-url https://ai-pets.ru --email owner@example
 пользователем, проверяет главную, чат и `/api/v1/appointments`.
 
 Подробнее — в разделе README «Edge-деплой для инфраструктурного агента».
+
+#### Telegram-бот в edge-стеке (T-121)
+
+Бот работает в том же образе (`python -m bot`), не публикует порты и ходит к
+API по сети `edge`. В `.env` на сервере добавьте:
+
+```dotenv
+TELEGRAM_BOT_TOKEN=123456789:AA...
+# Только эти Telegram ID могут пользоваться ботом (через запятую).
+VET_BOT_ALLOWED_TELEGRAM_IDS=111111111,222222222
+```
+
+Публичная регистрация закрыта, поэтому бот **не создаёт** аккаунты: для
+разрешённого ID аккаунт создаёт администратор после одобрения заявки.
+
+```bash
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/create_user.py --email telegram-111111111@bot.vetassistant.local
+
+docker compose -f docker-compose.edge.yml up -d bot
+docker compose -f docker-compose.edge.yml logs -f bot
+```
+
+Проверка:
+- `/start` и вопрос по базе знаний от ID из allowlist работают, RAG включён;
+- ID вне списка получает «Доступ к боту ограничен…», аккаунт не создаётся;
+- без `VET_BOT_ALLOWED_TELEGRAM_IDS` контейнер завершается с ошибкой
+  (fail closed), остальной стек продолжает работать.
 
 ## 6. Настройка CI/CD
 

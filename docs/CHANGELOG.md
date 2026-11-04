@@ -4,6 +4,36 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.5.0] — 2026-11-04
+
+### Добавлено
+
+#### Экспорт истории диалога (T-123)
+
+- Кнопка **«Скачать историю»** в сайдбаре: Markdown-файл с ролями, текстом,
+  вызовами инструментов и датами сообщений; скачивание через `Blob` и
+  `URL.createObjectURL`, без отправки данных на сервер.
+- `createdAt` в сообщениях и в `localStorage`; старые сообщения без даты не
+  ломают экспорт; кнопка недоступна при пустой истории.
+
+#### Telegram-бот в production (T-121)
+
+- Сервис `bot` в `docker-compose.edge.yml`: `python -m bot`, без публикации
+  портов, `VET_BOT_API_URL=http://api:8000/v1/chat/completions`,
+  `VET_BOT_USE_RAG=true`, зависимость от здорового `api`.
+- Закрытый доступ: allowlist `VET_BOT_ALLOWED_TELEGRAM_IDS` (ID через
+  запятую). ID вне списка получает сообщение «Доступ к боту ограничен…»;
+  бот не вызывает API и не создаёт аккаунт. Пустой allowlist — контейнер
+  завершается с ошибкой (fail closed).
+- Бот больше **не регистрирует** пользователей: аккаунт
+  `telegram-<id>@bot.vetassistant.local` создаёт администратор после
+  одобрения заявки.
+
+### Изменено
+
+- Версия `1.5.0` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
+  и `frontend/package.json`.
+
 ## [1.4.0] — 2026-11-04
 
 ### Добавлено

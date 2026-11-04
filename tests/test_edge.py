@@ -29,18 +29,27 @@ def _yaml(relative: str) -> dict[str, Any]:
     return data
 
 
-def test_edge_compose_has_no_published_ports_and_no_bot() -> None:
+def test_edge_compose_has_no_published_ports_and_secure_bot() -> None:
     compose = _yaml("docker-compose.edge.yml")
     services = compose["services"]
 
-    assert {"api", "db", "frontend"} <= set(services)
-    assert "bot" not in services
+    assert {"api", "db", "frontend", "bot"} <= set(services)
     assert "ui" not in services
     for service in services.values():
         assert "ports" not in service
 
     assert services["frontend"]["expose"] == ["80"]
     assert services["api"]["expose"] == ["8000"]
+
+    bot = services["bot"]
+    assert bot["networks"] == ["edge"]
+    assert bot["depends_on"]["api"]["condition"] == "service_healthy"
+    bot_env = bot["environment"]
+    assert bot_env["TELEGRAM_BOT_TOKEN"] == "${TELEGRAM_BOT_TOKEN:-}"
+    assert bot_env["VET_BOT_ALLOWED_TELEGRAM_IDS"] == (
+        "${VET_BOT_ALLOWED_TELEGRAM_IDS:-}"
+    )
+    assert bot_env["VET_BOT_USE_RAG"] == "${VET_BOT_USE_RAG:-true}"
 
 
 def test_edge_networks_are_isolated_correctly() -> None:

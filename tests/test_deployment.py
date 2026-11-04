@@ -69,7 +69,8 @@ def test_env_production_example_documents_secrets() -> None:
     ):
         assert key in template
     assert "openssl rand -hex 32" in template
-    assert "TELEGRAM_BOT_TOKEN" not in template
+    assert "TELEGRAM_BOT_TOKEN=" in template
+    assert "VET_BOT_ALLOWED_TELEGRAM_IDS=" in template
 
 
 def test_gitignore_keeps_env_secret_but_tracks_production_example() -> None:
@@ -123,32 +124,32 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_4_0_everywhere() -> None:
+def test_release_version_is_1_5_0_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
     dev_compose = _yaml("docker-compose.yml")
     prod_compose = _yaml("docker-compose.prod.yml")
     edge_compose = _yaml("docker-compose.edge.yml")
 
-    assert 'version = "1.4.0"' in _read("pyproject.toml")
-    assert 'version="1.4.0"' in _read("app/main.py")
-    assert package["version"] == "1.4.0"
-    assert lockfile["version"] == "1.4.0"
-    assert lockfile["packages"][""]["version"] == "1.4.0"
-    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.4.0"
+    assert 'version = "1.5.0"' in _read("pyproject.toml")
+    assert 'version="1.5.0"' in _read("app/main.py")
+    assert package["version"] == "1.5.0"
+    assert lockfile["version"] == "1.5.0"
+    assert lockfile["packages"][""]["version"] == "1.5.0"
+    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.5.0"
     assert (
         dev_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.4.0"
+        == "vetassistant-frontend:1.5.0"
     )
-    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.4.0"
+    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.5.0"
     assert (
         prod_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.4.0"
+        == "vetassistant-frontend:1.5.0"
     )
-    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.4.0"
+    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.5.0"
     assert (
         edge_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.4.0"
+        == "vetassistant-frontend:1.5.0"
     )
 
 

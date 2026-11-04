@@ -263,14 +263,14 @@ def test_telegram_credentials_are_stable_and_unique() -> None:
     assert first[1] != telegram_credentials(42, "other-secret")[1]
 
 
-async def test_authenticate_registers_new_telegram_user() -> None:
-    calls: list[tuple[str, dict[str, Any]]] = []
+async def test_authenticate_does_not_register_new_telegram_user() -> None:
+    """T-121: бот не создаёт аккаунт, если логин не удался."""
+    paths: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        calls.append((request.url.path, json.loads(request.content)))
-        if request.url.path == "/v1/auth/login":
-            return httpx.Response(401, json={"detail": "Неверный пароль"})
-        return httpx.Response(201, json={"access_token": "jwt-new"})
+        paths.append(request.url.path)
+        assert request.url.path == "/v1/auth/login"
+        return httpx.Response(401, json={"detail": "Неверный пароль"})
 
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
@@ -280,12 +280,12 @@ async def test_authenticate_registers_new_telegram_user() -> None:
             auth_secret="secret",
             client=http_client,
         )
-        token = await client.authenticate(99)
+        with pytest.raises(VetApiError) as error:
+            await client.authenticate(99)
 
-    assert token == "jwt-new"
-    assert [path for path, _ in calls] == ["/v1/auth/login", "/v1/auth/register"]
-    email, password = telegram_credentials(99, "secret")
-    assert calls[0][1] == {"email": email, "password": password}
+    assert paths == ["/v1/auth/login"]
+    assert error.value.status == 401
+    assert "Запросите доступ" in error.value.user_message
 
 
 async def test_authenticate_logs_in_existing_telegram_user() -> None:

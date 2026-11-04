@@ -1,18 +1,19 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.4.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.5.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.4.0** (2026-11-04)
-**Релиз:** админ-панель заявок, метрики Prometheus, готовность RAG к
-production и разделение лендинга и приложения по доменам
+**Статус:** ✅ **Production Ready — v1.5.0** (2026-11-04)
+**Релиз:** экспорт истории, защищённый Telegram-бот в production, админ-панель,
+метрики Prometheus и RAG на ChromaDB
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
-- **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
+- **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; доступ в production — только по allowlist Telegram ID
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
+- **Экспорт:** история диалога скачивается в Markdown одной кнопкой
 - **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
 - **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
@@ -485,11 +486,21 @@ Streamlit UI продолжат работать. После добавлени�
 docker compose up -d bot
 ```
 
-### 4. Настройки бота
+### 4. Production: закрытый доступ
+
+В edge-стеке бот входит в `docker-compose.edge.yml`, но публичной регистрации
+нет. Доступ выдаётся только Telegram ID из `VET_BOT_ALLOWED_TELEGRAM_IDS`
+(через запятую); пустой список — бот не запускается (fail closed). Бот сам
+**не создаёт** пользователей: аккаунт для разрешённого ID создаёт админ
+(`telegram-<id>@bot.vetassistant.local`). Остальным бот отвечает:
+«Доступ к боту ограничен. Пожалуйста, запросите доступ на сайте ai-pets.ru».
+
+### 5. Настройки бота
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | — | Токен от @BotFather (обязателен) |
+| `VET_BOT_ALLOWED_TELEGRAM_IDS` | — | ID через запятую; пусто — бот не стартует |
 | `VET_BOT_API_URL` | `http://127.0.0.1:8000/v1/chat/completions` | URL API |
 | `VET_BOT_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах |
 | `VET_BOT_TIMEOUT_S` | `300` | Таймаут запроса к API |
@@ -877,7 +888,8 @@ python scripts/smoke_test.py --base-url https://app.ai-pets.ru --email owner@exa
 - **Безопасность:** Router & Triage (`app/router.py`), regex-эвристики до вызова LLM.
 - **UI:** React 19 + Vite + TypeScript + Tailwind CSS 4 (`frontend/`): SSE-стриминг, Markdown, бейджи инструментов, настройки и «Мои записи».
 - **Streamlit:** резервный UI (`app/ui.py`) с потоковым выводом и настройками температуры.
-- **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot` для dev/standalone; в production edge-стек бот не входит.
+- **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot` в dev и
+  edge-стеке; в production доступ ограничен allowlist `VET_BOT_ALLOWED_TELEGRAM_IDS`.
 - **Развёртывание:** Docker Compose для выделенного VPS и edge-стек для общего VPS с Caddy; Nginx/SSE и Caddy-блок.
 - **Production:** `docker-compose.prod.yml` + `docker-compose.ssl.yml`, единый домен, Let's Encrypt/Certbot, `scripts/deploy.sh`.
 - **CI/CD:** GitHub Actions — ruff, mypy, pytest, тесты и сборка React, Docker-образы.

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 
 from pydantic import Field
@@ -94,6 +95,29 @@ class BotSettings(BaseSettings):
         le=100,
         description="Сколько последних сообщений хранить в истории",
     )
+    allowed_telegram_ids: str = Field(
+        default="",
+        validation_alias="VET_BOT_ALLOWED_TELEGRAM_IDS",
+        description=(
+            "Telegram ID, которым разрешён бот (через запятую). "
+            "Пусто — доступ запрещён всем"
+        ),
+    )
+
+    @property
+    def allowed_id_set(self) -> frozenset[int]:
+        """Разобрать allowlist Telegram ID из строки вида ``1, 2, 3``.
+
+        Raises:
+            ValueError: в списке не целое число.
+        """
+        chunks = [part for part in re.split(r"[,\s]+", self.allowed_telegram_ids.strip()) if part]
+        try:
+            return frozenset(int(chunk) for chunk in chunks)
+        except ValueError as exc:
+            raise ValueError(
+                "VET_BOT_ALLOWED_TELEGRAM_IDS: ожидались целые числа через запятую"
+            ) from exc
 
     @property
     def resolved_auth_secret(self) -> str:

@@ -11,6 +11,7 @@ from app.tools import AVAILABLE_TOOLS, ToolCall, ToolCallFunction
 from bot.client import ChatResult, VetApiError
 from bot.conversation import ConversationStore
 from bot.service import (
+    ACCESS_DENIED_TEXT,
     GENERIC_ERROR_TEXT,
     START_TEXT,
     UNSUPPORTED_TEXT,
@@ -404,3 +405,40 @@ def test_split_message_respects_limit() -> None:
 def test_conversation_store_rejects_small_limit(max_messages: int) -> None:
     with pytest.raises(ValueError):
         ConversationStore(max_messages=max_messages)
+
+
+async def test_denied_user_gets_access_message_and_no_api_calls() -> None:
+    """T-121: Telegram ID вне allowlist не попадает в API и не создаёт аккаунт."""
+    api = FakeApi([ChatResult("не должно вызваться")])
+    store = ConversationStore()
+    bot = VetAssistantBot(api, store, allowed_ids=frozenset({2}))
+    message = FakeMessage("Кот не ест", user_id=1)
+
+    await bot.handle_text(message)
+
+    assert message.answers == [ACCESS_DENIED_TEXT]
+    assert api.calls == []
+    assert api.auth_calls == []
+    assert store.history(1) == []
+
+
+async def test_denied_start_does_not_authenticate() -> None:
+    api = FakeApi([])
+    bot = VetAssistantBot(api, ConversationStore(), allowed_ids=frozenset({2}))
+    message = FakeMessage("/start", user_id=1)
+
+    await bot.start(message)
+
+    assert message.answers == [ACCESS_DENIED_TEXT]
+    assert api.auth_calls == []
+
+
+async def test_allowed_user_can_chat() -> None:
+    api = FakeApi([ChatResult("Ответ для своего")])
+    bot = VetAssistantBot(api, ConversationStore(), allowed_ids=frozenset({7}))
+    message = FakeMessage("Вопрос", user_id=7)
+
+    await bot.handle_text(message)
+
+    assert message.answers == ["Ответ для своего"]
+    assert api.auth_calls == [7]

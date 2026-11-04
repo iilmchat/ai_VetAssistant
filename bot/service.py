@@ -49,6 +49,9 @@ UNSUPPORTED_TEXT = (
 )
 GENERIC_ERROR_TEXT = "Не удалось получить ответ. Попробуйте ещё раз чуть позже."
 NO_RESPONSE_TEXT = "Модель не вернула ответ. Попробуйте переформулировать вопрос."
+ACCESS_DENIED_TEXT = (
+    "Доступ к боту ограничен. Пожалуйста, запросите доступ на сайте ai-pets.ru"
+)
 
 
 class TelegramUser(Protocol):
@@ -187,6 +190,7 @@ class VetAssistantBot:
         use_rag: bool = True,
         use_tools: bool = True,
         tools: Sequence[dict[str, Any]] = AVAILABLE_TOOLS,
+        allowed_ids: frozenset[int] | None = None,
     ) -> None:
         self._api = api
         self._store = store
@@ -194,7 +198,23 @@ class VetAssistantBot:
         self._use_rag = use_rag
         self._use_tools = use_tools
         self._tools = tools
+        self._allowed_ids = allowed_ids
         self._tokens: dict[int, str] = {}
+
+    async def _deny_if_not_allowed(self, message: TelegramMessage) -> bool:
+        """Ответить отказом, если Telegram ID вне allowlist.
+
+        ``allowed_ids is None`` — allowlist не настроен (dev/тесты): доступ
+        разрешён. Пустое множество запрещает всех.
+        """
+        if self._allowed_ids is None:
+            return False
+        user_id = _user_id(message)
+        if user_id is not None and user_id in self._allowed_ids:
+            return False
+        logger.warning("Bot: доступ запрещён Telegram user {}", user_id)
+        await message.answer(ACCESS_DENIED_TEXT)
+        return True
 
     async def _token_for(self, user_id: int) -> str:
         """Вернуть JWT пользователя, при необходимости авторизовав его."""
@@ -207,6 +227,8 @@ class VetAssistantBot:
 
     async def start(self, message: TelegramMessage) -> None:
         """Обработать /start: очистить историю и авторизовать пользователя."""
+        if await self._deny_if_not_allowed(message):
+            return
         user_id = _user_id(message)
         if user_id is not None:
             self._store.clear(user_id)
@@ -225,10 +247,14 @@ class VetAssistantBot:
 
     async def help(self, message: TelegramMessage) -> None:
         """Обработать /help."""
+        if await self._deny_if_not_allowed(message):
+            return
         await message.answer(HELP_TEXT)
 
     async def reset(self, message: TelegramMessage) -> None:
         """Обработать /reset: забыть контекст пользователя."""
+        if await self._deny_if_not_allowed(message):
+            return
         user_id = _user_id(message)
         if user_id is not None:
             self._store.clear(user_id)
@@ -236,6 +262,8 @@ class VetAssistantBot:
 
     async def handle_unsupported(self, message: TelegramMessage) -> None:
         """Ответить на нетекстовое сообщение."""
+        if await self._deny_if_not_allowed(message):
+            return
         await message.answer(UNSUPPORTED_TEXT)
 
     async def _chat_once(
@@ -269,6 +297,8 @@ class VetAssistantBot:
 
     async def handle_text(self, message: TelegramMessage) -> None:
         """Отправить текст в API и вернуть ответ с учётом истории."""
+        if await self._deny_if_not_allowed(message):
+            return
         text = (message.text or "").strip()
         if not text:
             return

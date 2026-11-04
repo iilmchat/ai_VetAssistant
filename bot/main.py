@@ -38,6 +38,7 @@ def create_service(settings: BotSettings) -> VetAssistantBot:
         temperature=settings.temperature,
         use_rag=settings.use_rag,
         use_tools=settings.use_tools,
+        allowed_ids=settings.allowed_id_set,
     )
 
 
@@ -46,17 +47,20 @@ async def run(settings: BotSettings) -> None:
     token = settings.telegram_bot_token.strip()
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN не задан")
+    if not settings.allowed_id_set:
+        raise ValueError("VET_BOT_ALLOWED_TELEGRAM_IDS не задан: доступ запрещён всем")
 
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=None))
     dispatcher = Dispatcher()
     service = create_service(settings)
     dispatcher.include_router(build_router(service))
     logger.info(
-        "Telegram-бот запущен: API={}, модель={}, RAG={}, tools={}",
+        "Telegram-бот запущен: API={}, модель={}, RAG={}, tools={}, allowed_ids={}",
         settings.api_url,
         settings.model_id,
         settings.use_rag,
         settings.use_tools,
+        len(settings.allowed_id_set),
     )
 
     try:
@@ -74,6 +78,18 @@ def main() -> None:
         logger.error(
             "TELEGRAM_BOT_TOKEN не задан. Получите токен у @BotFather и добавьте "
             "его в .env или переменные окружения."
+        )
+        raise SystemExit(1)
+
+    try:
+        allowed_ids = settings.allowed_id_set
+    except ValueError as exc:
+        logger.error("{}", exc)
+        raise SystemExit(1) from exc
+    if not allowed_ids:
+        logger.error(
+            "VET_BOT_ALLOWED_TELEGRAM_IDS не задан или пуст. Бот не запущен: "
+            "доступ разрешён только ID из allowlist."
         )
         raise SystemExit(1)
 

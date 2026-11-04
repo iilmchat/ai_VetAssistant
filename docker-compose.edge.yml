@@ -24,7 +24,7 @@ x-app: &app
   build:
     context: .
     dockerfile: Dockerfile
-  image: vetassistant:1.4.0
+  image: vetassistant:1.5.0
   restart: unless-stopped
   logging: *default-logging
 
@@ -115,7 +115,7 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
-    image: vetassistant-frontend:1.4.0
+    image: vetassistant-frontend:1.5.0
     container_name: vetassistant-frontend
     restart: unless-stopped
     logging: *default-logging
@@ -138,6 +138,31 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  bot:
+    <<: *app
+    container_name: vetassistant-bot
+    restart: "on-failure:3"
+    command:
+      - python
+      - -m
+      - bot
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edge
+    mem_limit: 512m
+    environment:
+      # Не блокируем деплой API/frontend, если секреты ещё не заданы:
+      # бот завершится с понятной ошибкой (fail closed).
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Закрытый доступ: бот отвечает только этим Telegram ID (через запятую).
+      VET_BOT_ALLOWED_TELEGRAM_IDS: ${VET_BOT_ALLOWED_TELEGRAM_IDS:-}
+      VET_BOT_API_URL: http://api:8000/v1/chat/completions
+      VET_BOT_USE_RAG: ${VET_BOT_USE_RAG:-true}
+      VET_BOT_USE_TOOLS: ${VET_BOT_USE_TOOLS:-true}
+      VET_BOT_AUTH_SECRET: ${VET_BOT_AUTH_SECRET:-}
 
 networks:
   edge:
