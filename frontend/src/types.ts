@@ -44,6 +44,7 @@ export interface UiMessage {
   content: string
   toolCalls: ToolCall[]
   status: MessageStatus
+  createdAt?: string
   error?: string
 }
 

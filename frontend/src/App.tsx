@@ -32,6 +32,7 @@ import {
 } from './lib/auth'
 import type { AuthSession } from './lib/auth'
 import { AVAILABLE_TOOLS, mergeToolCalls } from './lib/tools'
+import { downloadChatExport } from './lib/export'
 import { errorMessage, isAbortError, isRecord, uid } from './lib/utils'
 import { Sidebar } from './components/Sidebar'
 import { MessageBubble } from './components/MessageBubble'
@@ -92,6 +93,8 @@ function loadStoredMessages(userId: number | null): UiMessage[] {
           ? item.toolCalls.filter(isToolCall)
           : [],
         status: 'done',
+        createdAt:
+          typeof item.createdAt === 'string' ? item.createdAt : undefined,
       })
     }
     return messages
@@ -283,6 +286,7 @@ function App() {
         role: message.role,
         content: message.content,
         toolCalls: message.toolCalls,
+        createdAt: message.createdAt,
       }))
 
     const key = messagesStorageKey(session.user.id)
@@ -315,6 +319,7 @@ function App() {
     }
 
     shouldStickToBottom.current = true
+    const createdAt = new Date().toISOString()
 
     const userMessage: UiMessage = {
       id: uid(),
@@ -322,6 +327,7 @@ function App() {
       content: text,
       toolCalls: [],
       status: 'done',
+      createdAt,
     }
     const assistantId = uid()
     const assistantMessage: UiMessage = {
@@ -330,6 +336,7 @@ function App() {
       content: '',
       toolCalls: [],
       status: 'streaming',
+      createdAt,
     }
 
     const history = [...messages, userMessage]
@@ -436,6 +443,13 @@ function App() {
     }
   }
 
+  function handleExportHistory() {
+    if (!session || messages.length === 0) {
+      return
+    }
+    downloadChatExport(messages, { email: session.user.email })
+  }
+
   function updateSettings(patch: Partial<ChatSettings>) {
     setSettings((previous) => ({ ...previous, ...patch }))
   }
@@ -456,6 +470,8 @@ function App() {
         settings={settings}
         onSettingsChange={updateSettings}
         onNewChat={handleNewChat}
+        canExport={messages.length > 0}
+        onExportHistory={handleExportHistory}
         appointments={appointments}
         reminders={reminders}
         recordsLoading={recordsLoading}

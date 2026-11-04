@@ -2,6 +2,7 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
+  Download,
   Loader2,
   LogOut,
   PawPrint,
@@ -31,6 +32,8 @@ interface SidebarProps {
   settings: ChatSettings
   onSettingsChange: (patch: Partial<ChatSettings>) => void
   onNewChat: () => void
+  canExport: boolean
+  onExportHistory: () => void
   appointments: Appointment[]
   reminders: Reminder[]
   recordsLoading: boolean
@@ -70,6 +73,8 @@ export function Sidebar({
   settings,
   onSettingsChange,
   onNewChat,
+  canExport,
+  onExportHistory,
   appointments,
   reminders,
   recordsLoading,
@@ -128,6 +133,21 @@ export function Sidebar({
           >
             <Plus className="h-4 w-4 text-emerald-300" />
             Новый чат
+          </button>
+
+          <button
+            type="button"
+            onClick={onExportHistory}
+            disabled={!canExport}
+            title={
+              canExport
+                ? 'Скачать историю диалога в Markdown'
+                : 'История пока пуста'
+            }
+            className="mt-2 flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-left text-[13px] font-medium text-zinc-300 transition-colors hover:border-emerald-500/25 hover:bg-white/[0.05] hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-white/10 disabled:hover:bg-white/[0.02]"
+          >
+            <Download className="h-4 w-4 text-zinc-400" />
+            Скачать историю
           </button>
         </div>
 
