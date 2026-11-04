@@ -4,6 +4,45 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.5.6] — 2026-11-05
+
+### Добавлено
+
+- **Аналитика в админ-панели (T-135).** В `AdminDashboard` появилась вкладка
+  «Аналитика»: KPI-карточки (запросы, токены, RAG hit rate, ошибки 5xx),
+  графики запросов и токенов по времени, таблица топ-5 пользователей с числом
+  запросов и потраченных токенов, переключатель 24 ч / 7 д и автообновление
+  раз в минуту. Список заявок и его approve/reject-флоу не изменились.
+- **`GET /v1/admin/metrics`** — агрегаты под `get_current_admin`: источник
+  `prometheus` (история за окно) или `in_process` (снимок с момента запуска
+  API), флаг `degraded` и `started_at`. Запросы к Prometheus — фиксированный
+  allowlist, клиент выбирает только окно.
+- **Метрики по пользователям:** `vet_llm_user_requests_total{user_id}` и
+  `vet_llm_user_tokens_total{user_id,kind}` — основа для топа пользователей.
+- Настройки `VET_API_PROMETHEUS_URL` (по умолчанию `http://prometheus:9090`)
+  и `VET_API_PROMETHEUS_TIMEOUT_S` (2 секунды).
+- SVG-график `Sparkline` и хелперы `frontend/src/lib/metrics.ts` — без новых
+  зависимостей.
+
+### Изменено
+
+- **RAG:** `scripts/download_msd.py` принимает `--url` и скачивает статьи по
+  прямым ссылкам (имя файла выводится из URL), `scripts/ingest_knowledge.py`
+  пишет «новых / обновлено / всего в коллекции». Индекс расширен до
+  766 чанков (+562 к v1.5.5), upsert сохраняет прежние чанки.
+- `DEPLOYMENT.md`: раздел «Как добавить новые статьи в RAG» и описание
+  админской аналитики (Prometheus против in-process); уточнено, что `data/`
+  смонтирован bind-mount — статьи видны в контейнере сразу после `git pull`,
+  но ingest нужно запускать вручную.
+- Версия `1.5.6` в `pyproject.toml`, FastAPI, `frontend/package.json`,
+  `frontend/package-lock.json` и README.
+
+### Исправлено
+
+- Админка не зависит от Grafana: при недоступном Prometheus эндпоинт отдаёт
+  локальный снимок с `degraded: true` вместо ошибки, а графики честно
+  показывают «история недоступна без Prometheus».
+
 ## [1.5.5] — 2026-11-04
 
 ### Добавлено

@@ -57,7 +57,12 @@ from app.database import (
     update_user_password,
 )
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
-from app.metrics import record_generation, record_rag_search, set_rag_index_ready
+from app.metrics import (
+    record_generation,
+    record_rag_search,
+    record_user_usage,
+    set_rag_index_ready,
+)
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
 from app.tools import (
@@ -254,7 +259,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.5.5", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.5.6", lifespan=lifespan)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -453,6 +458,8 @@ async def _generate_once(
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
+    *,
+    user_id: int,
 ) -> ChatCompletionResponse:
     """Один вызов модели с приведением ответа к формату OpenAI."""
     started = time.perf_counter()
@@ -470,6 +477,7 @@ async def _generate_once(
             duration_s=time.perf_counter() - started,
             status="error",
         )
+        record_user_usage(user_id)
         raise
 
     choices = result.get("choices") or []
@@ -481,6 +489,7 @@ async def _generate_once(
             duration_s=time.perf_counter() - started,
             status="empty",
         )
+        record_user_usage(user_id)
         raise HTTPException(status_code=502, detail="Модель вернула пустой ответ")
 
     choice = choices[0]
@@ -496,6 +505,11 @@ async def _generate_once(
         prompt_tokens=usage.prompt_tokens,
         completion_tokens=usage.completion_tokens,
         duration_s=time.perf_counter() - started,
+    )
+    record_user_usage(
+        user_id,
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
     )
 
     allowed_tools = _tool_names(request)
@@ -580,7 +594,13 @@ async def _complete(
     """Сгенерировать ответ, выполняя tool_calls в agentic loop."""
     working = [dict(message) for message in messages]
     executed: list[ToolCall] = []
-    response = await _generate_once(model, working, request, model_name)
+    response = await _generate_once(
+        model,
+        working,
+        request,
+        model_name,
+        user_id=user_id,
+    )
 
     for _ in range(MAX_AGENT_STEPS):
         message = response.choices[0].message
@@ -604,7 +624,13 @@ async def _complete(
                 user_id=user_id,
             )
         )
-        response = await _generate_once(model, working, request, model_name)
+        response = await _generate_once(
+            model,
+            working,
+            request,
+            model_name,
+            user_id=user_id,
+        )
 
     if executed:
         # Оставляем вызовы в ответе как визуальную индикацию для UI.
@@ -733,6 +759,11 @@ async def _stream(
             status="error",
             ttft_s=ttft_s,
         )
+        record_user_usage(
+            user_id,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
         logger.error("Ошибка потоковой генерации: {}", exc)
         error = {"error": {"message": str(exc), "type": "server_error"}}
         yield f"data: {json.dumps(error, ensure_ascii=False)}\n\n"
@@ -744,6 +775,11 @@ async def _stream(
             duration_s=time.perf_counter() - started,
             status="empty" if ttft_s is None else "success",
             ttft_s=ttft_s,
+        )
+        record_user_usage(
+            user_id,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
         )
     yield "data: [DONE]\n\n"
 

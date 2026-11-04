@@ -4,6 +4,7 @@ import {
   buildChatPayload,
   changePassword,
   fetchAdminAccessRequests,
+  fetchAdminMetrics,
   normalizeBaseUrl,
   parseSSEEvent,
   rejectAdminAccessRequest,
@@ -289,5 +290,43 @@ describe('admin API', () => {
     expect(JSON.parse(String(init.body))).toEqual({
       reason: 'Нет необходимости',
     })
+  })
+
+  it('fetchAdminMetrics передаёт окно и возвращает снимок', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          source: 'in_process',
+          degraded: false,
+          window: '24h',
+          generated_at: '2026-11-05T00:00:00Z',
+          started_at: '2026-11-04T20:00:00Z',
+          totals: {
+            requests: 12,
+            generation_errors: 1,
+            prompt_tokens: 500,
+            completion_tokens: 200,
+            tokens: 700,
+            rag_hits: 5,
+            rag_misses: 2,
+            rag_errors: 0,
+            http_errors: 0,
+            error_rate: 0.08,
+          },
+          series: [],
+          top_users: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchAdminMetrics('24h')
+
+    expect(result.source).toBe('in_process')
+    expect(result.totals.tokens).toBe(700)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/admin/metrics?window=24h',
+    )
   })
 })

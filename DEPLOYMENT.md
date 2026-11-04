@@ -878,6 +878,40 @@ scrape_configs:
 `vet_llm_time_to_first_token_seconds`, доля `vet_rag_searches_total{result="hit"}`
 и алерт на `vet_rag_index_ready == 0` после деплоя.
 
+### Админская аналитика (T-135)
+
+Вкладка «Аналитика» в админ-панели берёт данные из
+`GET /v1/admin/metrics?window=24h|7d` (только администратор). Эндпоинт сам
+ходит в Prometheus, поэтому Grafana для продукта не требуется.
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `VET_API_PROMETHEUS_URL` | `http://prometheus:9090` | Базовый URL Prometheus в сети `edge`; пусто — только локальный снимок |
+| `VET_API_PROMETHEUS_TIMEOUT_S` | `2` | Таймаут одного запроса к Prometheus |
+
+Два режима работы:
+
+- **`source: prometheus`** — суммы и графики за окно 24 часа / 7 дней,
+  топ пользователей по запросам и токенам. Запросы (PromQL) формирует только
+  API: клиент выбирает лишь окно, произвольный запрос выполнить нельзя.
+- **`source: in_process`** — fallback на снимок `prometheus_client` в процессе
+  API («с момента запуска API»). Включается, если URL пуст или Prometheus
+  не ответил за таймаут; в ответе будет `degraded: true`, а в UI — жёлтый
+  бейдж. Графики по времени в этом режиме недоступны, KPI и топ работают.
+
+Проверка из контейнера:
+
+```bash
+docker compose -f docker-compose.edge.yml exec api python -c \
+  "import urllib.request, json; r=json.load(urllib.request.urlopen('http://prometheus:9090/api/v1/query?query=up')); print(r['status'])"
+```
+
+Если видите `degraded` на проде — проверьте, что Prometheus подключён к сети
+`edge` и его имя в DNS совпадает с `VET_API_PROMETHEUS_URL`. Метрика
+`vet_llm_user_requests_total{user_id}` хранит только числовой id: email
+подставляется из БД при выдаче ответа, в Prometheus персональные данные
+не попадают.
+
 ## 10. HTTPS через Let's Encrypt / Certbot
 
 HTTPS использует **webroot-режим**: frontend на :80 отдаёт

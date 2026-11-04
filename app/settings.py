@@ -92,6 +92,19 @@ class AppSettings(BaseSettings):
             "Разрешить публичную регистрацию; в production обычно false"
         ),
     )
+    prometheus_url: str = Field(
+        default="http://prometheus:9090",
+        description=(
+            "Базовый URL Prometheus для админской аналитики (T-135). "
+            "Пусто — использовать только in-process снимок"
+        ),
+    )
+    prometheus_timeout_s: float = Field(
+        default=2.0,
+        ge=0.1,
+        le=30.0,
+        description="Таймаут запроса к Prometheus, секунды",
+    )
 
 
 @lru_cache(maxsize=1)

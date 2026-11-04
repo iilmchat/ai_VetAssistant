@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
+  Activity,
   AlertTriangle,
   ArrowLeft,
   Check,
+  ClipboardList,
   Copy,
   Loader2,
   RefreshCw,
@@ -17,12 +19,20 @@ import {
   rejectAdminAccessRequest,
 } from '../lib/api'
 import { errorMessage } from '../lib/utils'
+import { AdminAnalytics } from './AdminAnalytics'
 
 interface AdminDashboardProps {
   onClose: () => void
 }
 
 type Filter = AccessRequestStatus | 'all'
+
+type AdminTab = 'requests' | 'analytics'
+
+const TABS: { value: AdminTab; label: string; icon: typeof ClipboardList }[] = [
+  { value: 'requests', label: 'Заявки', icon: ClipboardList },
+  { value: 'analytics', label: 'Аналитика', icon: Activity },
+]
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'pending', label: 'Ожидают' },
@@ -66,6 +76,7 @@ function statusLabel(status: AccessRequestStatus): string {
 }
 
 export function AdminDashboard({ onClose }: AdminDashboardProps) {
+  const [tab, setTab] = useState<AdminTab>('requests')
   const [filter, setFilter] = useState<Filter>('pending')
   const [requests, setRequests] = useState<AdminAccessRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -184,131 +195,166 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               Администрирование
             </h1>
             <p className="truncate text-[11px] text-zinc-500">
-              Заявки на доступ к сервису
+              {tab === 'analytics'
+                ? 'Использование модели и RAG'
+                : 'Заявки на доступ к сервису'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            aria-label="Обновить"
-            className="flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Обновить</span>
-          </button>
+          {tab === 'requests' && (
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              aria-label="Обновить"
+              className="flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Обновить</span>
+            </button>
+          )}
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-7">
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {FILTERS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setFilter(item.value)}
-              className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                filter === item.value
-                  ? 'bg-emerald-500 text-emerald-950'
-                  : 'border border-white/10 text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <nav
+          aria-label="Разделы админ-панели"
+          className="mb-4 flex gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] p-1"
+        >
+          {TABS.map((item) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.value}
+                type="button"
+                aria-current={tab === item.value ? 'page' : undefined}
+                onClick={() => setTab(item.value)}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12.5px] font-medium transition-colors ${
+                  tab === item.value
+                    ? 'bg-emerald-500 text-emerald-950'
+                    : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
 
-        {error && (
-          <div
-            role="alert"
-            className="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3.5 py-3 text-[12.5px] text-rose-300"
-          >
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаю заявки…
-          </div>
-        ) : requests.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
-            Заявок нет.
-          </div>
+        {tab === 'analytics' ? (
+          <AdminAnalytics />
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
-            <table className="w-full min-w-[720px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Причина</th>
-                  <th className="px-4 py-3">Создана</th>
-                  <th className="px-4 py-3">Статус</th>
-                  <th className="px-4 py-3 text-right">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-b border-white/[0.05] align-top text-[12.5px] last:border-b-0"
-                  >
-                    <td className="px-4 py-3 font-medium text-zinc-200">
-                      {item.email}
-                    </td>
-                    <td className="max-w-[260px] px-4 py-3 text-zinc-400">
-                      <span className="line-clamp-3">{item.reason}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
-                      {formatDate(item.created_at)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${statusBadge(item.status)}`}
+          <>
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setFilter(item.value)}
+                  className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                    filter === item.value
+                      ? 'bg-emerald-500 text-emerald-950'
+                      : 'border border-white/10 text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3.5 py-3 text-[12.5px] text-rose-300"
+              >
+                {error}
+              </div>
+            )}
+
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Загружаю заявки…
+              </div>
+            ) : requests.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
+                Заявок нет.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
+                <table className="w-full min-w-[720px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Причина</th>
+                      <th className="px-4 py-3">Создана</th>
+                      <th className="px-4 py-3">Статус</th>
+                      <th className="px-4 py-3 text-right">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="border-b border-white/[0.05] align-top text-[12.5px] last:border-b-0"
                       >
-                        {statusLabel(item.status)}
-                      </span>
-                      {item.rejection_reason && (
-                        <p className="mt-1 max-w-[200px] text-[10.5px] leading-4 text-zinc-500">
-                          {item.rejection_reason}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {item.status === 'pending' ? (
-                        <div className="flex justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setApproveTarget(item)
-                              setActionError(null)
-                            }}
-                            className="rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-[11.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25"
+                        <td className="px-4 py-3 font-medium text-zinc-200">
+                          {item.email}
+                        </td>
+                        <td className="max-w-[260px] px-4 py-3 text-zinc-400">
+                          <span className="line-clamp-3">{item.reason}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
+                          {formatDate(item.created_at)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${statusBadge(item.status)}`}
                           >
-                            Approve
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRejectTarget(item)
-                              setRejectionReason('')
-                              setActionError(null)
-                            }}
-                            className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-zinc-600">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                            {statusLabel(item.status)}
+                          </span>
+                          {item.rejection_reason && (
+                            <p className="mt-1 max-w-[200px] text-[10.5px] leading-4 text-zinc-500">
+                              {item.rejection_reason}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {item.status === 'pending' ? (
+                            <div className="flex justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setApproveTarget(item)
+                                  setActionError(null)
+                                }}
+                                className="rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-[11.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectTarget(item)
+                                  setRejectionReason('')
+                                  setActionError(null)
+                                }}
+                                className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-zinc-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </main>
 

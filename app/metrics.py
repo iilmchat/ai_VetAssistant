@@ -10,7 +10,14 @@ instrumentator'а на ``/metrics``.
 
 from __future__ import annotations
 
-from prometheus_client import Counter, Gauge, Histogram
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram
+
+#: Момент старта процесса API: используется в fallback-режиме админской
+#: аналитики, когда Prometheus недоступен (T-135).
+PROCESS_STARTED_AT = datetime.now(UTC)
 
 #: Вызовы модели. ``mode`` — chat|stream, ``status`` — success|empty|error.
 GENERATION_REQUESTS = Counter(
@@ -78,6 +85,150 @@ RAG_INDEX_READY = Gauge(
     "vet_rag_index_ready",
     "Найден ли индекс ChromaDB при старте API (1/0)",
 )
+
+#: Вызовы модели в разрезе пользователей (T-135). Метка — числовой user_id:
+#: кардинальность ограничена числом пользователей, email в метрику не пишем.
+USER_REQUESTS = Counter(
+    "vet_llm_user_requests_total",
+    "Вызовы модели по пользователям",
+    ("user_id",),
+)
+
+#: Токены по пользователям и виду: ``kind`` = prompt|completion.
+USER_TOKENS = Counter(
+    "vet_llm_user_tokens_total",
+    "Токены модели по пользователям и виду",
+    ("user_id", "kind"),
+)
+
+
+@dataclass(frozen=True)
+class UserUsage:
+    """Накопленное использование модели одним пользователем."""
+
+    requests: float = 0.0
+    prompt_tokens: float = 0.0
+    completion_tokens: float = 0.0
+
+    @property
+    def tokens(self) -> float:
+        """Всего токенов (prompt + completion)."""
+        return self.prompt_tokens + self.completion_tokens
+
+
+@dataclass(frozen=True)
+class MetricsSnapshot:
+    """Снимок метрик процесса — fallback, когда Prometheus недоступен."""
+
+    requests: float = 0.0
+    generation_errors: float = 0.0
+    prompt_tokens: float = 0.0
+    completion_tokens: float = 0.0
+    rag_hits: float = 0.0
+    rag_misses: float = 0.0
+    rag_errors: float = 0.0
+    http_errors: float = 0.0
+    users: dict[int, UserUsage] = field(default_factory=dict)
+
+    @property
+    def tokens(self) -> float:
+        """Всего токенов (prompt + completion)."""
+        return self.prompt_tokens + self.completion_tokens
+
+
+def record_user_usage(
+    user_id: int,
+    *,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+) -> None:
+    """Учесть вызов модели и токены в разрезе пользователя (T-135)."""
+    key = str(int(user_id))
+    USER_REQUESTS.labels(user_id=key).inc()
+    prompt = max(int(prompt_tokens), 0)
+    completion = max(int(completion_tokens), 0)
+    if prompt:
+        USER_TOKENS.labels(user_id=key, kind="prompt").inc(prompt)
+    if completion:
+        USER_TOKENS.labels(user_id=key, kind="completion").inc(completion)
+
+
+def snapshot() -> MetricsSnapshot:
+    """Прочитать накопленные значения метрик из registry процесса.
+
+    Нужен для fallback-режима админской аналитики: цифры «с момента запуска
+    API», без истории по времени.
+    """
+    requests = 0.0
+    generation_errors = 0.0
+    prompt_tokens = 0.0
+    completion_tokens = 0.0
+    rag_hits = 0.0
+    rag_misses = 0.0
+    rag_errors = 0.0
+    http_errors = 0.0
+    users: dict[int, dict[str, float]] = {}
+
+    for metric in REGISTRY.collect():
+        for sample in metric.samples:
+            name = sample.name
+            value = float(sample.value)
+            labels = sample.labels
+
+            if name == "vet_llm_generation_requests_total":
+                requests += value
+                if labels.get("status") == "error":
+                    generation_errors += value
+            elif name == "vet_llm_prompt_tokens_total":
+                prompt_tokens += value
+            elif name == "vet_llm_completion_tokens_total":
+                completion_tokens += value
+            elif name == "vet_rag_searches_total":
+                result = labels.get("result")
+                if result == "hit":
+                    rag_hits += value
+                elif result == "miss":
+                    rag_misses += value
+                elif result == "error":
+                    rag_errors += value
+            elif name == "http_requests_total":
+                if str(labels.get("status", "")).startswith("5"):
+                    http_errors += value
+            elif name in {"vet_llm_user_requests_total", "vet_llm_user_tokens_total"}:
+                raw_user_id = labels.get("user_id", "")
+                if not raw_user_id.isdigit():
+                    continue
+                usage = users.setdefault(
+                    int(raw_user_id),
+                    {"requests": 0.0, "prompt": 0.0, "completion": 0.0},
+                )
+                if name == "vet_llm_user_requests_total":
+                    usage["requests"] += value
+                else:
+                    kind = labels.get("kind")
+                    if kind == "prompt":
+                        usage["prompt"] += value
+                    elif kind == "completion":
+                        usage["completion"] += value
+
+    return MetricsSnapshot(
+        requests=requests,
+        generation_errors=generation_errors,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        rag_hits=rag_hits,
+        rag_misses=rag_misses,
+        rag_errors=rag_errors,
+        http_errors=http_errors,
+        users={
+            user_id: UserUsage(
+                requests=usage["requests"],
+                prompt_tokens=usage["prompt"],
+                completion_tokens=usage["completion"],
+            )
+            for user_id, usage in users.items()
+        },
+    )
 
 
 def record_generation(

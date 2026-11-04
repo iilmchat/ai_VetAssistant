@@ -76,3 +76,44 @@ export interface AdminAccessRequest {
   approved_user_id: number | null
   rejection_reason: string | null
 }
+
+export type AdminMetricsSource = 'prometheus' | 'in_process'
+
+export type AdminMetricsWindow = '24h' | '7d'
+
+export interface AdminMetricsTotals {
+  requests: number
+  generation_errors: number
+  prompt_tokens: number
+  completion_tokens: number
+  tokens: number
+  rag_hits: number
+  rag_misses: number
+  rag_errors: number
+  http_errors: number
+  error_rate: number
+}
+
+export interface AdminMetricsPoint {
+  ts: string
+  requests: number
+  tokens: number
+}
+
+export interface AdminTopUser {
+  user_id: number
+  email: string
+  requests: number
+  tokens: number
+}
+
+export interface AdminMetrics {
+  source: AdminMetricsSource
+  degraded: boolean
+  window: AdminMetricsWindow
+  generated_at: string
+  started_at: string | null
+  totals: AdminMetricsTotals
+  series: AdminMetricsPoint[]
+  top_users: AdminTopUser[]
+}

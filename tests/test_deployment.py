@@ -124,17 +124,17 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_5_5_everywhere() -> None:
+def test_release_version_is_1_5_6_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
 
-    assert 'version = "1.5.5"' in _read("pyproject.toml")
-    assert 'version="1.5.5"' in _read("app/main.py")
-    assert package["version"] == "1.5.5"
-    assert lockfile["version"] == "1.5.5"
-    assert lockfile["packages"][""]["version"] == "1.5.5"
-    assert "latest_release-v1.5.5-blue" in _read("README.md")
-    assert "Production Ready — v1.5.5" in _read("README.md")
+    assert 'version = "1.5.6"' in _read("pyproject.toml")
+    assert 'version="1.5.6"' in _read("app/main.py")
+    assert package["version"] == "1.5.6"
+    assert lockfile["version"] == "1.5.6"
+    assert lockfile["packages"][""]["version"] == "1.5.6"
+    assert "latest_release-v1.5.6-blue" in _read("README.md")
+    assert "Production Ready — v1.5.6" in _read("README.md")
 
 
 def test_docker_compose_uses_dynamic_image_version() -> None:

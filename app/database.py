@@ -12,6 +12,7 @@ SQLite через aiosqlite. Таблицы создаются в lifespan FastA
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
@@ -279,6 +280,15 @@ async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
     """Найти пользователя по идентификатору."""
     result = await session.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
+
+
+async def get_users_by_ids(session: AsyncSession, user_ids: Sequence[int]) -> list[User]:
+    """Найти пользователей списком id (для админской аналитики, T-135)."""
+    unique_ids = list(dict.fromkeys(user_ids))
+    if not unique_ids:
+        return []
+    result = await session.execute(select(User).where(User.id.in_(unique_ids)))
+    return list(result.scalars().all())
 
 
 async def update_user_password(

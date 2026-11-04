@@ -1,5 +1,7 @@
 import type {
   AdminAccessRequest,
+  AdminMetrics,
+  AdminMetricsWindow,
   Appointment,
   ChatSettings,
   Reminder,
@@ -297,6 +299,17 @@ export function rejectAdminAccessRequest(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
     },
+    baseUrl,
+  )
+}
+
+export function fetchAdminMetrics(
+  window: AdminMetricsWindow = '24h',
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminMetrics> {
+  return requestJson<AdminMetrics>(
+    `/v1/admin/metrics?window=${window}`,
+    {},
     baseUrl,
   )
 }
