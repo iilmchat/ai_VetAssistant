@@ -893,6 +893,47 @@ python scripts/smoke_test.py --base-url https://app.ai-pets.ru --email owner@exa
 пользователем (регистрация в production закрыта) и проверяет главную
 страницу, чат и `GET /api/v1/appointments`, а затем выводит отчёт с ✅/❌.
 
+### Версии Docker-образов и процесс релиза (T-131)
+
+Версия образа больше не захардкожена в compose-файлах — она подтягивается из
+git-тега:
+
+```yaml
+image: vetassistant:${VETASSISTANT_VERSION:-latest}
+image: vetassistant-frontend:${VETASSISTANT_VERSION:-latest}
+```
+
+Шаг `Resolve image version from tag` в `.github/workflows/deploy.yml` берёт
+`GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5.5`), собирает образы с этим
+тегом и передаёт значение в `docker compose up`. Поэтому на сервере видно, какая
+именно сборка запущена:
+
+```bash
+docker compose -f docker-compose.edge.yml ps --format '{{.Service}} {{.Image}}'
+# api       vetassistant:1.5.5
+# bot       vetassistant:1.5.5
+# frontend  vetassistant-frontend:1.5.5
+```
+
+Без переменной (локальный `docker compose up`) используется `latest`. После
+деплоя версию можно сверить по живому API: FastAPI отдаёт её в
+`/api/openapi.json` (поле `info.version`).
+
+**Порядок релиза: сначала зелёный CI, потом тег.** CI и теговые workflow делят
+один self-hosted runner, поэтому тег, поставленный до завершения CI, ждёт в
+очереди (на `v1.5.4` — 35 минут). Правильная последовательность:
+
+```bash
+git push origin main
+gh run list --limit 3        # дождаться success у CI
+git tag -a v1.5.5 -m "VetAssistant v1.5.5"
+git push origin v1.5.5
+```
+
+С тегом `v1.5.5` пайплайн прошёл за ~14 минут: `Release` — 17 секунд,
+`Deploy` — 13м48с. Подробности — в [DEPLOYMENT.md](DEPLOYMENT.md), разделы
+6.4–6.5.
+
 ## 🛠️ Стек
 - **Данные:** Python, Pydantic, OpenAI SDK (для API), `datasets` (HF), DVC + S3 (Selectel).
 - **Обучение:** Unsloth, PyTorch, HuggingFace `transformers`, `peft`.
