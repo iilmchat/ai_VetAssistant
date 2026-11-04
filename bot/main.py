@@ -44,24 +44,29 @@ def create_service(settings: BotSettings) -> VetAssistantBot:
     )
 
 
-async def run(settings: BotSettings) -> None:
-    """Запустить long polling aiogram."""
+def create_bot(settings: BotSettings) -> Bot:
+    """Создать Bot с настраиваемым Telegram API base (reverse-proxy)."""
     token = settings.telegram_bot_token.strip()
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN не задан")
-    if not settings.allowed_id_set:
-        raise ValueError("VET_BOT_ALLOWED_TELEGRAM_IDS не задан: доступ запрещён всем")
-
     # Bot API может быть недоступен напрямую с VPS: разрешаем reverse-proxy
     # (Cloudflare Worker) через VET_BOT_TELEGRAM_API_BASE.
     session = AiohttpSession(
         api=TelegramAPIServer.from_base(settings.telegram_api_base),
     )
-    bot = Bot(
+    return Bot(
         token=token,
         session=session,
         default=DefaultBotProperties(parse_mode=None),
     )
+
+
+async def run(settings: BotSettings) -> None:
+    """Запустить long polling aiogram."""
+    if not settings.allowed_id_set:
+        raise ValueError("VET_BOT_ALLOWED_TELEGRAM_IDS не задан: доступ запрещён всем")
+
+    bot = create_bot(settings)
     dispatcher = Dispatcher()
     service = create_service(settings)
     dispatcher.include_router(build_router(service))

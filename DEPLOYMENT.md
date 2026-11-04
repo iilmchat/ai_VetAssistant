@@ -313,6 +313,9 @@ API по сети `edge`. В `.env` на сервере добавьте:
 TELEGRAM_BOT_TOKEN=123456789:AA...
 # Только эти Telegram ID могут пользоваться ботом (через запятую).
 VET_BOT_ALLOWED_TELEGRAM_IDS=111111111,222222222
+# Если с VPS заблокирован api.telegram.org — URL Cloudflare Worker.
+# По умолчанию https://api.telegram.org
+VET_BOT_TELEGRAM_API_BASE=https://tg.example.workers.dev
 ```
 
 Публичная регистрация закрыта, поэтому бот **не создаёт** аккаунты: для

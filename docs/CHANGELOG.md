@@ -4,6 +4,23 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.5.3] — 2026-11-04
+
+### Добавлено
+
+- **Telegram API через reverse-proxy (Cloudflare Worker).** Переменная
+  `VET_BOT_TELEGRAM_API_BASE` (по умолчанию `https://api.telegram.org`)
+  позволяет направить Bot API на Worker, если прямой доступ к
+  `api.telegram.org` с VPS заблокирован. `bot/main.py` создаёт
+  `AiohttpSession(api=TelegramAPIServer.from_base(...))`; переменная передаётся
+  в контейнер `bot` через `docker-compose.edge.yml`.
+- Тесты `create_bot` с `http://mock` — без обращений к реальному Telegram.
+
+### Изменено
+
+- Версия `1.5.3` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
+  и `frontend/package.json`.
+
 ## [1.5.2] — 2026-11-04
 
 ### Исправлено

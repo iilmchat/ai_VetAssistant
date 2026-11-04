@@ -50,6 +50,9 @@ def test_edge_compose_has_no_published_ports_and_secure_bot() -> None:
         "${VET_BOT_ALLOWED_TELEGRAM_IDS:-}"
     )
     assert bot_env["VET_BOT_USE_RAG"] == "${VET_BOT_USE_RAG:-true}"
+    assert bot_env["VET_BOT_TELEGRAM_API_BASE"] == (
+        "${VET_BOT_TELEGRAM_API_BASE:-https://api.telegram.org}"
+    )
 
 
 def test_edge_networks_are_isolated_correctly() -> None:
