@@ -55,7 +55,10 @@ class LoginRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    email: EmailStr
+    # Логин — это идентификатор, а не адрес для доставки почты. Синтетические
+    # Telegram-аккаунты используют зарезервированный домен .local, который
+    # EmailStr отвергает; для входа достаточно строки.
+    email: str = Field(min_length=1, max_length=320)
     password: str = Field(min_length=1, max_length=MAX_PASSWORD_BYTES)
 
 

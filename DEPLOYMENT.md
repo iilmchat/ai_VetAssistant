@@ -323,11 +323,14 @@ VET_BOT_TELEGRAM_API_BASE=https://tg.example.workers.dev
 
 ```bash
 docker compose -f docker-compose.edge.yml exec api \
-  python scripts/create_user.py --email telegram-111111111@bot.vetassistant.local
+  python scripts/create_telegram_user.py --telegram-id 111111111
 
 docker compose -f docker-compose.edge.yml up -d bot
 docker compose -f docker-compose.edge.yml logs -f bot
 ```
+
+`create_telegram_user.py` сам вычисляет synthetic email и пароль из
+`VET_BOT_AUTH_SECRET` (fallback — `TELEGRAM_BOT_TOKEN`) и не печатает пароль.
 
 Проверка:
 - `/start` и вопрос по базе знаний от ID из allowlist работают, RAG включён;

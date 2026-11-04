@@ -496,6 +496,14 @@ docker compose up -d bot
 (`telegram-<id>@bot.vetassistant.local`). Остальным бот отвечает:
 «Доступ к боту ограничен. Пожалуйста, запросите доступ на сайте ai-pets.ru».
 
+```bash
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/create_telegram_user.py --telegram-id 111111111
+```
+
+Скрипт сам выводит email и id, пароль не печатает: он детерминированно
+вычисляется из `VET_BOT_AUTH_SECRET` (fallback — `TELEGRAM_BOT_TOKEN`).
+
 Если с VPS заблокирован прямой доступ к `api.telegram.org`, укажите
 reverse-proxy (например, Cloudflare Worker) в
 `VET_BOT_TELEGRAM_API_BASE` — бот создаст `AiohttpSession` с этим

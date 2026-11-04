@@ -303,6 +303,17 @@ def test_auth_rejects_wrong_password(client: TestClient) -> None:
     assert wrong.status_code == 401
 
 
+def test_login_accepts_telegram_synthetic_email(client: TestClient) -> None:
+    """Синтетический email бота с доменом .local должен проходить login."""
+    headers = _seed_user(
+        client,
+        "telegram-1133302963@bot.vetassistant.local",
+        "secret-pass-1",
+    )
+
+    assert headers["Authorization"].startswith("Bearer ")
+
+
 def test_access_request_creates_pending_row(
     client: TestClient,
     db_url: str,
