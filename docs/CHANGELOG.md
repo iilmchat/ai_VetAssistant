@@ -14,12 +14,33 @@
   `api.telegram.org` с VPS заблокирован. `bot/main.py` создаёт
   `AiohttpSession(api=TelegramAPIServer.from_base(...))`; переменная передаётся
   в контейнер `bot` через `docker-compose.edge.yml`.
+- `scripts/create_telegram_user.py` — создание Telegram-пользователя одной
+  командой: скрипт сам вычисляет synthetic email и пароль из
+  `VET_BOT_AUTH_SECRET` (fallback — `TELEGRAM_BOT_TOKEN`) и не печатает пароль.
 - Тесты `create_bot` с `http://mock` — без обращений к реальному Telegram.
 
 ### Изменено
 
+- **CI/CD (T-130).** Из `release.yml` удалена сборка Docker-образов `api` и
+  `frontend`: тег `v*` больше не собирает образы дважды, сборка осталась
+  только в `deploy.yml`, а `release.yml` создаёт исключительно GitHub Release.
+  Job `build-and-release` переименован в `create-release` с таймаутом 10 минут.
 - Версия `1.5.3` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
   и `frontend/package.json`.
+
+### Исправлено
+
+- **Авторизация синтетических email Telegram-пользователей (хотфикс
+  `425933e`).** `LoginRequest.email` больше не `EmailStr`: для входа достаточно
+  строки, поэтому адреса вида `telegram-<id>@bot.vetassistant.local` с
+  зарезервированным доменом `.local` принимаются, и бот снова отвечает на
+  вопросы в Telegram, в том числе через RAG. Регрессионный тест — в
+  `tests/test_api.py`.
+- **Гонки в CI/CD.** Деплой сериализован через
+  `concurrency: deploy-production` (второй запуск ждёт первый); `deploy.yml`
+  собирает `api` и `frontend` по отдельности, иначе параллельный `docker build`
+  падал с `image already exists`; стек поднимается через `up -d --no-build`,
+  чтобы контейнеры не стартовали на старом образе.
 
 ## [1.5.2] — 2026-11-04
 

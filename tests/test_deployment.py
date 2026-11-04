@@ -197,6 +197,39 @@ def test_all_workflows_use_self_hosted_label_set() -> None:
             assert job["runs-on"] == ["self-hosted", "linux", "x64", "vps"]
 
 
+def test_release_workflow_only_creates_github_release() -> None:
+    """T-130: тег `v*` не должен собирать образы в release.yml."""
+    workflow = _yaml(".github/workflows/release.yml")
+    job = workflow["jobs"]["create-release"]
+    steps = job["steps"]
+
+    assert [step["name"] for step in steps] == [
+        "Checkout code",
+        "Create GitHub Release",
+    ]
+    assert steps[1]["uses"] == "softprops/action-gh-release@v2"
+    assert steps[1]["with"]["tag_name"] == "${{ github.ref_name }}"
+    assert steps[1]["with"]["body_path"] == "docs/CHANGELOG.md"
+
+    serialized = json.dumps(workflow)
+    assert "docker build" not in serialized
+    assert "setup-buildx-action" not in serialized
+    assert "docker build" not in json.dumps(_yaml(".github/workflows/release.yml"))
+
+
+def test_docker_images_built_only_by_deploy_workflow() -> None:
+    """T-130: единственное место сборки production-образов — deploy.yml."""
+    deploy = _yaml(".github/workflows/deploy.yml")
+    script = deploy["jobs"]["deploy"]["steps"][0]["run"]
+
+    assert "docker compose -f docker-compose.edge.yml build api frontend" in script
+    assert "docker compose -f docker-compose.edge.yml up -d --no-build" in script
+
+    release = json.dumps(_yaml(".github/workflows/release.yml"))
+    assert "docker build" not in release
+    assert "docker compose" not in release
+
+
 def test_ci_skips_pull_requests_from_forks() -> None:
     """T-127: self-hosted runner не выполняет код из форков."""
     workflow = _yaml(".github/workflows/ci.yml")

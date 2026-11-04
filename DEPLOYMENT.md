@@ -353,6 +353,11 @@ docker compose -f docker-compose.edge.yml up -d --no-build
 Раздельная сборка убирает гонку Docker за общий image tag между api и bot.
 SSH-секреты и внешние SSH-экшены больше не используются.
 
+Сборка образов выполняется **только** в `deploy.yml`. `.github/workflows/release.yml`
+по тому же тегу `v*` создаёт GitHub Release и больше не делает `docker build`:
+раньше оба workflow собирали `api`/`frontend` на одном VPS, и каждый тег тратил
+на это лишние 20–30 минут (T-130).
+
 ### 6.1. Self-hosted runner на VPS
 
 В GitHub откройте **Settings → Actions → Runners → New self-hosted runner**

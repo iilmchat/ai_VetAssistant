@@ -8,23 +8,17 @@ name: Release
 permissions:
   contents: write
 
+# T-130: образы собираются только в deploy.yml. Тег `v*` раньше запускал
+# docker build и в release.yml, и в deploy.yml — двойная нагрузка на VPS
+# и лишние 20–30 минут. Здесь остаётся только создание GitHub Release.
 jobs:
-  build-and-release:
-    name: Build & Release
+  create-release:
+    name: Create GitHub Release
     runs-on: [self-hosted, linux, x64, vps]
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build API Docker image
-        run: docker build -t "vetassistant:${GITHUB_REF_NAME}" .
-
-      - name: Build frontend Docker image
-        run: docker build -t "vetassistant-frontend:${GITHUB_REF_NAME}" ./frontend
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

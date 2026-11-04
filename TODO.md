@@ -391,12 +391,12 @@
 - **Оценка:** 0.5
 - **Статус:** выполнено: 5 статей добавлены, RAG обновлён до 204 чанков (upsert), `App.tsx` применяет `/auth/me` к сессии и `localStorage`, версия `1.5.0`.
 
-### [ ] T-130. Оптимизация CI/CD: убрать двойную сборку образов
+### [x] T-130. Оптимизация CI/CD: убрать двойную сборку образов
 - **Зависит от:** T-128
 - **Что:** Сейчас `release.yml` собирает Docker-образы `api` и `frontend`, а затем `deploy.yml` собирает их **заново** на том же VPS. Это двойная нагрузка на сервер и лишние 20–30 минут на каждый тег. Убрать сборку из `release.yml` (оставить только создание GitHub Release) и переложить её полностью на `deploy.yml`; либо объединить workflows в один, если так проще сохранить атомарность «сборка → релиз → деплой».
 - **DoD:** тег `v*` запускает сборку образов ровно один раз; `release.yml` не делает `docker build`; GitHub Release создаётся; `deploy.yml` собирает `api`/`frontend` и поднимает стек; время тега сокращено; workflow-тесты обновлены; деплой остаётся зелёным.
 - **Оценка:** 0.5
-- **Статус:** запланирована.
+- **Статус:** выполнено: из `.github/workflows/release.yml` удалены `setup-buildx-action` и обе сборки (`docker build` для `api` и `frontend`); job переименован в `create-release` (таймаут 10 минут), остались `actions/checkout` и `softprops/action-gh-release@v2`; единственная сборка production-образов — `deploy.yml` (`docker compose … build api frontend` + `up -d --no-build`). Добавлены workflow-тесты `test_release_workflow_only_creates_github_release` и `test_docker_images_built_only_by_deploy_workflow`; `tests/test_deployment.py` — 21 passed, `ruff`/`mypy` чисто. Запись `v1.5.3` в `docs/CHANGELOG.md` дополнена (T-130, синтетические email, гонки CI/CD), `DEPLOYMENT.md` §6 обновлён; тег `v1.5.4` — контрольный прогон CI/CD с новыми правилами.
 
 > **Расширение RAG (вне релиза):** скачать дополнительные статьи MSD Vet
 > Manual, прогнать `scripts/ingest_knowledge.py` (upsert безопасен для текущих
