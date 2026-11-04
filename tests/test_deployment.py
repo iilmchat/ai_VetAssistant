@@ -196,6 +196,18 @@ def test_all_workflows_use_self_hosted_label_set() -> None:
             assert job["runs-on"] == ["self-hosted", "linux", "x64", "vps"]
 
 
+def test_ci_skips_pull_requests_from_forks() -> None:
+    """T-127: self-hosted runner не выполняет код из форков."""
+    workflow = _yaml(".github/workflows/ci.yml")
+    expected = (
+        "github.event_name == 'push' || "
+        "github.event.pull_request.head.repo.full_name == github.repository"
+    )
+
+    for job in workflow["jobs"].values():
+        assert job["if"] == expected
+
+
 def test_setup_deploy_user_script_is_safe_and_idempotent() -> None:
     script = _read("scripts/setup_deploy_user.sh")
 

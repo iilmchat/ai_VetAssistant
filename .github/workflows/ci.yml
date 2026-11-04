@@ -17,6 +17,9 @@ concurrency:
 jobs:
   lint-and-test:
     name: Lint & Test
+    # Self-hosted runner имеет доступ к Docker и production-каталогу:
+    # не выполняем код из форков, только push в main и PR этого репозитория.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, vps]
     timeout-minutes: 60
     steps:
@@ -56,6 +59,7 @@ jobs:
 
   frontend:
     name: Frontend
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, vps]
     timeout-minutes: 15
     defaults:
@@ -86,6 +90,7 @@ jobs:
 
   docker-build:
     name: Docker Build
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, vps]
     timeout-minutes: 60
     steps:

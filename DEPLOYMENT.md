@@ -382,6 +382,11 @@ sudo chown -R runner:runner /srv/vetassistant
 sudo -u runner docker ps
 ```
 
+> **Безопасность:** self-hosted runner имеет доступ к Docker и production-
+> каталогу. В `ci.yml` у всех джобов стоит условие
+> `github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository`,
+> поэтому код из форков на VPS не выполняется. Не снимайте это условие.
+
 ### 6.2. Проверка регистрации runner
 
 ```bash
