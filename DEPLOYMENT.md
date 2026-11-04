@@ -504,17 +504,26 @@ scp data/gguf/qwen3-8b-vet-Q4_K_M.gguf \
 Статьи лежат в `data/knowledge/` и хранятся в Git (TXT/PDF, включая
 `data/knowledge/real/`). На сервере каталог монтируется в API как
 `/app/data/knowledge`, поэтому отдельная DVC-загрузка не нужна: достаточно
-`git pull`.
+`git pull`. В репозитории уже есть 3 демо-файла и 2 реальные статьи MSD Vet
+Manual (`real/msd_toxicoses_from_human_analgesics.txt`,
+`real/msd_acute_hemorrhagic_diarrhea_dogs.txt`); после `git pull` они
+оказываются на сервере автоматически.
 
 Edge-стек автоматически строит индекс при старте API:
 
 - entrypoint проверяет коллекцию `msd_vet_manual` в `data/chroma_db`;
 - если коллекции нет или она пуста, запускается
   `scripts/ingest_knowledge.py` **до** старта `uvicorn`;
-- модель эмбеддингов скачивается один раз и кешируется в volume `hf_cache`
-  (`/root/.cache/huggingface`), а не в контейнере;
+- модель эмбеддингов
+  `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` скачивается
+  из HuggingFace при первом ingest (нужен исходящий доступ в интернет) и
+  кешируется в volume `hf_cache` (`/root/.cache/huggingface`), а не в
+  контейнере;
 - после ingest процесс завершается, и только затем загружается API — это
-  важно на сервере с 6 ГБ RAM.
+  важно на сервере с 6 ГБ RAM;
+- если индекс собрать не удалось, API всё равно стартует без RAG и пишет
+  предупреждение `RAG: индекс ChromaDB не найден ...` в лог; при
+  `VET_API_INGEST_STRICT=1` деплой падает.
 
 Управление поведением в `.env`:
 
@@ -523,13 +532,22 @@ VET_API_AUTO_INGEST=1       # 0 — отключить автоматическ�
 VET_API_INGEST_STRICT=0     # 1 — падать деплоем при ошибке ingest
 ```
 
-Ручная пересборка индекса в контейнере:
+Ручное обновление индекса в контейнере (по умолчанию `upsert`: коллекция
+сохраняется, существующие чанки обновляются, новые добавляются):
 
 ```bash
 docker compose -f docker-compose.edge.yml exec api \
   python scripts/ingest_knowledge.py \
   --knowledge-dir /app/data/knowledge \
   --chroma-dir /app/data/chroma_db
+```
+
+Полная пересборка с удалением коллекции — только с флагом `--rebuild`
+(например, после массового удаления статей):
+
+```bash
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/ingest_knowledge.py --rebuild
 ```
 
 > На 6 ГБ RAM запуск ingest внутри уже работающего API может привести к
@@ -546,6 +564,9 @@ docker compose -f docker-compose.edge.yml run --rm --no-deps \
   --chroma-dir /app/data/chroma_db
 docker compose -f docker-compose.edge.yml up -d api
 ```
+
+Существующий индекс при этом не теряется: 77 чанков из текущих статей
+останутся, если не передан `--rebuild`.
 
 Проверить, что индекс собран:
 
@@ -572,6 +593,27 @@ docker compose -f docker-compose.edge.yml logs api | grep -E "RAG|чанк"
 
 Если RAG не отвечает, проверьте, что `data/knowledge/*.txt` есть на сервере
 и индекс пересобран после `git pull`.
+
+Если нужно добавить статьи, которых нет в Git (например, свежий PDF/TXT MSD
+Vet Manual), скопируйте их на сервер и пересоберите индекс:
+
+```bash
+# с локальной машины — в каталог, который монтируется в API
+scp data/knowledge/real/new-article.pdf \
+  root@62.109.1.230:/srv/vetassistant/data/knowledge/real/
+
+# на сервере — остановить API, собрать индекс, поднять API (см. выше)
+docker compose -f docker-compose.edge.yml stop api
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  --entrypoint python api \
+  scripts/ingest_knowledge.py \
+  --knowledge-dir /app/data/knowledge \
+  --chroma-dir /app/data/chroma_db
+docker compose -f docker-compose.edge.yml up -d api
+```
+
+Файл, скопированный только через `scp`, не попадёт в Git: если статья нужна
+на всех окружениях, положите её в `data/knowledge/` локально и закоммитьте.
 
 ## 9. Проверка после запуска
 
@@ -610,6 +652,60 @@ docker stats
 # Проверка конфигурации без запуска
 docker compose -f docker-compose.prod.yml config
 ```
+
+### Метрики Prometheus (T-117)
+
+API отдаёт метрики на `GET /metrics` (порт `8000`). Наружу эндпоинт не
+публикуется: Caddy проксирует только `/api/*`, а сам API доступен лишь во
+внутренних сетях Docker. Prometheus должен ходить на
+`vetassistant-api:8000` по сети `edge`.
+
+Проверка из контейнера:
+
+```bash
+docker compose -f docker-compose.edge.yml exec api python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/metrics').read().decode()[:800])"
+```
+
+Ожидаемо: HTTP `200`, `Content-Type: text/plain; version=0.0.4`, строки
+`# HELP`/`# TYPE` и метрики из таблицы ниже.
+
+| Метрика | Тип | Что показывает |
+|---|---|---|
+| `http_requests_total{handler,method,status}` | counter | Запросы к API по эндпоинту и коду ответа |
+| `http_request_duration_seconds` | histogram | Латентность HTTP-запросов |
+| `vet_llm_generation_requests_total{mode,status}` | counter | Вызовы модели: `chat`/`stream`, `success`/`empty`/`error` |
+| `vet_llm_prompt_tokens_total` | counter | Токены промпта, обработанные моделью |
+| `vet_llm_completion_tokens_total` | counter | Сгенерированные токены |
+| `vet_llm_generation_seconds{mode}` | histogram | Полное время генерации |
+| `vet_llm_time_to_first_token_seconds{mode}` | histogram | Время до первого токена SSE |
+| `vet_llm_completion_tokens_per_second` | histogram | Скорость генерации, токенов/с |
+| `vet_rag_searches_total{result}` | counter | RAG-поиски: `hit`/`miss`/`error` |
+| `vet_rag_chunks_retrieved` | histogram | Сколько чанков вернул поиск |
+| `vet_rag_search_seconds` | histogram | Длительность RAG-поиска |
+| `vet_rag_index_ready` | gauge | `1` — индекс ChromaDB найден при старте, `0` — RAG нет |
+
+`llama-cpp-python` не поддерживает флаг `--metrics` и не отдаёт тайминги
+llama.cpp server, поэтому `vet_llm_*` считаются в API по `usage` и времени
+вызова. В стриминговых ответах `usage` недоступен: для них точны латентность
+и TTFT, а счётчики токенов растут только если провайдер прислал `usage` в
+чанке. Нестриминговые запросы и agentic loop дают точные токены.
+
+Пример scrape-конфига Prometheus (Prometheus подключён к сети `edge`):
+
+```yaml
+scrape_configs:
+  - job_name: vetassistant-api
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["vetassistant-api:8000"]
+```
+
+Для Grafana полезны панели: RPS и p95 `http_request_duration_seconds`,
+`rate(vet_llm_completion_tokens_total[5m])`, p95
+`vet_llm_time_to_first_token_seconds`, доля `vet_rag_searches_total{result="hit"}`
+и алерт на `vet_rag_index_ready == 0` после деплоя.
 
 ## 10. HTTPS через Let's Encrypt / Certbot
 

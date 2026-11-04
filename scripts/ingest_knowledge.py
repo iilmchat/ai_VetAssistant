@@ -1,16 +1,22 @@
 #!/usr/bin/env python
-"""Индексация базы знаний в локальную ChromaDB (T-026, T-030).
+"""Индексация базы знаний в локальную ChromaDB (T-026, T-030, T-117).
 
 Скрипт рекурсивно читает ``*.txt`` и ``*.pdf`` из ``data/knowledge/``,
 режет текст на чанки по 500 символов, считает эмбеддинги через
 sentence-transformers и сохраняет их в ``data/chroma_db``. PDF извлекаются
 через ``pypdf``.
 
+По умолчанию индекс обновляется инкрементально: коллекция не удаляется,
+чанки записываются через ``upsert`` (совпадающие id обновляются, новые
+добавляются). Полная пересборка с удалением коллекции — ``--rebuild``.
+Модель эмбеддингов скачивается при первом запуске и кешируется HuggingFace.
+
 Примеры::
 
     python scripts/ingest_knowledge.py --help
     python scripts/ingest_knowledge.py --dry-run
     python scripts/ingest_knowledge.py
+    python scripts/ingest_knowledge.py --rebuild
 """
 
 from __future__ import annotations
@@ -179,8 +185,14 @@ def ingest_chunks(
     chroma_dir: Path,
     collection_name: str,
     model_name: str,
+    rebuild: bool = False,
 ) -> int:
-    """Пересоздать коллекцию ChromaDB и записать эмбеддинги чанков."""
+    """Записать эмбеддинги чанков в ChromaDB.
+
+    По умолчанию коллекция не удаляется: чанки пишутся через ``upsert``,
+    поэтому уже собранный индекс дополняется и обновляется. При
+    ``rebuild=True`` коллекция пересоздаётся с нуля.
+    """
     # Тяжёлые зависимости импортируются здесь: --dry-run и тесты не требуют
     # скачивать torch/sentence-transformers.
     from chromadb import PersistentClient
@@ -188,13 +200,15 @@ def ingest_chunks(
 
     chroma_dir.mkdir(parents=True, exist_ok=True)
     client = PersistentClient(path=str(chroma_dir))
-    try:
-        client.delete_collection(collection_name)
-        logger.info("Старая коллекция {} удалена", collection_name)
-    except Exception:
-        logger.debug("Коллекция {} ещё не существует", collection_name)
+    if rebuild:
+        try:
+            client.delete_collection(collection_name)
+            logger.info("Старая коллекция {} удалена (--rebuild)", collection_name)
+        except Exception:
+            logger.debug("Коллекция {} ещё не существует", collection_name)
 
-    collection = client.create_collection(
+    # get_or_create: существующая коллекция сохраняется, новая создаётся.
+    collection = client.get_or_create_collection(
         name=collection_name,
         metadata={"hnsw:space": "cosine"},
     )
@@ -209,7 +223,7 @@ def ingest_chunks(
             normalize_embeddings=True,
             show_progress_bar=False,
         )
-        collection.add(
+        collection.upsert(
             ids=[chunk.id for chunk in batch],
             documents=[chunk.text for chunk in batch],
             metadatas=[{"source": chunk.source} for chunk in batch],
@@ -277,6 +291,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help=f"перекрытие чанков в символах (по умолчанию {DEFAULT_OVERLAP})",
     )
     parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="удалить коллекцию и собрать индекс заново (по умолчанию upsert)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="показать файлы и чанки, не создавая ChromaDB",
@@ -321,12 +340,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             logger.info("DRY-RUN {} [{}]: {}", chunk.id, chunk.source, chunk.text[:120])
         return 0
 
+    logger.info(
+        "Режим: {}",
+        "полная пересборка (--rebuild)"
+        if args.rebuild
+        else "инкрементальное обновление (upsert, коллекция сохраняется)",
+    )
+
     try:
         count = ingest_chunks(
             chunks,
             chroma_dir=args.chroma_dir,
             collection_name=str(args.collection),
             model_name=str(args.embedding_model),
+            rebuild=bool(args.rebuild),
         )
     except Exception as exc:
         logger.exception("Не удалось построить базу знаний: {}", exc)

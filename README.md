@@ -1,14 +1,14 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.2.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.3.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.2.1** (2026-11-04)
-**Релиз:** разделение лендинга и приложения по доменам, закрытый доступ по
-заявкам и статический лендинг
+**Статус:** ✅ **Production Ready — v1.3.0** (2026-11-04)
+**Релиз:** метрики Prometheus, готовность RAG к production и разделение
+лендинга и приложения по доменам
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
@@ -16,6 +16,7 @@
 - **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
+- **Метрики:** Prometheus `GET /metrics` — HTTP-запросы, латентность LLM, токены, TTFT и RAG
 - **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
 - **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -25,7 +26,7 @@
 
 **Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md)
 
-## 🌐 Архитектура доменов (v1.2.1)
+## 🌐 Архитектура доменов
 
 Лендинг и приложение разнесены по доменам — это финал Фазы 2:
 

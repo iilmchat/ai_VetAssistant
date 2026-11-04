@@ -23,6 +23,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from loguru import logger
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -55,6 +56,7 @@ from app.database import (
     update_user_password,
 )
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
+from app.metrics import record_generation, record_rag_search, set_rag_index_ready
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
 from app.tools import (
@@ -223,6 +225,21 @@ def get_model() -> ChatModel:
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Создать таблицы при старте и закрыть пул БД при остановке."""
     settings = get_app_settings()
+
+    # RAG-индекс проверяется до загрузки модели: если его нет, API стартует
+    # без базы знаний и явно предупреждает в логах. Ingest — отдельный шаг
+    # (entrypoint контейнера или scripts/ingest_knowledge.py).
+    rag_ready = (settings.chroma_dir / "chroma.sqlite3").exists()
+    set_rag_index_ready(rag_ready)
+    if rag_ready:
+        logger.info("RAG: индекс ChromaDB найден: {}", settings.chroma_dir)
+    else:
+        logger.warning(
+            "RAG: индекс ChromaDB не найден ({}), API запускается без базы знаний. "
+            "Соберите индекс: python scripts/ingest_knowledge.py",
+            settings.chroma_dir,
+        )
+
     database = Database(settings.database_url)
     application.state.db = database
     await database.create_tables()
@@ -236,7 +253,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.3.0", lifespan=lifespan)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -252,6 +269,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prometheus: стандартные HTTP-метрики + кастомные vet_llm_*/vet_rag_*.
+# /metrics не публикуется наружу: Caddy проксирует только /api/*, а сам API
+# доступен лишь во внутренних сетях Docker — Prometheus ходит на
+# vetassistant-api:8000 по сети edge.
+Instrumentator().instrument(app).expose(app)
 
 
 def _auth_response(user: User, settings: AppSettings) -> AuthResponse:
@@ -429,13 +452,32 @@ async def _generate_once(
     model_name: str,
 ) -> ChatCompletionResponse:
     """Один вызов модели с приведением ответа к формату OpenAI."""
-    result = await run_in_threadpool(
-        model.create_chat_completion,
-        messages=messages,
-        **_generation_kwargs(request),
-    )
+    started = time.perf_counter()
+    try:
+        result = await run_in_threadpool(
+            model.create_chat_completion,
+            messages=messages,
+            **_generation_kwargs(request),
+        )
+    except Exception:
+        record_generation(
+            "chat",
+            prompt_tokens=0,
+            completion_tokens=0,
+            duration_s=time.perf_counter() - started,
+            status="error",
+        )
+        raise
+
     choices = result.get("choices") or []
     if not choices:
+        record_generation(
+            "chat",
+            prompt_tokens=0,
+            completion_tokens=0,
+            duration_s=time.perf_counter() - started,
+            status="empty",
+        )
         raise HTTPException(status_code=502, detail="Модель вернула пустой ответ")
 
     choice = choices[0]
@@ -445,6 +487,12 @@ async def _generate_once(
         prompt_tokens=int(usage_payload.get("prompt_tokens", 0)),
         completion_tokens=int(usage_payload.get("completion_tokens", 0)),
         total_tokens=int(usage_payload.get("total_tokens", 0)),
+    )
+    record_generation(
+        "chat",
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        duration_s=time.perf_counter() - started,
     )
 
     allowed_tools = _tool_names(request)
@@ -647,6 +695,11 @@ async def _stream(
             yield chunk
         return
 
+    started = time.perf_counter()
+    ttft_s: float | None = None
+    prompt_tokens = 0
+    completion_tokens = 0
+
     try:
         stream = await run_in_threadpool(
             model.create_chat_completion,
@@ -655,12 +708,40 @@ async def _stream(
             **_generation_kwargs(request),
         )
         async for chunk in iterate_in_threadpool(stream):
-            payload = {**chunk, "model": model_name} if isinstance(chunk, dict) else chunk
+            if ttft_s is None:
+                ttft_s = time.perf_counter() - started
+            if isinstance(chunk, dict):
+                # llama-cpp-python не отдаёт usage в стриме; если чанк с
+                # usage всё же пришёл, учитываем точные токены.
+                usage_payload = chunk.get("usage") or {}
+                if usage_payload:
+                    prompt_tokens = int(usage_payload.get("prompt_tokens", 0))
+                    completion_tokens = int(usage_payload.get("completion_tokens", 0))
+                payload = {**chunk, "model": model_name}
+            else:
+                payload = chunk
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
     except Exception as exc:
+        record_generation(
+            "stream",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            duration_s=time.perf_counter() - started,
+            status="error",
+            ttft_s=ttft_s,
+        )
         logger.error("Ошибка потоковой генерации: {}", exc)
         error = {"error": {"message": str(exc), "type": "server_error"}}
         yield f"data: {json.dumps(error, ensure_ascii=False)}\n\n"
+    else:
+        record_generation(
+            "stream",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            duration_s=time.perf_counter() - started,
+            status="empty" if ttft_s is None else "success",
+            ttft_s=ttft_s,
+        )
     yield "data: [DONE]\n\n"
 
 
@@ -710,11 +791,23 @@ async def chat_completions(
     if request.use_rag and knowledge is not None:
         query = _last_user_message(request.messages)
         if query:
+            rag_started = time.perf_counter()
             try:
                 chunks = knowledge.search(query, top_k=settings.rag_top_k)
             except Exception as exc:
+                record_rag_search(
+                    result="error",
+                    chunks=0,
+                    duration_s=time.perf_counter() - rag_started,
+                )
                 logger.warning("RAG: поиск не удался — {}", exc)
                 chunks = []
+            else:
+                record_rag_search(
+                    result="hit" if chunks else "miss",
+                    chunks=len(chunks),
+                    duration_s=time.perf_counter() - rag_started,
+                )
             if chunks:
                 messages = with_rag_context(messages, chunks)
                 logger.info("RAG: добавлено чанков: {}", len(chunks))

@@ -1,12 +1,67 @@
-"""Тесты индексации базы знаний (T-026)."""
+"""Тесты индексации базы знаний (T-026, T-117)."""
 
 from __future__ import annotations
 
+import sys
+import types
 from pathlib import Path
 
 import pytest
 
-from scripts.ingest_knowledge import build_chunks, chunk_text, load_documents, main, read_pdf
+from scripts.ingest_knowledge import (
+    build_chunks,
+    chunk_text,
+    ingest_chunks,
+    load_documents,
+    main,
+    read_pdf,
+)
+
+
+def _install_fake_rag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Подменить chromadb/sentence-transformers, не скачивая torch."""
+    upserts: list[dict[str, object]] = []
+    deleted: list[str] = []
+
+    class FakeCollection:
+        def upsert(self, **kwargs: object) -> None:
+            upserts.append(kwargs)
+
+    class FakeClient:
+        def __init__(self, path: str) -> None:
+            self.path = path
+
+        def delete_collection(self, name: str) -> None:
+            deleted.append(name)
+
+        def get_or_create_collection(
+            self,
+            name: str,
+            metadata: dict[str, str] | None = None,
+        ) -> FakeCollection:
+            assert metadata == {"hnsw:space": "cosine"}
+            return FakeCollection()
+
+    class FakeVector(list[float]):
+        def tolist(self) -> list[float]:
+            return list(self)
+
+    class FakeModel:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def encode(self, texts: list[str], **kwargs: object) -> list[FakeVector]:
+            return [FakeVector([0.1, 0.2]) for _ in texts]
+
+    chromadb = types.ModuleType("chromadb")
+    chromadb.PersistentClient = FakeClient  # type: ignore[attr-defined]
+    sentence_transformers = types.ModuleType("sentence_transformers")
+    sentence_transformers.SentenceTransformer = FakeModel  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "chromadb", chromadb)
+    monkeypatch.setitem(sys.modules, "sentence_transformers", sentence_transformers)
+    return upserts, deleted
 
 
 def test_chunk_text_respects_max_size() -> None:
@@ -137,3 +192,44 @@ def test_dry_run_reports_missing_directory(tmp_path: Path) -> None:
     exit_code = main(["--knowledge-dir", str(directory), "--dry-run"])
 
     assert exit_code == 1
+
+
+def test_ingest_chunks_upserts_without_deleting_existing_collection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """T-117: повторный ingest дополняет индекс, не удаляя коллекцию."""
+    upserts, deleted = _install_fake_rag(monkeypatch)
+    chunks = build_chunks([("real/article.txt", "Текст статьи")])
+
+    count = ingest_chunks(
+        chunks,
+        chroma_dir=tmp_path,
+        collection_name="msd_vet_manual",
+        model_name="fake-model",
+    )
+
+    assert count == len(chunks) == 1
+    assert deleted == []
+    assert upserts[0]["ids"] == [chunks[0].id]
+    assert upserts[0]["documents"] == [chunks[0].text]
+
+
+def test_ingest_chunks_rebuild_deletes_collection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """--rebuild — единственный режим, который удаляет коллекцию."""
+    upserts, deleted = _install_fake_rag(monkeypatch)
+    chunks = build_chunks([("real/article.txt", "Текст статьи")])
+
+    ingest_chunks(
+        chunks,
+        chroma_dir=tmp_path,
+        collection_name="msd_vet_manual",
+        model_name="fake-model",
+        rebuild=True,
+    )
+
+    assert deleted == ["msd_vet_manual"]
+    assert upserts

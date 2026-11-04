@@ -4,6 +4,44 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.3.0] — 2026-11-04
+
+### Добавлено
+
+#### Prometheus-метрики (T-117)
+
+- `prometheus-fastapi-instrumentator`: `GET /metrics` со стандартными
+  HTTP-метриками (`http_requests_total`, `http_request_duration_seconds`) и
+  кастомными `vet_llm_*` / `vet_rag_*`.
+- Метрики инференса: вызовы модели по режимам (`chat`/`stream`,
+  `success`/`empty`/`error`), токены промпта и генерации, полное время
+  генерации, время до первого токена SSE и скорость генерации токенов/с.
+- Метрики RAG: поиски (`hit`/`miss`/`error`), число извлечённых чанков,
+  длительность поиска и gauge `vet_rag_index_ready` (1/0).
+- `llama-cpp-python` не поддерживает `--metrics` и не отдаёт тайминги
+  llama.cpp server, поэтому `vet_llm_*` считаются в API по `usage` и времени
+  вызова; для стриминговых ответов точны латентность и TTFT.
+- В lifespan API добавлена проверка индекса ChromaDB: если его нет, API
+  стартует без RAG и пишет предупреждение в лог.
+
+#### RAG production readiness
+
+- `scripts/ingest_knowledge.py` обновляет индекс инкрементально через
+  `upsert`, не удаляя коллекцию: существующие чанки (77 в production)
+  сохраняются, изменённые обновляются, новые добавляются. Полная пересборка
+  — только с флагом `--rebuild`.
+- Entrypoint по-прежнему собирает индекс до запуска API при
+  `VET_API_AUTO_INGEST=1`; при ошибке API стартует без RAG, если
+  `VET_API_INGEST_STRICT=0`.
+- `DEPLOYMENT.md`: загрузка статей через `scp`, ручное обновление и полная
+  пересборка индекса, проверка `/metrics`, список метрик и пример
+  scrape-конфига Prometheus.
+
+### Изменено
+
+- Версия `1.3.0` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
+  и `frontend/package.json`.
+
 ## [1.2.1] — 2026-11-04
 
 ### Изменено

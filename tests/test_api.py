@@ -1017,3 +1017,21 @@ def test_health_reports_model(client: TestClient) -> None:
         "n_threads": settings.n_threads,
         "n_gpu_layers": settings.n_gpu_layers,
     }
+
+
+def test_metrics_endpoint_exposes_prometheus_metrics(client: TestClient) -> None:
+    """T-117: /metrics отдаёт HTTP- и кастомные метрики Prometheus."""
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    # Стандартные HTTP-метрики prometheus-fastapi-instrumentator.
+    assert "http_requests_total" in body
+    assert "http_request_duration_seconds" in body
+    # Кастомные метрики llama.cpp и RAG из app/metrics.py.
+    assert "vet_llm_prompt_tokens_total" in body
+    assert "vet_llm_completion_tokens_total" in body
+    assert "vet_llm_generation_seconds" in body
+    assert "vet_rag_searches_total" in body
+    assert "vet_rag_index_ready" in body
