@@ -680,22 +680,65 @@ docker compose -f docker-compose.edge.yml logs api | grep -E "RAG|чанк"
 Если RAG не отвечает, проверьте, что `data/knowledge/*.txt` есть на сервере
 и индекс пересобран после `git pull`.
 
-Если нужно добавить статьи, которых нет в Git (например, свежий PDF/TXT MSD
-Vet Manual), скопируйте их на сервер и пересоберите индекс:
+### Как добавить новые статьи в RAG (T-133)
+
+Индекс `msd_vet_manual` обновляется через `upsert`: новые чанки добавляются,
+существующие обновляются на месте, старые не удаляются. Для расширения базы
+`--rebuild` не нужен — он пересобирает индекс с нуля.
+
+**1. Скачать статью по прямой ссылке.** Возьмите URL со страницы
+msdvetmanual.com и передайте его скрипту (`--url` можно повторять):
 
 ```bash
-# с локальной машины — в каталог, который монтируется в API
-scp data/knowledge/real/new-article.pdf \
-  root@62.109.1.230:/srv/vetassistant/data/knowledge/real/
+python scripts/download_msd.py \
+  --url https://www.msdvetmanual.com/dog-owners/lung-and-airway-disorders-of-dogs/bronchitis-in-dogs
+```
 
-# на сервере — остановить API, собрать индекс, поднять API (см. выше)
+Файл появится в `data/knowledge/real/msd_bronchitis_in_dogs.txt`: имя выводится
+из последнего сегмента URL, поэтому повторная загрузка перезапишет тот же файл,
+а не создаст дубль. Скрипт сначала идёт напрямую на msdvetmanual.com, а при
+ошибке или неполном HTML повторяет запрос через translate-прокси. План загрузки
+без обращения к сети — `--dry-run`.
+
+**2. Проверить, что текст извлёкся.** Быстрая проверка без ChromaDB:
+
+```bash
+python scripts/ingest_knowledge.py --dry-run | grep -c "DRY-RUN"
+head -3 data/knowledge/real/msd_bronchitis_in_dogs.txt
+```
+
+В файле должны быть строки `Source:`, `Title:`, `Downloaded:` и осмысленный
+текст статьи (скрипт отбрасывает страницы короче 500 символов).
+
+**3. Проиндексировать на сервере.** На 6 ГБ RAM ingest рядом с работающим API
+может уронить контейнер по OOM, поэтому API останавливается:
+
+```bash
+cd /srv/vetassistant
+# файлы должны быть на сервере: git pull (если статьи в Git) или scp/rsync
 docker compose -f docker-compose.edge.yml stop api
 docker compose -f docker-compose.edge.yml run --rm --no-deps \
-  --entrypoint python api \
-  scripts/ingest_knowledge.py \
-  --knowledge-dir /app/data/knowledge \
-  --chroma-dir /app/data/chroma_db
+  --entrypoint python api scripts/ingest_knowledge.py
 docker compose -f docker-compose.edge.yml up -d api
+```
+
+В логе будет видно, сколько чанков новых, сколько обновлено и сколько стало
+всего:
+
+```
+Новых чанков: 37 | будет обновлено: 204 | к записи: 241
+Записано чанков: 241/241
+В коллекции msd_vet_manual теперь 241 чанков
+```
+
+Если в строке `Новых чанков` стоит 0, значит имена файлов совпали с уже
+проиндексированными и чанки просто обновились.
+
+**4. Проверить ответ.** Задайте в UI вопрос по новой статье с включённой
+«Базой знаний (RAG)» и посмотрите логи API:
+
+```bash
+docker compose -f docker-compose.edge.yml logs api | grep -E "RAG|чанк"
 ```
 
 Файл, скопированный только через `scp`, не попадёт в Git: если статья нужна

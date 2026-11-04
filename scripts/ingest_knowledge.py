@@ -25,6 +25,7 @@ import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 
@@ -182,6 +183,25 @@ def build_chunks(
     return chunks
 
 
+def _existing_ids_count(collection: Any, ids: Sequence[str]) -> int | None:
+    """Сколько из ``ids`` уже есть в коллекции (T-133).
+
+    ``None`` — прочитать существующие id не удалось (старая версия chromadb
+    или подменённая коллекция в тестах); тогда статистика новых чанков
+    просто не выводится.
+    """
+    existing = 0
+    try:
+        for start in range(0, len(ids), 500):
+            batch = list(ids[start : start + 500])
+            result = collection.get(ids=batch, include=[])
+            existing += len(result.get("ids") or [])
+    except Exception as exc:
+        logger.debug("Не удалось прочитать существующие id: {}", exc)
+        return None
+    return existing
+
+
 def ingest_chunks(
     chunks: Sequence[KnowledgeChunk],
     *,
@@ -195,6 +215,9 @@ def ingest_chunks(
     По умолчанию коллекция не удаляется: чанки пишутся через ``upsert``,
     поэтому уже собранный индекс дополняется и обновляется. При
     ``rebuild=True`` коллекция пересоздаётся с нуля.
+
+    В лог пишется, сколько чанков новых, сколько обновлено и сколько всего
+    стало в коллекции (T-133).
     """
     # Тяжёлые зависимости импортируются здесь: --dry-run и тесты не требуют
     # скачивать torch/sentence-transformers.
@@ -218,6 +241,21 @@ def ingest_chunks(
     model = SentenceTransformer(model_name)
     logger.info("Модель эмбеддингов загружена: {}", model_name)
 
+    ids = [chunk.id for chunk in chunks]
+    already_indexed = _existing_ids_count(collection, ids)
+    if already_indexed is None:
+        logger.info(
+            "Новых чанков: неизвестно (не удалось прочитать существующие id) | к записи: {}",
+            len(ids),
+        )
+    else:
+        logger.info(
+            "Новых чанков: {} | будет обновлено: {} | к записи: {}",
+            len(ids) - already_indexed,
+            already_indexed,
+            len(ids),
+        )
+
     batch_size = 64
     for start in range(0, len(chunks), batch_size):
         batch = chunks[start : start + batch_size]
@@ -233,6 +271,17 @@ def ingest_chunks(
             embeddings=[vector.tolist() for vector in embeddings],
         )
         logger.info("Записано чанков: {}/{}", min(start + len(batch), len(chunks)), len(chunks))
+
+    try:
+        total_in_collection = collection.count()
+    except Exception:  # pragma: no cover - зависит от версии chromadb
+        total_in_collection = None
+    if total_in_collection is not None:
+        logger.info(
+            "В коллекции {} теперь {} чанков",
+            collection_name,
+            total_in_collection,
+        )
 
     return len(chunks)
 

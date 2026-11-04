@@ -7,8 +7,10 @@ import types
 from pathlib import Path
 
 import pytest
+from loguru import logger
 
 from scripts.ingest_knowledge import (
+    _existing_ids_count,
     build_chunks,
     chunk_text,
     ingest_chunks,
@@ -20,14 +22,36 @@ from scripts.ingest_knowledge import (
 
 def _install_fake_rag(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[list[dict[str, object]], list[str]]:
+    *,
+    existing_ids: list[str] | None = None,
+) -> tuple[list[dict[str, object]], list[str], object]:
     """Подменить chromadb/sentence-transformers, не скачивая torch."""
     upserts: list[dict[str, object]] = []
     deleted: list[str] = []
 
     class FakeCollection:
+        def __init__(self) -> None:
+            self.ids: list[str] = list(existing_ids or [])
+
+        def get(
+            self,
+            ids: list[str],
+            include: list[str] | None = None,
+        ) -> dict[str, list[str]]:
+            return {"ids": [item for item in ids if item in self.ids]}
+
+        def count(self) -> int:
+            return len(self.ids)
+
         def upsert(self, **kwargs: object) -> None:
             upserts.append(kwargs)
+            batch_ids = kwargs.get("ids")
+            if isinstance(batch_ids, list):
+                for item in batch_ids:
+                    if isinstance(item, str) and item not in self.ids:
+                        self.ids.append(item)
+
+    collection = FakeCollection()
 
     class FakeClient:
         def __init__(self, path: str) -> None:
@@ -42,7 +66,7 @@ def _install_fake_rag(
             metadata: dict[str, str] | None = None,
         ) -> FakeCollection:
             assert metadata == {"hnsw:space": "cosine"}
-            return FakeCollection()
+            return collection
 
     class FakeVector(list[float]):
         def tolist(self) -> list[float]:
@@ -61,7 +85,7 @@ def _install_fake_rag(
     sentence_transformers.SentenceTransformer = FakeModel  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "chromadb", chromadb)
     monkeypatch.setitem(sys.modules, "sentence_transformers", sentence_transformers)
-    return upserts, deleted
+    return upserts, deleted, collection
 
 
 def test_chunk_text_respects_max_size() -> None:
@@ -199,7 +223,7 @@ def test_ingest_chunks_upserts_without_deleting_existing_collection(
     tmp_path: Path,
 ) -> None:
     """T-117: повторный ingest дополняет индекс, не удаляя коллекцию."""
-    upserts, deleted = _install_fake_rag(monkeypatch)
+    upserts, deleted, _collection = _install_fake_rag(monkeypatch)
     chunks = build_chunks([("real/article.txt", "Текст статьи")])
 
     count = ingest_chunks(
@@ -215,12 +239,70 @@ def test_ingest_chunks_upserts_without_deleting_existing_collection(
     assert upserts[0]["documents"] == [chunks[0].text]
 
 
+def test_ingest_chunks_logs_new_chunks_without_touching_old_ones(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """T-133: в лог попадает, сколько чанков новых, а сколько обновится."""
+    old_id = "real-article-0001"
+    upserts, deleted, collection = _install_fake_rag(
+        monkeypatch,
+        existing_ids=[old_id],
+    )
+    chunks = build_chunks([("real/article.txt", "Обновлённый текст статьи")])
+    messages: list[str] = []
+    sink_id = logger.add(
+        lambda message: messages.append(message),
+        level="INFO",
+        format="{message}",
+    )
+
+    try:
+        ingest_chunks(
+            chunks,
+            chroma_dir=tmp_path,
+            collection_name="msd_vet_manual",
+            model_name="fake-model",
+        )
+    finally:
+        logger.remove(sink_id)
+
+    assert deleted == []
+    assert chunks[0].id == old_id
+    assert upserts
+    assert any("Новых чанков: 0" in message for message in messages)
+    assert any("будет обновлено: 1" in message for message in messages)
+    assert collection.count() == 1
+
+
+def test_existing_ids_count_returns_none_for_unreadable_collection() -> None:
+    """Старая версия chromadb без get() не должна ломать ingest."""
+
+    class BrokenCollection:
+        def get(self, **kwargs: object) -> dict[str, list[str]]:
+            raise RuntimeError("get() unavailable")
+
+    assert _existing_ids_count(BrokenCollection(), ["a"]) is None
+
+
+def test_existing_ids_count_counts_matches() -> None:
+    class Collection:
+        def get(
+            self,
+            ids: list[str],
+            include: list[str] | None = None,
+        ) -> dict[str, list[str]]:
+            return {"ids": [item for item in ids if item.startswith("old")]}
+
+    assert _existing_ids_count(Collection(), ["old-1", "new-1", "old-2"]) == 2
+
+
 def test_ingest_chunks_rebuild_deletes_collection(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """--rebuild — единственный режим, который удаляет коллекцию."""
-    upserts, deleted = _install_fake_rag(monkeypatch)
+    upserts, deleted, _collection = _install_fake_rag(monkeypatch)
     chunks = build_chunks([("real/article.txt", "Текст статьи")])
 
     ingest_chunks(

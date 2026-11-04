@@ -1,20 +1,27 @@
 #!/usr/bin/env python
-"""Загрузка реальных статей MSD Vet Manual в локальную базу знаний (T-030).
+"""Загрузка реальных статей MSD Vet Manual в локальную базу знаний (T-030, T-133).
 
-Скрипт скачивает 1–2 профессиональные статьи MSD Vet Manual, извлекает
-основной текст и сохраняет его в ``data/knowledge/real/*.txt``. Эти файлы
-затем индексируются ``scripts/ingest_knowledge.py``.
+Скрипт скачивает профессиональные статьи MSD Vet Manual, извлекает основной
+текст и сохраняет его в ``data/knowledge/real/*.txt``. Эти файлы затем
+индексируются ``scripts/ingest_knowledge.py``.
+
+По умолчанию берутся встроенные статьи (``ARTICLES``), а с ``--url`` можно
+скачать любую статью по прямой ссылке — это и есть путь расширения базы
+знаний (T-133).
 
 Примеры::
 
     python scripts/download_msd.py --help
     python scripts/download_msd.py --dry-run
     python scripts/download_msd.py
+    python scripts/download_msd.py --url https://www.msdvetmanual.com/...
+    python scripts/download_msd.py --url URL1 --url URL2
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -36,6 +43,8 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
 )
 PROXY_HOST = "www-msdvetmanual-com.translate.goog"
+FILENAME_SLUG_LIMIT = 80
+
 
 
 @dataclass(frozen=True)
@@ -70,6 +79,37 @@ ARTICLES: tuple[MsdArticle, ...] = (
         filename="msd_acute_hemorrhagic_diarrhea_dogs.txt",
     ),
 )
+
+
+def _slugify(value: str) -> str:
+    """Привести последний сегмент URL к безопасному имени файла."""
+    slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+    return (slug or "article")[:FILENAME_SLUG_LIMIT]
+
+
+def article_from_url(url: str) -> MsdArticle:
+    """Собрать описание статьи из прямой ссылки (T-133).
+
+    Имя файла выводится из последнего сегмента пути: повторное скачивание той
+    же статьи перезапишет тот же TXT, а не создаст дубль.
+
+    Raises:
+        ValueError: ссылка не абсолютная, без хоста или без пути к статье.
+    """
+    parts = urlsplit(url.strip())
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ValueError(f"ожидалась абсолютная http(s)-ссылка: {url}")
+    segments = [segment for segment in parts.path.split("/") if segment]
+    if not segments:
+        raise ValueError(f"в ссылке нет пути к статье: {url}")
+
+    slug = _slugify(segments[-1])
+    return MsdArticle(
+        slug=slug,
+        title=segments[-1].replace("-", " "),
+        url=url.strip(),
+        filename=f"msd_{slug}.txt",
+    )
 
 
 def to_proxy_url(url: str) -> str:
@@ -208,6 +248,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help=f"таймаут загрузки (по умолчанию {DEFAULT_TIMEOUT_S})",
     )
     parser.add_argument(
+        "--url",
+        action="append",
+        metavar="URL",
+        help=(
+            "прямая ссылка на статью MSD; можно указать несколько раз. "
+            "Без --url скачиваются встроенные статьи (T-133)"
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="показать план загрузки, не обращаясь к сети",
@@ -224,8 +273,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("--timeout должен быть больше нуля")
         return 1
 
+    if args.url:
+        try:
+            articles = tuple(article_from_url(url) for url in args.url)
+        except ValueError as exc:
+            logger.error("{}", exc)
+            return 2
+    else:
+        articles = ARTICLES
+
     if args.dry_run:
-        for article in ARTICLES:
+        for article in articles:
             logger.info(
                 "DRY-RUN {} -> {} ({})",
                 article.url,
@@ -236,7 +294,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     saved = 0
     errors = 0
-    for article in ARTICLES:
+    for article in articles:
         try:
             download_article(
                 article,

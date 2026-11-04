@@ -9,6 +9,7 @@ import requests
 
 from scripts.download_msd import (
     ARTICLES,
+    article_from_url,
     download_article,
     extract_article,
     main,
@@ -92,3 +93,68 @@ def test_dry_run_does_not_create_files(tmp_path: Path) -> None:
 
     assert main(["--dry-run", "--output-dir", str(output_dir)]) == 0
     assert not output_dir.exists()
+
+
+def test_article_from_url_derives_filename_from_path() -> None:
+    """T-133: имя файла берётся из последнего сегмента ссылки."""
+    article = article_from_url(
+        "https://www.msdvetmanual.com/dog-owners/"
+        "lung-and-airway-disorders-of-dogs/bronchitis-in-dogs"
+    )
+
+    assert article.slug == "bronchitis_in_dogs"
+    assert article.filename == "msd_bronchitis_in_dogs.txt"
+    assert article.url.startswith("https://www.msdvetmanual.com/")
+
+
+def test_article_from_url_is_stable_for_repeated_downloads() -> None:
+    """Повторное скачивание той же статьи перезаписывает тот же файл."""
+    url = "https://www.msdvetmanual.com/cat-owners/skin-disorders-of-cats/ringworm-in-cats"
+
+    assert article_from_url(url).filename == article_from_url(url).filename
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "msdvetmanual.com/article",
+        "ftp://www.msdvetmanual.com/article",
+        "https://www.msdvetmanual.com",
+        "https://www.msdvetmanual.com/",
+    ],
+)
+def test_article_from_url_rejects_unsupported_links(url: str) -> None:
+    with pytest.raises(ValueError):
+        article_from_url(url)
+
+
+def test_main_with_url_downloads_only_given_article(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """T-133: --url скачивает конкретную статью, не трогая ARTICLES."""
+    calls: list[str] = []
+
+    def fake_fetch(url: str, *, timeout: float) -> str:
+        calls.append(url)
+        return SAMPLE_HTML
+
+    monkeypatch.setattr("scripts.download_msd.fetch_html", fake_fetch)
+    output_dir = tmp_path / "real"
+
+    exit_code = main(
+        [
+            "--url",
+            "https://www.msdvetmanual.com/dog-owners/x/acute-cough-in-dogs",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    assert exit_code == 0
+    assert len(calls) == 1
+    assert calls[0].endswith("/acute-cough-in-dogs")
+    assert (output_dir / "msd_acute_cough_in_dogs.txt").exists()
+
+
+def test_main_with_invalid_url_returns_error_code(tmp_path: Path) -> None:
+    assert main(["--url", "not-a-url", "--output-dir", str(tmp_path)]) == 2
