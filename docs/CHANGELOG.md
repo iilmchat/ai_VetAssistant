@@ -4,6 +4,32 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.5.1] — 2026-11-04
+
+### Исправлено
+
+- Admin UI: результат `GET /v1/auth/me` теперь применяется к текущей сессии
+  и сохраняется в `localStorage`. У пользователей со старой сессией (созданной
+  до появления `is_admin`) вкладка «Администрирование» появляется без
+  повторного логина; Sidebar получает актуальный `is_admin`.
+
+### Изменено
+
+- CI/CD переведён на **self-hosted runner** на VPS: все workflow используют
+  `runs-on: [self-hosted, linux, x64, vps]`.
+- `deploy.yml` больше не использует `appleboy/ssh-action` и SSH-секреты:
+  деплой выполняется обычным bash-шагом на сервере
+  (`cd /srv/vetassistant && git pull --ff-only && docker compose … up -d --build`).
+- Версия `1.5.1` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
+  и `frontend/package.json`.
+
+### Документация
+
+- `docs/GITFLIC_ONBOARDING.md` и `docs/build_gitflic_onboarding_docx.py` —
+  руководство по переезду на GitFlic и сборке DOCX-версии.
+- `DEPLOYMENT.md`: установка и проверка self-hosted runner, метки, отказ от
+  SSH-секретов.
+
 ## [1.5.0] — 2026-11-04
 
 ### Добавлено

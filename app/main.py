@@ -254,7 +254,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.5.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.5.1", lifespan=lifespan)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter

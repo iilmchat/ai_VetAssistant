@@ -16,18 +16,11 @@ concurrency:
 jobs:
   deploy:
     name: Deploy to VPS
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, vps]
     timeout-minutes: 90
     steps:
       - name: Pull and rebuild on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script_stop: true
-          command_timeout: 80m
-          script: |
-            cd /srv/vetassistant
-            git pull --ff-only
-            docker compose -f docker-compose.edge.yml up -d --build
+        run: |
+          cd /srv/vetassistant
+          git pull --ff-only
+          docker compose -f docker-compose.edge.yml up -d --build

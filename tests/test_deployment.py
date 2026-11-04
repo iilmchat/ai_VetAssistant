@@ -124,32 +124,32 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_5_0_everywhere() -> None:
+def test_release_version_is_1_5_1_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
     dev_compose = _yaml("docker-compose.yml")
     prod_compose = _yaml("docker-compose.prod.yml")
     edge_compose = _yaml("docker-compose.edge.yml")
 
-    assert 'version = "1.5.0"' in _read("pyproject.toml")
-    assert 'version="1.5.0"' in _read("app/main.py")
-    assert package["version"] == "1.5.0"
-    assert lockfile["version"] == "1.5.0"
-    assert lockfile["packages"][""]["version"] == "1.5.0"
-    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.5.0"
+    assert 'version = "1.5.1"' in _read("pyproject.toml")
+    assert 'version="1.5.1"' in _read("app/main.py")
+    assert package["version"] == "1.5.1"
+    assert lockfile["version"] == "1.5.1"
+    assert lockfile["packages"][""]["version"] == "1.5.1"
+    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.5.1"
     assert (
         dev_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.0"
+        == "vetassistant-frontend:1.5.1"
     )
-    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.5.0"
+    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.5.1"
     assert (
         prod_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.0"
+        == "vetassistant-frontend:1.5.1"
     )
-    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.5.0"
+    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.5.1"
     assert (
         edge_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.0"
+        == "vetassistant-frontend:1.5.1"
     )
 
 
@@ -167,34 +167,33 @@ def test_release_documents_exist_and_are_linked() -> None:
     assert "## [1.0.0] — 2026-11-03" in changelog
 
 
-def test_deploy_workflow_uses_secure_deployer_over_ssh() -> None:
+def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     workflow = _yaml(".github/workflows/deploy.yml")
     triggers = workflow["on"]
 
     assert triggers["push"]["tags"] == ["v*"]
     assert workflow["permissions"]["contents"] == "read"
     assert workflow["concurrency"]["group"] == "deploy-production"
-    assert workflow["jobs"]["deploy"]["timeout-minutes"] == 90
+    job = workflow["jobs"]["deploy"]
+    assert job["runs-on"] == ["self-hosted", "linux", "x64", "vps"]
+    assert job["timeout-minutes"] == 90
 
-    steps = workflow["jobs"]["deploy"]["steps"]
-    deploy_step = next(
-        step
-        for step in steps
-        if step.get("uses") == "appleboy/ssh-action@v1.0.3"
-    )
-    inputs = deploy_step["with"]
+    steps = job["steps"]
+    assert len(steps) == 1
+    deploy_step = steps[0]
+    assert "uses" not in deploy_step
+    script = deploy_step["run"]
+    assert "cd /srv/vetassistant" in script
+    assert "git pull --ff-only" in script
+    assert "docker compose -f docker-compose.edge.yml up -d --build" in script
+    assert "appleboy" not in json.dumps(workflow)
 
-    assert inputs["host"] == "${{ secrets.SSH_HOST }}"
-    assert inputs["username"] == "${{ secrets.SSH_USER }}"
-    assert inputs["key"] == "${{ secrets.SSH_KEY }}"
-    assert inputs["script_stop"] is True
-    assert inputs["command_timeout"] == "80m"
-    assert "cd /srv/vetassistant" in inputs["script"]
-    assert "git pull --ff-only" in inputs["script"]
-    assert (
-        "docker compose -f docker-compose.edge.yml up -d --build"
-        in inputs["script"]
-    )
+
+def test_all_workflows_use_self_hosted_label_set() -> None:
+    for name in ("ci.yml", "deploy.yml", "release.yml"):
+        workflow = _yaml(f".github/workflows/{name}")
+        for job in workflow["jobs"].values():
+            assert job["runs-on"] == ["self-hosted", "linux", "x64", "vps"]
 
 
 def test_setup_deploy_user_script_is_safe_and_idempotent() -> None:
@@ -213,14 +212,13 @@ def test_setup_deploy_user_script_is_safe_and_idempotent() -> None:
     assert "${EUID}" in script
 
 
-def test_deployment_documents_cicd_secrets_and_setup() -> None:
+def test_deployment_documents_self_hosted_runner() -> None:
     deployment = _read("DEPLOYMENT.md")
 
     assert "## 6. Настройка CI/CD" in deployment
-    assert "scripts/setup_deploy_user.sh" in deployment
-    assert "appleboy/ssh-action" in deployment
-    for secret in ("SSH_HOST", "SSH_USER", "SSH_KEY"):
-        assert secret in deployment
+    assert "self-hosted" in deployment
+    assert "self-hosted, linux, x64, vps" in deployment
+    assert "appleboy/ssh-action" not in deployment
     assert "git pull --ff-only" in deployment
     assert "docker compose -f docker-compose.edge.yml up -d --build" in deployment
 

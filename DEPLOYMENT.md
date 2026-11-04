@@ -335,109 +335,78 @@ docker compose -f docker-compose.edge.yml logs -f bot
 ## 6. Настройка CI/CD
 
 Автодеплой edge-стека по тегу `v*` выполняет
-`.github/workflows/deploy.yml`: GitHub Actions подключается по SSH под
-пользователем `deployer`, заходит в `/srv/vetassistant`, делает
+`.github/workflows/deploy.yml` на **self-hosted runner**, установленном на
+том же VPS. Workflow заходит в `/srv/vetassistant`, делает
 `git pull --ff-only` и пересобирает стек командой
-`docker compose -f docker-compose.edge.yml up -d --build`.
+`docker compose -f docker-compose.edge.yml up -d --build`. SSH-секреты и
+внешние SSH-экшены больше не используются.
 
-### 6.1. Пользователь deployer на сервере
+### 6.1. Self-hosted runner на VPS
 
-Запустите скрипт от root:
-
-```bash
-cd /srv/vetassistant
-sudo bash scripts/setup_deploy_user.sh
-```
-
-Скрипт:
-
-1. создаёт пользователя `deployer` (если его ещё нет);
-2. добавляет его в группу `docker`;
-3. создаёт `~/.ssh` с правами `700` и `authorized_keys` с правами `600`;
-4. выводит инструкцию по добавлению публичного SSH-ключа.
-
-> Группа `docker` даёт доступ к Docker-сокету, то есть фактически
-> root-эквивалентные права на сервере. Приватный ключ `deployer` храните
-> только в GitHub Actions secrets.
-
-Для `git pull` пользователь `deployer` должен иметь право записи в
-`/srv/vetassistant`. Если репозиторий принадлежит `root`, выдайте права:
+В GitHub откройте **Settings → Actions → Runners → New self-hosted runner**
+(Linux x64) и выполните команды из инструкции. Пример для пользователя
+`runner` и каталога `/opt/actions-runner`:
 
 ```bash
-sudo chown -R deployer:deployer /srv/vetassistant
+sudo useradd -m -s /bin/bash runner
+sudo usermod -aG docker runner
+sudo mkdir -p /opt/actions-runner
+sudo chown -R runner:runner /opt/actions-runner
+
+sudo -u runner bash -c '
+  cd /opt/actions-runner
+  curl -fsSL -o runner.tar.gz <URL_ИЗ_ИНСТРУКЦИИ_GITHUB>
+  tar xzf runner.tar.gz
+  ./config.sh --url https://github.com/iilmchat/ai_VetAssistant \
+    --token <TOKEN_ИЗ_GITHUB> --name vetassistant-vps \
+    --labels vps --unattended --replace
+'
 ```
 
-### 6.2. SSH-ключ для GitHub Actions
+Метки `self-hosted`, `linux`, `x64` GitHub добавляет автоматически, `vps` —
+наша метка; workflow требует весь набор `[self-hosted, linux, x64, vps]`.
 
-Ключ генерируется **локально**, не на сервере. Не используйте личный
-ключ — создайте отдельную пару:
+Установите runner как сервис, чтобы он переживал перезагрузку:
 
 ```bash
-ssh-keygen -t ed25519 -C "github-actions-vetassistant" \
-  -f ~/.ssh/vetassistant_deploy -N ""
+cd /opt/actions-runner
+sudo ./svc.sh install runner
+sudo ./svc.sh start
+sudo ./svc.sh status
 ```
 
-`-N ""` создаёт ключ без пароля: workflow передаёт его в
-`appleboy/ssh-action` напрямую и не запрашивает passphrase.
-
-Добавьте публичный ключ пользователю `deployer`. Если SSH-вход по паролю
-разрешён:
+Runner должен иметь право писать в `/srv/vetassistant` и доступ к Docker:
 
 ```bash
-ssh-copy-id -i ~/.ssh/vetassistant_deploy.pub deployer@203.0.113.10
+sudo chown -R runner:runner /srv/vetassistant
+sudo -u runner docker ps
 ```
 
-Если вход по паролю закрыт, добавьте ключ через root:
+### 6.2. Проверка регистрации runner
 
 ```bash
-cat ~/.ssh/vetassistant_deploy.pub | ssh root@203.0.113.10 \
-  'sudo -u deployer tee -a /home/deployer/.ssh/authorized_keys'
+gh api repos/iilmchat/ai_VetAssistant/actions/runners \
+  --jq '.runners[] | {name, status, labels: [.labels[].name]}'
 ```
 
-Проверьте вход и доступ к Docker:
-
-```bash
-ssh -i ~/.ssh/vetassistant_deploy deployer@203.0.113.10 'docker ps'
-```
-
-Если появляется `permission denied` на Docker, переподключитесь — новая
-группа применяется к новой SSH-сессии.
+Ожидаем `status=online` и метки `self-hosted`, `linux`, `x64`, `vps`.
+Если джобы висят в `queued`, почти всегда не хватает метки `vps` или runner
+офлайн.
 
 ### 6.3. Секреты GitHub Actions
 
-В GitHub откройте **Settings → Secrets and variables → Actions →
-New repository secret** и добавьте:
-
-| Secret | Значение |
-|---|---|
-| `SSH_HOST` | IP или домен сервера, например `203.0.113.10` |
-| `SSH_USER` | `deployer` |
-| `SSH_KEY` | полное содержимое приватного ключа `~/.ssh/vetassistant_deploy` |
-
-Приватный ключ копируется целиком, вместе со строками
-`-----BEGIN OPENSSH PRIVATE KEY-----` и
-`-----END OPENSSH PRIVATE KEY-----`:
-
-```bash
-cat ~/.ssh/vetassistant_deploy
-```
-
-В Windows PowerShell:
-
-```powershell
-Get-Content $HOME\.ssh\vetassistant_deploy | Set-Clipboard
-```
-
-Никогда не коммитьте приватный ключ в репозиторий и не публикуйте его в
-логах. При компрометации удалите ключ из `authorized_keys` и создайте новый.
+Для деплоя SSH-секреты больше не нужны: workflow выполняется локально на
+сервере. Секреты `SSH_HOST`, `SSH_USER`, `SSH_KEY` можно удалить из
+**Settings → Secrets and variables → Actions**. `GITHUB_TOKEN` workflow
+получает автоматически.
 
 ### 6.4. Проверка автоматического деплоя
 
 Workflow запускается при пуше тега `v*`:
 
 ```bash
-git tag -a v1.1.1 -m "Deploy test"
-git push origin v1.1.1
+git tag -a v1.5.1 -m "Deploy test"
+git push origin v1.5.1
 ```
 
 Ход выполнения: вкладка **Actions → Deploy**, либо:
@@ -462,10 +431,11 @@ docker compose -f docker-compose.edge.yml ps
 
 | Симптом | Что проверить |
 |---|---|
-| `Permission denied (publickey)` | публичный ключ в `authorized_keys`, права `700`/`600`, `SSH_USER=deployer` |
-| `permission denied` на Docker | `groups deployer`, повторный SSH-вход после `usermod` |
-| `dubious ownership` в Git | владельца `/srv/vetassistant` и права `deployer` |
+| Джоба висит в `queued` | runner `online`, метки `self-hosted, linux, x64, vps` |
+| `permission denied` на Docker | `groups runner`, `sudo usermod -aG docker runner` |
+| `dubious ownership` в Git | владельца `/srv/vetassistant` и права `runner` |
 | `git pull` не обновляет код | ветку `main`, `--ff-only` и наличие коммита на сервере |
+| `docker compose` падает на переменных | `.env` в `/srv/vetassistant` (JWT, PostgreSQL, Telegram) |
 
 ## 7. Ручной деплой (если не используете скрипт)
 
