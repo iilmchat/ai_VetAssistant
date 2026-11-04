@@ -1,0 +1,299 @@
+Source: https://www.msdvetmanual.com/digestive-system/the-exocrine-pancreas/pancreatitis-in-dogs-and-cats
+Title: Pancreatitis in Dogs and Cats
+Downloaded: 2026-11-04
+
+Pancreatitis is inflammation of the
+pancreas
+. Pancreatitis is the most common exocrine pancreatic disease in both dogs and cats.
+Etiology and Pathophysiology of Pancreatitis in Dogs and Cats
+Most cases of pancreatitis in dogs and cats are considered
+idiopathic or cryptogenic
+, with a specific cause not apparent.
+Cases of pancreatitis can be classified as
+acute or chronic
+, based on histological findings. It is important to note that this distinction cannot be established clinically; rather, chronic pancreatitis is differentiated from acute pancreatitis by the presence of irreversible histopathological changes (including lymphoplasmacytic infiltration, fibrosis, and acinar atrophy). Acute-on-chronic pancreatitis (or chronic-active pancreatitis) is also sometimes diagnosed histologically.
+Cats with pancreatitis often have concurrent disease involving the liver and small intestines. The combination of
+chronic enteropathy
+, pancreatitis, and
+cholangiohepatitis
+in cats is often called
+triaditis
+.
+Dietary indiscretion is believed to be a common risk factor in dogs. Also, hypertriglyceridemia, if severe (ie, generally serum concentrations ≥ 500 mg/dL), is considered a risk factor for pancreatitis in dogs but not in cats (
+1
+).
+Hyperadrenocorticism
+is a risk factor for pancreatitis in dogs.
+Severe blunt trauma, such as can be sustained during a traffic accident or in cats with high-rise syndrome, can also cause pancreatitis (
+2
+).
+Surgery has been considered another risk factor for pancreatitis; however, most postsurgical cases of pancreatitis are now believed to be due to pancreatic hypoperfusion during anesthesia rather than surgical manipulation.
+Infectious diseases have also been implicated; however, the evidence for a cause-and-effect relationship is weak in most cases. In dogs, pancreatitis has been reported with
+Babesia canis
+,
+Leishmania
+, and
+Heterobilharzia americana
+infection. In cats,
+Toxoplasma gondii
+,
+Amphimerus pseudofelineus
+, and
+feline infectious peritonitis
+are considered most important.
+Many drugs have been implicated in causing pancreatitis in humans; however, very few have been confirmed in dogs and cats. In general, most drugs should be viewed as potential causes of pancreatitis. The most important in dogs and cats are probably cholinesterase inhibitors, calcium, potassium bromide, phenobarbital,
+l
+-asparaginase, estrogen, salicylates, azathioprine, thiazide diuretics, and vinca alkaloids.
+English Cocker Spaniels have been proposed to have a distinct form of autoimmune chronic pancreatitis.
+Pathogenesis of Pancreatitis in Dogs and Cats
+Many different insults can ultimately lead to pancreatitis through a common pathway. Secretion of pancreatic juice decreases during the initial stages of pancreatitis. This is followed by colocalization of zymogen granules and lysosomes, leading to activation of trypsinogen to trypsin within the colocalized organelles. Trypsin, in turn, activates more trypsinogen and also other zymogens.
+Prematurely activated digestive enzymes lead to local damage of the exocrine pancreas with pancreatic edema, bleeding, inflammation, necrosis, and peripancreatic fat necrosis. The ensuing inflammatory process leads to recruitment of WBCs and cytokine production. Activated enzymes and, more importantly, cytokines circulate in the bloodstream and lead to distant complications, such as generalized inflammation, disseminated intravascular coagulation, disseminated lipodystrophy, pancreatic encephalopathy, hypotension, renal failure, pulmonary failure, myocarditis, or even multiorgan failure.
+In addition to this trypsinogen-dependent pathway of pathogenesis, trypsinogen-independent pathogenetic pathways also play an important role in the pathogenesis of pancreatitis (
+3
+).
+Chronic pancreatitis (ie, pancreatitis that does not resolve clinically and histologically) can lead to loss of exocrine and endocrine pancreatic function, and concurrent
+exocrine pancreatic insufficiency (EPI)
+or
+diabetes mellitus
+may develop.
+Pearls & Pitfalls
+Chronic pancreatitis (ie, pancreatitis that does not resolve clinically and histologically) can lead to loss of exocrine and endocrine pancreatic function, and concurrent exocrine pancreatic insufficiency (EPI) or diabetes mellitus may develop.
+Epidemiology of Pancreatitis in Dogs and Cats
+Pancreatitis is relatively common in both dogs and cats.
+Miniature Schnauzers have been reported to be dramatically overrepresented, and they may have a genetic predisposition similar to that in families of human patients with hereditary pancreatitis (
+4
+). Increased prevalence has also been reported in Yorkshire Terriers, Cocker Spaniels, Dachshunds, Poodles, sled dogs, and other breeds.
+No age or sex predisposition has been noted in cats. Siamese cats may be overrepresented (
+5
+).
+Clinical Findings of Pancreatitis in Dogs and Cats
+In dogs with the most severe forms of pancreatitis (eg, the patients in one study all either died or were euthanized because of the severity of their disease), anorexia, vomiting, weakness, abdominal pain, dehydration, and diarrhea have been reported as the most common clinical signs. However, these findings do not reflect the clinical signs encountered in all patients with pancreatitis in a typical veterinary practice (
+6
+).
+Clinical signs in cats with similarly severe forms of pancreatitis are even less specific, with anorexia, lethargy, dehydration, weight loss, hypothermia, vomiting, icterus, fever, and abdominal pain most commonly reported (
+7
+). As in dogs, these clinical signs are those of cats with severe forms of acute pancreatitis. Overall, clinical signs in all forms of pancreatitis should be expected to be even less specific.
+Dogs and cats with
+milder forms
+of pancreatitis
+may be subclinically affected
+or may have only
+vague clinical signs
+, such as anorexia, lethargy, or diarrhea.
+The low rate of abdominal pain reported is remarkable, given that > 90% of human patients with
+pancreatitis
+report abdominal pain, so the low rate is most likely due to lack of
+recognition of pain
+in veterinary patients. Clinical signs that may suggest the presence of abdominal pain or discomfort include a prayer position (forepaws on the ground with hind end elevated) and resistance to pressure during ultrasonographic examination. Many canine and feline patients do not show such obvious clinical signs; however, they may simply be less interactive or have a decreased appetite.
+Both dogs and cats with pancreatitis can develop local and systemic complications.
+Local complications in dogs and cats with acute pancreatitis include pancreatic necrosis and pancreatic and parapancreatic fluid collections, which can be further classified as either unorganized or organized, associated with necrosis or not associated with necrosis, and infected or sterile. Some fluid accumulations have previously been described as pancreatic pseudocysts or pancreatic abscesses, but a more structured classification is in use in human medicine (
+8
+).
+Importantly, infected fluid collections are rare in dogs and cats; however, when present, they require aggressive antimicrobial therapy and surgical intervention.
+Systemic complications of acute pancreatitis include single organ failure, multiple organ failure, and death.
+Local complications of chronic pancreatitis include pancreatic fibrosis and atrophy. Systemic complications of chronic pancreatitis include
+exocrine pancreatic insufficiency (EPI)
+,
+diabetes mellitus
+, and an acute exacerbation of the disease.
+Diagnosis of Pancreatitis in Dogs and Cats
+Clinical findings
+Imaging
+Measurement of serum pancreatic lipase levels
+Diagnosis of pancreatitis can be challenging. As for any disease, no test should be used in isolation for diagnosis, and all clinical findings should be used in conjunction to arrive at the most appropriate diagnosis.
+A history of dietary indiscretion combined with vomiting and abdominal pain may suggest pancreatitis in dogs. Most cats have nonspecific histories and clinical signs.
+Findings on CBCs and serum biochemical profiles may suggest inflammation but are nonspecific for pancreatitis. Changes on a CBC and biochemical profile mainly reflect systemic complications or concurrent conditions but may also help to rule out other potential differential diagnoses.
+Abdominal
+radiographs
+may show decreased detail in the proximal abdominal cavity and displacement of abdominal organs; these findings are also nonspecific, and a diagnosis based on radiographic findings alone should not be made. However, abdominal radiographs are valuable to exclude other differential diagnoses in animals with suspected pancreatitis.
+Abdominal
+ultrasonography
+, if stringent criteria are applied, is fairly specific for severe forms of acute pancreatitis; however, pancreatic enlargement and fluid accumulation around the pancreas alone are not sufficient for diagnosis. A combination of pancreatic enlargement, fluid accumulation around the pancreas, changes in echogenicity (ie, decreased echogenicity suggesting pancreatic necrosis, increased echogenicity around the pancreas suggesting peripancreatic fat necrosis), and/or a pancreatic mass effect is suggestive of pancreatitis.
+Care should be taken not to overinterpret findings. Modern ultrasonographic equipment has a very high resolution, and pancreatic nodular hyperplasia may lead to changes in echogenicity, falsely suggesting the presence of pancreatitis. Also, the sensitivity of abdominal ultrasonography is highly operator-dependent (
+6
+). Ultimately, the diagnostic success of abdominal ultrasonography is dependent on the severity of disease, the timing of the ultrasound, the equipment used, and the ultrasonographer's level of expertise as well as level of suspicion.
+More advanced imaging techniques such as contrast-enhanced ultrasonography,
+CT
+, and
+MRI
+are not routinely used to diagnosis pancreatitis in dogs and cats, although they may hold promise (
+9
+,
+10
+).
+Several
+diagnostic markers for pancreatitis
+have been evaluated in dogs and cats.
+The clinical usefulness of serum amylase activity is limited in dogs and cats.
+An in-house assay for the measurement of serum lipase activity using DGGR as a substrate has been shown to be specific for the measurement of
+pancreatic lipase
+. Serum lipase activity can be measured using various substrates; however, none of the assays previously evaluated had been shown to be specific for the measurement of pancreatic lipase. Instead, most lipase activity assays also measure other lipases, such as hepatic and lipoprotein lipase; pancreatic lipase-related protein 2 (PLRP2), which has been shown to be expressed in many tissues, including gastric mucosa, fat, and kidneys; and potentially other enzymes (
+11
+).
+Pearls & Pitfalls
+An in-house assay for the measurement of serum lipase activity using DGGR as a substrate has been shown to be specific for the measurement of pancreatic lipase.
+It is crucial to note that development of this assay does not mean that all assays utilizing this substrate are specific. Instead, every assay is different, and each assay must be evaluated separately. Also, a specific reference interval must be developed for each assay, regardless of whether it uses the same substrate as another assay.
+Measurement of
+pancreatic lipase immunoreactivity (PLI) is specific for the measurement of pancreatic lipase concentration in serum and is thus the most specific diagnostic test for pancreatitis
+(
+12
+). It is also highly sensitive.
+In-clinic tests for rapid, semiquantitative evaluation of serum pancreatic lipase immunoreactivity are available. A negative semiquantitative test result suggests that pancreatitis is very unlikely, whereas a positive test result suggests pancreatitis. In the latter case, serum PLI concentration should be measured by use of a quantitative assay to confirm the diagnosis and to determine a baseline concentration. This also allows the use of serum PLI concentration as a monitoring tool for the disease.
+Several quantitative in-house assays for the measurement of serum PLI concentration in dogs and cats are also available; however, these assays have either not yet been analytically validated in the primary literature or have failed analytic validation and thus cannot be recommended for routine use (
+12
+).
+Pancreatic cytological or histological evaluation
+can also be used to definitively diagnose pancreatitis.
+Fine-needle aspiration of the pancreas is safe and can show acinar cells and inflammatory cells, allowing a definitive diagnosis of pancreatitis. However, lack of inflammatory cells does not exclude pancreatitis, because the inflammatory infiltrate can be highly localized.
+Pancreatic biopsy for histological evaluation may be associated with a higher risk of pancreatitis than fine-needle aspiration (due to more aggressive pancreatic handling and longer anesthesia). Also, even if the presence of pancreatitis seems obvious upon macroscopic examination of the pancreas, a biopsy specimen should be collected because definitive diagnosis of pancreatitis requires histological identification of an inflammatory infiltrate.
+Of note, animals with severe pancreatitis are often poor anesthetic risks, and exploratory laparotomy or even fine-needle aspiration may not be justified.
+Treatment of Pancreatitis in Dogs and Cats
+Management of underlying causes and risk factors
+Supportive care, including fluid therapy, analgesia, nutritional support, and antiemetics
+Specific treatment with fuzapladib sodium (dogs only)
+Immunosuppressive agents in chronic cases
+The mainstay of treatment for severe pancreatitis is
+supportive care with fluid therapy
+and early intervention to prevent systemic complications. Fluid therapy should be based on calculating the degree of dehydration (to be replaced over 4–8 hours if there is no contraindication), maintenance, and ongoing losses (eg, due to vomiting or diarrhea).
+In those few cases in which a risk factor or cause can be identified, specific therapy against the inciting cause or risk factor may be initiated.
+Antimicrobials are of questionable value for pancreatitis and should not be used routinely.
+Pearls & Pitfalls
+Antimicrobials are of questionable value for pancreatitis and should not be used routinely.
+Resting the pancreas (withholding enteral feeding) is suggested only if the animal vomits uncontrollably (ie, the animal vomits frequently and violently despite appropriate antiemetic therapy).
+In fact, early nutritional support is considered a key component of successful management of human patients with severe
+acute pancreatitis
+. Also, enteral nutritional support is considered superior to parenteral nutritional support. In dogs, a ration with less than 20 g fat/1,000 kcal should be chosen. In cats, dietary fat content may not be as important as in dogs, but high-fat diets are usually avoided.
+Animals that vomit should be treated with an
+antiemetic
+, such as the neurokinin-1 antagonist maropitant (1 mg/kg, SC or IV, every 24 hours), a 5-HT
+3
+antagonist such as ondansetron (0.5–1 mg/kg, IV or PO, every 8–12 hours), or in most animals, a combination of both. Even animals that do not actively vomit may benefit from such antiemetic support, because they may be nauseated and consequently have a decreased appetite or anorexia. Metoclopramide is not considered effective as an antiemetic agent.
+Abdominal pain should be assumed to be present and treated
+until contrary evidence is available. Intermittent meperidine (3–5 mg/kg, IM or SC, every 2 hours or as needed), butorphanol (0.2–0.4 mg/kg, IV, IM, or SC, every 4 hours as needed), or buprenorphine (5–30 mcg/kg, IV, IM, or SC, every 4–6 hours as needed) may be used in animals with mild or moderate abdominal pain. Animals with severe pain are often treated with a CRI of an opioid, such as morphine (0.3–0.5 mg/kg, IV slowly, followed by 0.1–1 mg/kg/h, IV CRI), fentanyl (2–10 mcg/kg, IV, followed by 2–10 mcg/kg/h, IV CRI), or methadone (0.1–0.2 mg/kg, IV, as a loading dose, followed by 0.12 mg/kg/h, IV CRI), or with a combination therapy of fentanyl, ketamine (4 mg/kg, IV bolus), and lidocaine (2–4 mg/kg, IV bolus, followed by 2–4 mg/kg/h, IV CRI) as needed.
+Many other treatments have been investigated in dogs, cats, and humans, but unfortunately, none have been shown to be useful.
+For the specific treatment of acute pancreatitis,
+fuzapladib sodium
+(0.4 mg/kg, IV bolus over 15–60 seconds, every 24 hours, for 3 consecutive days), a lymphocyte function–associated antigen-1 antagonist, has been licensed for the treatment of acute canine pancreatitis in Japan and has received conditional approval for use in dogs by the FDA. Fuzapladib sodium prevents extravasation of neutrophils and thus prevents the development of
+systemic inflammatory response syndrome
+(SIRS) and acute respiratory distress syndrome (ARDS), which are recognized causes of morbidity and death in dogs and cats with severe pancreatitis. A blinded and controlled multicenter study showed that treatment with fuzapladib sodium led to significantly faster improvement in dogs with acute pancreatitis (
+13
+).
+Animals with mild forms of pancreatitis should be carefully assessed for the presence of risk factors (eg, hypertriglyceridemia,
+hypercalcemia
+, and/or a history of medications that can cause pancreatitis) and concurrent diseases (eg,
+cholangitis
+,
+hepatitis
+,
+chronic inflammatory enteropathy
+,
+diabetes mellitus
+).
+In dogs, feeding a low-fat diet
+(ie, less than 20 g fat/1,000 kcal) is crucial for treatment success (
+14
+).
+In cats, a moderately fat-restricted diet
+is recommended (
+5
+).
+Antiemetic drugs (see above) and
+appetite stimulants
+such as capromorelin (dogs: 3 mg/kg, PO, every 24 hours; cats: 2 mg/kg, PO, every 24 hours) and mirtazapine (cats: 2 mg/cat, PO or transdermally, every 24 hours) are helpful for animals that may not eat due to nausea.
+If animals with chronic pancreatitis do not respond to therapy, a trial may be attempted with
+prednisone
+(dogs: 0.5–1 mg/kg, PO, every 24 hours),
+prednisolone
+(0.5–1 mg/kg, PO, every 24 hours), or
+cyclosporine
+(5–7 mg/kg, PO, every 24 hours). Cyclosporine is advantageous in animals with concurrent diabetes mellitus because it has a smaller impact on insulin resistance than glucocorticoids. A study in cats with chronic pancreatitis would suggest that cyclosporine is more efficacious than prednisolone in cats with chronic pancreatitis (
+15
+).
+The prognosis in mild cases of pancreatitis is good; however, the prognosis in severe cases of pancreatitis is guarded in both dogs and cats.
+Systemic complications, such as hypothermia, acidosis, hypocalcemia, and single- or multiorgan failure, are considered risk factors for a poor outcome. Identifying severe cases early during the disease process and preventing complications in those animals can be challenging.
+Key Points
+A diagnosis of pancreatitis is made by integrating clinical findings, imaging findings, and results from measurement of serum pancreatic lipase levels.
+Management of acute pancreatitis is centered around diagnosis and treatment of potential underlying causes and risk factors, supportive care.
+Fuzapladib sodium has received conditional approval by the US FDA for treatment of clinical signs of acute pancreatitis in dogs.
+For More Information
+Pancreatitis information
+. Texas A&M University Gastrointestinal Laboratory.
+Also see pet owner content regarding pancreatitis in
+cats
+and
+dogs
+.
+References
+Xenoulis PG, Suchodolski JS, Ruaux CG, Steiner JM.
+Association between serum triglyceride and canine pancreatic lipase immunoreactivity (cPLI) concentrations in Miniature Schnauzers
+.
+J Am Anim Hosp Assoc
+. 2010;46(4)229-234. doi:10.5326/0460229
+Stockhaus C, Teske E, Schellenberger K, et al.
+Serial serum feline pancreatic lipase immunoreactivity concentrations and prognostic variables in 33 cats with pancreatitis
+.
+J Am Vet Med Assoc
+. 2013;243(12):1713-1718. doi:10.2460/javma.243.12.1713
+Cridge H, Lim SY, Algül H, Steiner JM.
+New insights into the etiology, risk factors, and pathogenesis of pancreatitis in dogs: potential impacts on clinical practice
+.
+J Vet Intern Med
+. 2022;36(3):847-864. doi:10.1111.jvim.16437
+Bishop MA, Xenoulis PG, Levinski MD, Suchodolski JS, Steiner JM.
+Identification of variants of the SPINK1 gene and their association with pancreatitis in Miniature Schnauzers
+.
+Am J Vet Res
+. 2010;71(5):527-533. doi:10.2460/ajvr.71.5.527
+Forman MA, Steiner JM, Armstrong PJ, et al.
+ACVIM consensus statement on pancreatitis in cats
+.
+J Vet Intern Med
+. 2021;35(2):703-723. doi:10.1111.jvim.16053
+Hess RS, Saunders HM, Van Winkle TJ, Shofer FS, Washabau RJ.
+Clinical, clinicopathologic, radiographic, and ultrasonographic abnormalities in dogs with fatal acute pancreatitis: 70 cases (1986-1995)
+.
+J Am Vet Med Assoc
+. 1998;213(5):665-670. doi:10.2460/javma.1998.213.05.665
+Washabau RJ.
+Acute necrotizing pancreatitis
+. In: August JR, ed.
+Consultations in Feline Internal Medicine
+. 5th ed. Elsevier Saunders; 2006:109-119. doi:10.1016/B0-72-160423-4/50015-9
+Banks PA, Bollen TL, Dervenis C, et al.
+Classification of acute pancreatitis--2012: revision of the Atlanta classification and definitions by international consensus
+.
+Gut
+. 2013;62(1):102-111. doi:10.1136/gutjnl-2012-302779
+Lim SY, Nakamura K, Morishita K, et al.
+Qualitative and quantitative contrast-enhanced ultrasonographic assessment of cerulein-induced acute pancreatitis in dogs
+.
+J Vet Intern Med
+. 2014;28(2):496-503. doi:10.1111/jvim.12319
+Cridge H, Twedt DC, Marolf AJ, Sharkey LC, Steiner JM.
+Advances in the diagnosis of acute pancreatitis in dogs
+.
+J Vet Intern Med
+. 2021;35(6):2572-2587. doi:10.1111/jvim.16292
+Lim SY, Steiner JM, Cridge H.
+Lipases: it's not just pancreatic lipase!
+.
+Am J Vet Res
+. 2022;83(8). doi:10.2460/ajvr.22.03.0048
+Lim SY, Steiner JM, Cridge H.
+Understanding lipase assays in the diagnosis of pancreatitis in veterinary medicine
+.
+J Am Vet Med Assoc
+. 2022;260(11):1249-1258. doi:10.2460/javma.22.03.0144
+Steiner JM, Lainesse C, Noshiro Y, et al.
+Fuzapladib in a randomized controlled multicenter masked study in dogs with presumptive acute onset pancreatitis
+.
+J Vet Int Med
+. 2023;37(6):2084-2092. doi:10.1111/jvim.16897.
+Lim SY, Cridge H, Twedt DC, Ohta H, Nuruki T, Steiner JM.
+Management of acute-onset pancreatitis in dogs: a narrative review
+.
+J Am Vet Med Assoc
+. 2024:262(9):1231-1240. doi:10.2460/javma.24.02.0107
+Wu Y, Lidbury JA, Tolbert MK, Sinha S, Suchodolski JS, Steiner JM. A randomized non-controlled open-label trial in cats comparing cyclosporine and prednisolone for treating chronic pancreatitis.
+Proceedings of the 2022 American College of Veterinary Medicine Forum
+. 2022;149.

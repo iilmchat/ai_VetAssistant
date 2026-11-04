@@ -1,0 +1,249 @@
+Source: https://www.msdvetmanual.com/nervous-system/epilepsy-in-small-animals/epilepsy-in-small-animals
+Title: Epilepsy in Small Animals
+Downloaded: 2026-11-04
+
+A seizure may manifest as episodic impairment or loss of consciousness, abnormal motor activity, psychic or sensory disturbances, or autonomic signs such as salivation, vomiting, urination, or defecation. Most seizures last from a few seconds to a few minutes, although some may persist for hours. Seizures can occur as isolated events, often due to metabolic disturbances, head trauma, or intoxication, or may be indicative of epilepsy, a condition characterized by recurrent seizure activity over weeks or months.
+In the healthy brain, a balance between excitatory and inhibitory neuronal activity prevents uncontrolled neuronal discharges. Neuronal connections in the cerebral cortex are organized so that a focus of excitation is surrounded by an inhibitory region.
+Excitatory and inhibitory signals are transmitted between neurons via distinct neurotransmitters and their receptors. Glutamate is the primary excitatory neurotransmitter, while gamma-aminobutyric acid (GABA) is the main inhibitory transmitter.
+Alterations in the number, type, and distribution of excitatory and inhibitory neurotransmitter receptors can lead to seizures.
+Traumatic or ischemic brain injuries, neoplasia, encephalitis, and developmental abnormalities may affect neuronal connections, neurotransmitter levels, and receptor types, resulting in seizure activity.
+The amygdala has the lowest seizure threshold, followed by the hippocampus and the motor cortex.
+Animals prone to seizures may exhibit increased susceptibility to seizure-inducing stimuli (eg, hypoxia, hypoglycemia, chemicals, light, noise) compared to healthy animals. A study found that seizure-precipitating factors were present in approximately 74% of cases of seizures (
+1
+). The most frequently reported triggers included stress, sleep deprivation, weather changes, and hormonal fluctuations. Among dogs with focal-onset seizures, the number of precipitating factors was approximately twice that observed in dogs with generalized seizures.
+Epilepsy can affect any animal species; however, it has been extensively studied in companion animals, particularly dogs and, to a lesser extent, cats.
+The prevalence of canine epilepsy varies, ranging from 0.5% to 0.82% in nonreferral populations and from 1% to 2.6% in referral hospital settings, with higher rates observed in certain predisposed breeds. The reported incidence of seizures in cats is around 2% (
+2
+,
+3
+,
+4
+).
+Etiology of Epilepsy in Small Animals
+Epilepsy can be classified as idiopathic (of unknown origin) or structural:
+Idiopathic epilepsy
+is typically genetic and includes seizures with a known inherited etiological basis. Suspected genetic epilepsy is observed in dogs with a pedigree analysis suggesting a genetic basis. Idiopathic epilepsy of unknown origin includes cases that lack evidence of a genetic basis and have been confirmed not to be reactive seizures or structural epilepsy.
+Structural epilepsy
+refers to seizures resulting from cerebral pathological changes, including causes such as degenerative diseases, congenital anomalies, inflammation, neoplasia, infectious diseases, trauma, and cerebrovascular accidents.
+Reactive seizures
+are caused by metabolic disturbances or toxicities and are not classified as epilepsy. In such cases, the brain is structurally normal, and seizures result from transient functional disturbances. Reactive seizures generally resolve upon correction of the underlying metabolic disturbance or intoxication.
+Specific causes of reactive seizures include
+hepatic encephalopathy
+, electrolyte imbalances (eg, hypercalcemia, hypernatremia, hypocalcemia, hypoglycemia, hyponatremia, hypomagnesemia, hypophosphatemia), uremia, hyperviscosity, and certain drugs, toxins, and envenomations.
+Clinical Findings of Epilepsy in Small Animals
+An epileptic seizure generally comprises three stages:
+The
+prodromal stage
+involves behavioral changes that occur hours to days before the seizure.
+The
+ictus
+refers to the actual seizure event.
+The
+postictal period
+is the recovery phase following the seizure. The postictal stage can be subtle or include clinical signs such as dementia, pacing, or hyperactivity. Owners sometimes mistakenly consider the postictal period as part of the seizure when describing its duration.
+Several clinical types of seizures are recognized, including generalized, focal, and focal seizures with secondary generalization.
+Generalized seizures
+are characterized by abnormal electrical discharges that affect both cerebral hemispheres, typically resulting in symmetrical clinical signs. These include sudden loss of consciousness, motor activity in the limbs (eg, extension, flexion, or alternating extension and flexion), loss of bowel and bladder control, pupil dilation, vocalization, and/or autonomic activity (eg, salivation, vomiting, diarrhea) in the absence of GI disease.
+Focal (or partial) seizures
+arise from abnormal electrical discharges in a localized region of the brain and may include abnormal limb movements or twitching of the eyelids, lips, or ears on one side of the body. Focal seizures may be simple or complex, with or without impairment of consciousness. Seizure type alone cannot reliably predict the presence of structural brain pathological lesions.
+Signalment and history provide valuable insights into potential underlying causes.
+Toxins frequently cause sudden-onset seizure activity accompanied by systemic clinical signs.
+Trauma can lead to immediate seizure activity or cause seizures that develop months later due to cerebral scar formation.
+Physical examination findings often reflect the underlying disease.
+A thorough neurological examination is crucial for identifying neurological deficits, whether symmetrical or asymmetrical. In idiopathic epilepsy, neurological examinations are typically unremarkable, although postictal deficits, such as proprioceptive abnormalities, blindness, or abnormal behavior, may be observed during the postictal period.
+Pearls & Pitfalls
+In idiopathic epilepsy, neurological examinations are typically unremarkable, although postictal deficits, such as proprioceptive abnormalities, blindness, or abnormal behavior, may be observed during the postictal period.
+Diagnosis of Epilepsy in Small Animals
+Laboratory tests
+Diagnostic imaging
+Minimum laboratory testing for epilepsy includes
+CBC, biochemical profile, and urinalysis
+. These tests are particularly helpful to exclude reactive seizures due to metabolic disease or intoxication.
+Thoracic radiography and abdominal ultrasonography may be indicated if neoplasia or infectious disease is suspected.
+If extracranial causes of seizure activity are eliminated or unlikely, then potential intracranial causes and brain pathological lesions should be investigated with MRI of the brain.
+CSF analysis and PCR assay for infectious agents
+will indicate if an inflammatory, infectious, or potentially other structural disorder is affecting the CNS.
+Electroencephalography
+will identify ictal or interictal epileptic discharges and indicate if a focal or generalized disease or seizure disorder is present.
+Additional tests may be indicated, depending on the patient and suspected disease process. Such tests can include serological testing or PCR assay for infectious agents, thyroid hormone concentrations, lead and specific toxin concentrations in the blood or urine, biopsy, and histological evaluation of tumor. Tests that may be considered for suspected intracranial disease are CSF analysis and electroencephalography.
+Treatment of Epilepsy in Small Animals
+The cornerstone of seizure management in epilepsy is the use of
+antiseizure medications (ASMs)
+. Additional therapeutic interventions and supportive care may be required depending on the animal's clinical status, such as in unstable or critical care situations, and the underlying cause, including structural epilepsy or reactive seizures.
+Poor seizure control can lead to increased frequency and duration of seizure activity, resulting in seizure clusters (ie, multiple seizures occurring within a 24- to 48-hour period), status epilepticus (ie, continuous seizure activity), and death.Approximately one-third of patients with idiopathic epilepsy exhibit resistance to multiple ASMs, resulting in drug-resistant epilepsy, in which adjunctive nonpharmacological interventions become critical (
+5
+)].
+Pearls & Pitfalls
+Poor seizure control can lead to increased frequency and duration of seizure activity, resulting in seizure clusters (ie, multiple seizures occurring within a 24- to 48-hour period), status epilepticus (ie, continuous seizure activity), and death.
+Initiation of Antiseizure Medications
+ASMs are often initiated after the second or third documented single seizure (typically more than two seizures in a 6-month period), after any series or cluster of seizures, or in the event of status epilepticus. Before initiating ASMs, veterinarians must discuss the potential benefits, risks, and monitoring requirements with the animal's caregiver.
+General Concepts of Antiseizure Therapy
+A single ASM should be used until either seizure control fails, despite reaching maximum safe concentrations at steady state (the equilibrium in blood concentrations achieved between drug intake and drug elimination, usually occurring 4–5 half-lives after initiation of therapy), or intolerable adverse effects occur.
+An ASM's efficacy should be evaluated only after it has reached a steady state
+; the time required to achieve this varies among drugs. Effectiveness is determined by comparing the frequency of seizures before the initiation or adjustment of ASMs to the frequency once the drug reaches a steady state. Previous ASMs should not be discontinued or have their doses decreased until seizure control is achieved, unless adverse effects or other medical issues necessitate a change.
+Measuring drug concentrations at steady state is the most accurate way to determine ASM concentration
+in a specific patient, because individual dogs and cats can metabolize these drugs differently. When measuring serum ASM concentration, using serum separator tubes when collecting blood samples for phenobarbital or benzodiazepines (eg, clonazepam and clorazepate) should be avoided, because they may falsely lower the measured concentrations of these drugs.
+For loading doses of ASMs, the maintenance dose is typically added to the daily loading regimen.
+For guidelines on managing emergency seizure disorders, refer to the
+2024 ACVIM Consensus Statement
+on the management of status epilepticus and cluster seizures in dogs and cats (see also
+For More Information
+and
+References
+).
+Specific Antiseizure Medications in Epilepsy
+Phenobarbital in Epilepsy
+Phenobarbital (2–5 mg/kg, PO, every 12 hours) is recommended as a first-line ASM in dogs and cats. Phenobarbital has a time to steady state of approximately 2–3 weeks. To limit the risk of phenobarbital-induced hepatopathy, target trough serum concentrations of 15–35 mcg/mL for dogs and 23–30 mcg/mL for cats should be maintained.
+Common adverse effects include polydipsia, polyuria, polyphagia, sedation, and ataxia. Given that phenobarbital is metabolized by the liver, it is contraindicated in animals with hepatopathy. It may also lead to increased serum ALP and ALT activity. In cats, phenobarbital does not tend to induce these liver enzymes, suggesting that any hepatic elevations are likely indicative of hepatopathy.
+To differentiate between hepatic enzyme elevation due to phenobarbital and hepatopathy, monitoring of concentrations of serum albumin, blood urea nitrogen, and pre- and postprandial bile acids is recommended. If bile acid concentrations increase, phenobarbital should be discontinued.
+Potassium Bromide in Epilepsy
+Potassium bromide (KBr) is recommended in dogs but not in cats because of the risk of severe respiratory adverse effects. The half-life of KBr is long (15 days) in dogs and is initiated at a loading dose (100 mg/kg, PO, every 24 hours for 4–6 days) to ensure a more rapid achievement of therapeutic blood concentrations. Because of the potential for sedation, GI upset, and subsequent aspiration risk, loading is not recommended unless another ASM must be abruptly discontinued.
+One loading protocol involves administering KBr (120 mg/kg, PO, every 24 hours), accompanied by a maintenance dose (20–30 mg/kg, PO, every 24 hours for the 5 days of loading), with the lower dosage continued as a maintenance therapy thereafter. The labeled maintenance dose for KBr in dogs is 11–30 mg/kg, PO, every 24 hours. Serum bromide concentrations should be measured immediately after the completion of loading to confirm that the target bromide concentration has been achieved (2–3 mg/mL as a monotherapy; 1–2 mg/mL when used with phenobarbital). Steady state is typically reached after 3–4 months.
+The maximum dosage should always be guided by clinical response. Bromide concentrations should be monitored at 1 and 4 months after the initiation of maintenance therapy and then every 6–12 months thereafter. Potassium bromide tablets are conditionally approved for use in dogs; however, liquid formulations must be obtained through compounding.
+Potential adverse effects include ataxia, transient sedation, polyuria, polydipsia, and polyphagia, with a few cases of
+pancreatitis
+reported. Dividing the daily dose and administering it every 12 hours with food may mitigate GI adverse effects, such as vomiting.
+Diuretics and increased dietary salt (chloride) intake can enhance bromide excretion, resulting in lower serum bromide concentrations, while decreased dietary salt intake can elevate bromide concentrations; hence, maintaining dietary chloride consistency is crucial.
+Sodium Bromide in Epilepsy
+Sodium bromide (NaBr) contains more bromide than KBr, necessitating a decrease in dosage of 15% when switching from KBr to NaBr (eg, 25.5 mg/kg of NaBr is equivalent to 30 mg/kg of KBr). Sodium bromide may also be administered parenterally (3% solution, 800–1200 mg/kg, IV slowly over 8 hours) in dogs that must quickly achieve bromide steady state; adverse cardiovascular effects from potassium prevent parenteral administration of KBr.
+NaBr is preferable in dogs with concurrent renal disease, because potassium in KBr may contribute to hyperkalemia. Occasionally, dogs that vomit after KBr administration may tolerate NaBr without vomiting. All other information pertaining to KBr applies to NaBr.
+Sodium bromide is not recommended for use in cats because of the risk of severe respiratory adverse effects.
+Combined Phenobarbital and Potassium Bromide in Epilepsy
+The combination of phenobarbital (2–5 mg/kg, PO, every 12 hours) and KBr (15–30 mg/kg, PO, every 24 hours) as an adjunctive treatment often proves effective for dogs with epilepsy that is not responsive to either therapy alone. Adverse effects, such as ataxia, lethargy, polyuria, and polydipsia, may be exacerbated when these drugs are used together.
+Imepitoin in Epilepsy
+The GABA agonist imepitoin (10–30 mg/kg, PO, every 12 hours) is approved as an ASM in some countries and may offer alternative therapy to bromides and phenobarbital. Because of its short half-life (1.5–2 hours), steady state for imepitoin is typically achieved within approximately 10 hours.
+The incidence of adverse effects in dogs is higher than with phenobarbital and may include sedation, ataxia, polydipsia, and polyphagia. In one study, dogs receiving imepitoin monotherapy exhibited cluster seizures more frequently and earlier in the course of their epilepsy. Some dogs displayed aggression, necessitating earlier discontinuation of monotherapy compared to those receiving phenobarbital (
+6
+).
+Assays for routine monitoring of imepitoin drug concentrations are not available.
+Levetiracetam in Epilepsy
+Levetiracetam (immediate-release formulation: 20–60 mg/kg, PO, every 8 hours; extended-release formulation: 30 mg/kg, PO, every 12 hours) is not labeled for use in dogs and cats but can serve as a first-choice ASM for animals not responding to phenobarbital or dogs not responding to bromides.
+Because of its short half-life (approximately 3 hours), levetiracetam must be administered with tight adherence to prescribed dosing frequencies to avoid breakthrough seizures.
+To avoid loss of the extended-release effect, that formulation should not be crushed, broken, or chewed.
+Levetiracetam injection (30–60 mg/kg, IV over 5–15 minutes) may be used for status epilepticus or cluster seizures.
+Levetiracetam undergoes minimal hepatic metabolism. Phenobarbital may enhance the metabolism of levetiracetam, necessitating increased frequency and dosage when both medications are administered concurrently.
+Levetiracetam is considered very safe, with no or minimal adverse effects observed even at doses substantially above the recommended starting dose or with more frequent administration than every 8 hours.
+Routine monitoring of drug concentrations is not typically required in clinical practice.
+Zonisamide in Epilepsy
+Zonisamide (5–10 mg/kg, PO, every 12 hours) is increasingly used as a first-choice ASM in dogs and cats. For zonisamide, steady state is achieved within approximately 1 week.
+Phenobarbital can enhance the metabolism of zonisamide; thus it is advisable to administer the higher end of the dosage range when used concurrently with phenobarbital.
+At recommended dosages, zonisamide is well tolerated and has a low incidence of adverse effects. However, as a sulfonamide-based drug, it can occasionally cause acute idiosyncratic hepatopathy (rare), anorexia, hypothyroidism, renal tubular acidosis, and urinary calculi in dogs. Zonisamide does not contain the arylamine group known to be associated with sulfonamide-induced keratoconjunctivitis sicca in dogs and is unlikely to cause this adverse effect. Presumptive hypersensitivity to zonisamide resulting in lymphadenopathy and pancytopenia has been reported in cats, albeit rarely.
+Appropriate monitoring for these potential adverse effects is recommended, particularly when administering the drug at high doses over extended periods.
+Drug levels are not routinely measured but can be assessed 1–2 weeks after initiating therapy or after a dosage adjustment. The human therapeutic target range (10–40 mcg/mL) is also applicable for dogs, with samples taken 1 hour before the next scheduled dose.
+Topiramate in Epilepsy
+Topiramate (5–10 mg/kg, PO, every 12 hours; or 2.5–5 mg/kg, PO, every 8 hours) is an ASM labeled for use in humans that may also be used in dogs refractory to other ASM therapies. The high cost of this medication has limited its use in dogs.
+Evidence to support topiramate use in cats is lacking.
+Felbamate in Epilepsy
+Felbamate (15–20 mg/kg, PO, every 8 hours, increased by 15 mg/kg every 2–4 weeks as needed to effect) is another ASM labeled for use in humans that may be useful in dogs refractory to all other ASM therapies. Steady state is achieved in < 24 hours, and while therapeutic serum concentrations remain uncorrelated, they are thought to be in the range of 15–100 mcg/mL.
+When administered alongside phenobarbital, felbamate may elevate phenobarbital concentrations.
+Felbamate should not be used in patients with blood dyscrasias or hepatic insufficiency.
+Potential adverse effects include sedation, vomiting, nausea, agitation, and tremors in dogs.
+In a small study, addition of felbamate as an adjunct therapy reduced seizure frequency in dogs with drug-resistant epilepsy (
+7
+).
+Evidence to support felbamate use in cats is lacking.
+Clonazepam in Epilepsy
+Clonazepam (dogs: 0.1–1 mg/kg, PO, every 8–12 hours; cats: 0.02–0.25 mg/kg, PO, every 12–24 hours) has been used as an adjunctive ASM in both dogs and cats. When clonazepam is administered alongside phenobarbital, phenobarbital dosage should be decreased by one-third. Hepatic necrosis may be associated with clonazepam use in cats; therefore, caution and appropriate monitoring are warranted when prescribing this medication to feline patients.
+Clorazepate in Epilepsy
+Clorazepate (0.5–1 mg/kg, PO, every 8 hours) is a benzodiazepine ASM that has been used adjunctively with phenobarbital in dogs. Steady state is typically achieved in < 24 hours. The target serum concentration is 150–400 ng/mL; however, therapeutic blood concentration monitoring is not usually performed for this drug.
+Evidence to support clorazepate use in cats is lacking.
+Key Points
+Epilepsy is a challenging multifactorial disorder with a complex genetic background.
+The management of epileptic seizures often requires long-term and ongoing care.
+Antiseizure medications are the cornerstone of management in epilepsy; however, supportive and additional therapeutic interventions are vital for good outcomes.
+Drug-resistant epilepsy is a serious challenge in animals and usually carries a guarded to poor prognosis.
+For More Information
+Charalambous M, Muñana K, Patterson EE, Platt SR, Volk HA.
+ACVIM consensus statement on the management of status epilepticus and cluster seizures in dogs and cats
+.
+J Vet Intern Med
+. 2024;38(1):19-40.
+ACVIM proposed algorithm for the in-hospital management of status epilepticus in dogs and cats
+.
+ACVIM proposed algorithm for the out-of-hospital and in-hospital short-term management of cluster seizures in dogs and cats
+.
+Charalambous M, Bhatti SFM, Volk HA, Platt S.
+Defining and overcoming the therapeutic obstacles in canine refractory status epilepticus
+.
+Vet J
+. 2022;283-284:105828.
+Charalambous M, Volk HA, Van Ham L, Bhatti SFM.
+First-line management of canine status epilepticus at home and in hospital-opportunities and limitations of the various administration routes of benzodiazepines
+.
+BMC Vet Res
+. 2021;17(1):103.
+Charalambous M, Van Ham L, Broeckx BJG, et al.
+Repetitive transcranial magnetic stimulation in drug-resistant idiopathic epilepsy of dogs: a noninvasive neurostimulation technique
+.
+J Vet Intern Med
+. 2020;34(6):2555-2561.
+Charalambous M, Volk HA, Tipold A, et al.
+Comparison of intranasal versus intravenous midazolam for management of status epilepticus in dogs: a multi-center randomized parallel group clinical study
+.
+J Vet Intern Med
+. 2019;33(6):2709-2717.
+Charalambous M, Bhatti SFM, Van Ham L, et al.
+Intranasal midazolam versus rectal diazepam for the management of canine status epilepticus: a multicenter randomized parallel-group clinical trial
+.
+J Vet Intern Med
+. 2017;31(4):1149-1158.
+Charalambous M, Shivapour SK, Brodbelt DC, Volk HA.
+Antiepileptic drugs’ tolerability and safety-a systematic review and meta-analysis of adverse effects in dogs
+.
+BMC Vet Res
+. 2016;12:79.
+Charalambous M, Brodbelt D, Volk HA.
+Treatment in canine epilepsy: a systematic review
+.
+BMC Vet Res
+. 2014;10:257.
+Heller HB.
+Feline epilepsy
+.
+Vet Clin North Am Small Anim Pract
+. 2018;48(1):31-43.
+Pakozdy A, Halasz P, Klang A.
+Epilepsy in cats: theory and practice
+.
+J Vet Intern Med
+. 2014;28(2):255-263.
+Stanciu GD, Packer RMA, Pakozdy A, Solcan G, Volk HA.
+Clinical reasoning in feline epilepsy: which combination of clinical information is useful?
+Vet J
+. 2017;225:9-12.
+References
+Forsgard JA, Metsähonkala L, Kiviranta AM, et al.
+Seizure-precipitating factors in dogs with idiopathic epilepsy
+.
+J Vet Intern Med
+. 2019;33(2):701-707. doi:10.1111/jvim.15402
+Berendt M, Farquhar RG, Mandigers PJ, et al.
+International veterinary epilepsy task force consensus report on epilepsy definition, classification and terminology in companion animals
+.
+BMC Vet Res
+. 2015;11:182. doi:10.1186/s12917
+Hulsmeyer V-I, Fischer A, Mandigers PJ, et al:
+International veterinary epilepsy task force's current understanding of idiopathic epilepsy of genetic or suspected genetic origin in purebred dogs
+.
+BMC Vet Res
+. 2015;11:175. doi:10.1186/s12917-015-0463-0
+Charalambous M, Fischer A, Potschka H, et al.
+Translational veterinary epilepsy: a win-win situation for human and veterinary neurology
+.
+Vet J
+. 2023;293:105956.
+Kajin F, Meyerhoff N, Charalambous M, Volk HA.
+"Resistance Is futile": a pilot study into pseudoresistance in canine epilepsy
+.
+Animals (Basel)
+. 2023;13(19):3125. doi:10.3390/ani13193125
+Stabile F, van Dijk J, Barnett CR, De Risio L.
+Epileptic seizure frequency and semiology in dogs with idiopathic epilepsy after initiation of imepitoin or phenobarbital monotherapy
+.
+Vet J
+. 2019;249:53-57. doi:10.1016/j.tvjl.2019.05.007
+Dewey CW, Rishniw M, Sakovitch K.
+Felbamate as an oral add-on therapy in six dogs with presumptive idiopathic epilepsy and generalized seizures resistant to drug therapy
+.
+Open Vet J
+. 2022;12(4):445-450 doi:10.5455/OVJ.2022.v12.i4.5
