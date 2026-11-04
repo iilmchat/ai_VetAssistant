@@ -13,7 +13,8 @@
       - "80"
     volumes:
       - ./landing:/usr/share/nginx/html:ro
-      - ./landing/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Конфиг nginx лежит вне web-root, чтобы не отдаваться как статика.
+      - ./docs/landing/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
       interval: 30s

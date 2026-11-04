@@ -18,6 +18,8 @@
 - `https://ai-pets.ru/api/health` отвечает 200.
 - Лендинг из `landing/` уже на сервере в `/srv/vetassistant/landing`.
 - Скрипт лежит в `/srv/vetassistant/deploy/landing/apply-package-b.sh`.
+- Служебные файлы лежат вне web-root: `docs/landing/nginx.conf`,
+  `docs/landing/Caddyfile.edge.snippet`.
 - DNS-запись `app.ai-pets.ru` добавлена; скрипт подождёт её распространения.
 - Backup Caddyfile скрипт делает сам.
 
@@ -37,11 +39,12 @@ bash /srv/vetassistant/deploy/landing/apply-package-b.sh
 - сначала добавляет только `app.ai-pets.ru`, проверяет приложение и API;
 - затем переключает `ai-pets.ru` на лендинг;
 - проверяет, что служебные файлы (`README.md`, `DEPLOY.md`, `nginx.conf`,
-  `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) отдают 404.
+  `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) отсутствуют в
+  web-root и отдают 404.
 
 Если нужно добавить сервис именно в `docker-compose.edge.yml` (например, для
-commit в репозиторий), используйте `landing/compose.edge.fragment.yml`. На
-сервере вручную этого не делать: файл tracked, CI делает `git pull --ff-only`.
+commit в репозиторий), используйте `docs/landing/compose.edge.fragment.yml`.
+На сервере вручную этого не делать: файл tracked, CI делает `git pull --ff-only`.
 
 ## 2. DNS и сертификат для app.ai-pets.ru
 
@@ -65,7 +68,7 @@ dig +short app.ai-pets.ru
 
 ## 3. Переключить Caddy
 
-Сниппет: `landing/Caddyfile.edge.snippet`.
+Сниппет: `docs/landing/Caddyfile.edge.snippet`.
 
 Порядок:
 
@@ -74,7 +77,7 @@ cd /srv/ai-infra
 cp Caddyfile Caddyfile.bak-$(date +%Y%m%d-%H%M%S)
 
 # заменить старый блок ai-pets.ru на новый и добавить app.ai-pets.ru
-# (вставить содержимое landing/Caddyfile.edge.snippet)
+# (вставить содержимое docs/landing/Caddyfile.edge.snippet)
 
 docker exec edge-caddy caddy validate --config /etc/caddy/Caddyfile
 docker exec edge-caddy caddy reload --config /etc/caddy/Caddyfile
@@ -144,7 +147,11 @@ docker exec edge-caddy caddy reload --config /etc/caddy/Caddyfile
   могут показывать старую версию.
 - `nginx.conf` использует `map` для `Cache-Control`; при правках не добавлять
   `add_header` внутри `location`, иначе security-заголовки перестанут
-  наследоваться.
+  наследоваться. Конфиг лежит в `docs/landing/nginx.conf` и монтируется в
+  контейнер; в web-root его быть не должно.
+- В `landing/` допустима только публичная статика (`index.html`, `404.html`,
+  `assets/`, `privacy/`, `terms/`, `robots.txt`, `sitemap.xml`). Служебные
+  файлы — в `docs/landing/`.
 - Caddy-сниппет использует имена `vetassistant-*` из внешней сети `edge`.
   Для standalone-варианта `deploy/Caddyfile` имена другие (`api`, `frontend`,
   `landing`) — не перепутать.

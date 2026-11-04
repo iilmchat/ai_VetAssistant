@@ -348,9 +348,9 @@
 - **Оценка:** 3
 - **Статус:** выполнено: `.github/workflows/deploy.yml` (тег `v*`, `appleboy/ssh-action@v1.0.3`, secrets `SSH_HOST`/`SSH_USER`/`SSH_KEY`, `script_stop`), `scripts/setup_deploy_user.sh` (`deployer`, группа `docker`, `.ssh` 700, `authorized_keys` 600), раздел «Настройка CI/CD» в `DEPLOYMENT.md`; тесты workflow/скрипта/документации добавлены.
 
-### [ ] T-114. Очистка web-root лендинга
+### [x] T-114. Очистка web-root лендинга
 - **Зависит от:** T-113 (v1.2.0)
 - **Что:** Вынести служебные файлы (`README.md`, `DEPLOY.md`, `nginx.conf`, `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) из папки `landing/`, которая раздаётся как статика, в `landing/docs/` или корень проекта (по плану Phase 2 — `deploy/landing/`). Обновить пути в `docker-compose.landing.yml` (генерируется `deploy/landing/apply-package-b.sh`) и в самом скрипте: `LANDING_DIR`/`NGINX_CONF`, встроенный Caddy-сниппет и smoke-проверка служебных файлов. Убрать блок `@landing_private` из `landing/Caddyfile.edge.snippet` и из встроенного сниппета в скрипте — в web-root служебных файлов больше не будет. Обновить структуру в `landing/README.md` и `landing/DEPLOY.md`.
 - **DoD:** в `landing/` остаются только публичные статики (`index.html`, `404.html`, `assets/`, `privacy/`, `terms/`, `robots.txt`, `sitemap.xml`); служебные файлы не попадают в web-root и недоступны по HTTP даже без Caddy-блока; `@landing_private` удалён из обоих Caddy-сниппетов; `docker compose -f docker-compose.landing.yml config` валиден, лендинг и `/healthz` отвечают; `pytest`/`ruff`/`mypy` зелёные, `bash -n`/`shellcheck` для скрипта чисто; коммит запушен.
 - **Оценка:** 1
-- **Статус:** запланирована.
+- **Статус:** выполнено: служебные файлы перенесены в `docs/landing/` (не `landing/docs/`, иначе они остались бы в web-root); `NGINX_CONF` в `apply-package-b.sh` указывает на `docs/landing/nginx.conf`; `@landing_private` удалён из сниппета и встроенного Caddy-блока; smoke-проверка 404 для служебных путей сохранена; обновлены `docs/landing/README.md`, `docs/landing/DEPLOY.md`, `DEPLOYMENT.md`, `README.md` и план Phase 2.

@@ -44,9 +44,9 @@
 - `app.ai-pets.ru` получает сертификат автоматически (ACME HTTP-01/TLS-ALPN);
   HSTS с `includeSubDomains` требует сначала проверить TLS поддомена.
 - Служебные файлы лендинга (`README.md`, `DEPLOY.md`, `nginx.conf`,
-  `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) лежат в web-root
-  `landing/` и закрыты Caddy-матчером `@landing_private` (404); их вынос —
-  задача T-114.
+  `compose.edge.fragment.yml`, `Caddyfile.edge.snippet`) вынесены из web-root в
+  [`docs/landing/`](docs/landing/README.md); Caddy-матчер `@landing_private`
+  удалён, служебные пути по-прежнему отдают 404.
 - План и история работ: [PHASE2_LANDING_APP.md](docs/development/PHASE2_LANDING_APP.md).
 
 ## 🚀 v1.1.0 — Security and Memory Optimizations

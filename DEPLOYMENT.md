@@ -40,6 +40,8 @@
 | `docker-compose.ssl.yml` | HTTPS-overlay: `443`, Certbot и сертификаты |
 | `docker-compose.edge.yml` | общий VPS: только сеть `edge`, без портов и бота |
 | `frontend/nginx.conf` | HTTP-сервер, `/api`, SPA и ACME |
+| `landing/` | публичная статика лендинга (web-root без служебных файлов) |
+| `docs/landing/` | `nginx.conf`, Caddy-сниппет, `DEPLOY.md` и README лендинга |
 | `deploy/nginx/ssl.conf` | HTTPS-сервер и редирект с HTTP |
 | `deploy/Caddyfile` | Caddy-блок `ai-pets.ru` и `www` для edge-сети |
 | `scripts/deploy.sh` | установка Docker, клонирование и запуск |
@@ -627,6 +629,28 @@ curl -fsS http://vetassistant.ru/api/health
 `/api/health` проксируется в FastAPI `/health`. Затем откройте
 `http://vetassistant.ru`, зарегистрируйте пользователя и проверьте чат,
 записи и напоминания.
+
+### Лендинг `ai-pets.ru` и web-root
+
+Лендинг раздаётся контейнером `vetassistant-landing`, web-root — только
+каталог `landing/` (HTML, `assets/`, `privacy/`, `terms/`, `robots.txt`,
+`sitemap.xml`). Служебные файлы (`nginx.conf`, `compose.edge.fragment.yml`,
+`Caddyfile.edge.snippet`, `DEPLOY.md`, `README.md`) вынесены в
+`docs/landing/` и в web-root отсутствуют; `nginx.conf` монтируется из
+`docs/landing/nginx.conf`. Caddy-матчер `@landing_private` удалён как
+ненужный.
+
+Проверка после деплоя лендинга:
+
+```bash
+curl -sI https://ai-pets.ru/ | head -n 1
+for p in README.md DEPLOY.md nginx.conf compose.edge.fragment.yml Caddyfile.edge.snippet; do
+  curl -s -o /dev/null -w "$p -> %{http_code}\n" "https://ai-pets.ru/$p"
+done
+```
+
+Ожидаем `200` для корня и `404` для всех служебных путей. Подробный
+чек-лист выкладки и отката — `docs/landing/DEPLOY.md`.
 
 Проверить наличие модели и текущий размер контекста (удобно для
 мониторинга памяти):

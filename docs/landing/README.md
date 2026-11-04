@@ -6,6 +6,8 @@
 
 ## Структура
 
+Web-root содержит только публичную статику:
+
 ```text
 landing/
 ├── index.html
@@ -18,13 +20,24 @@ landing/
 │   ├── og.png              # OG-карточка 1200×630
 │   └── favicon.svg
 ├── robots.txt
-├── sitemap.xml
-├── nginx.conf
+└── sitemap.xml
+```
+
+Служебные файлы лежат вне web-root, в `docs/landing/`, и не раздаются
+nginx:
+
+```text
+docs/landing/
+├── nginx.conf                  # конфиг контейнера лендинга
 ├── compose.edge.fragment.yml   # сервис для docker-compose.edge.yml
 ├── Caddyfile.edge.snippet      # блоки ai-pets.ru / app.ai-pets.ru
 ├── DEPLOY.md                   # порядок применения и отката
 └── README.md
 ```
+
+Caddy-матчер `@landing_private` больше не нужен: служебных файлов в web-root
+нет. Smoke-проверки всё равно ожидают 404 на `/README.md`, `/DEPLOY.md`,
+`/nginx.conf`, `/compose.edge.fragment.yml` и `/Caddyfile.edge.snippet`.
 
 ## Локальный просмотр
 
@@ -47,20 +60,21 @@ python -m http.server 8098
    `docker-compose.edge.yml` (чтобы не ломать `git pull` в CI).
 3. В Caddy направить `ai-pets.ru` на `vetassistant-landing:80`, а
    `app.ai-pets.ru` — на frontend + API; готовый скрипт делает это сам,
-   сниппет — `Caddyfile.edge.snippet`.
+   сниппет — `docs/landing/Caddyfile.edge.snippet`.
 4. Проверить `https://ai-pets.ru/`, `/privacy/`, `/terms/`, `/robots.txt`,
-   `/sitemap.xml`, `/assets/og.png`.
+   `/sitemap.xml`, `/assets/og.png`, а также 404 на служебные пути.
 
 DNS, Caddy и сертификаты — отдельный шаг, без него лендинг не публикуется.
 Если сервис нужно добавить именно в `docker-compose.edge.yml`, используйте
-`compose.edge.fragment.yml` и коммитьте изменение в репозиторий, а не только
-на сервер.
+`docs/landing/compose.edge.fragment.yml` и коммитьте изменение в репозиторий,
+а не только на сервер.
 
 ## Nginx и кэш
 
-`nginx.conf` отдаёт HTML с `Cache-Control: no-cache`, CSS/JS/шрифты — на год
-с `immutable`, картинки — на 30 дней. Заголовки задаются через `map`, чтобы
-не дублировать security-заголовки в каждом `location`.
+`docs/landing/nginx.conf` отдаёт HTML с `Cache-Control: no-cache`, CSS/JS/шрифты
+— на год с `immutable`, картинки — на 30 дней. Заголовки задаются через `map`,
+чтобы не дублировать security-заголовки в каждом `location`. Конфиг
+монтируется в контейнер из `docs/landing/nginx.conf` и не лежит в web-root.
 
 ## Связь с приложением
 

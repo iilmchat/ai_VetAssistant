@@ -1,15 +1,15 @@
 # Phase 2 — VetAssistant: лендинг и разделение приложения
 
 **Статус:** ✅ **Пакеты A и B реализованы и задеплоены в production**
-(2026-11-04, тег `v1.2.1`). Пакеты C и D — в бэклоге.
+(2026-11-04, тег `v1.3.0`). Пакеты C и D — в бэклоге.
 **Дата:** 2026-11-04.
-**Текущая версия:** backend `1.2.0`, frontend `1.2.0`; `v1.2.1` — docs-релиз,
-фиксирующий разделение доменов.
+**Текущая версия:** backend `1.3.0`, frontend `1.3.0`.
 **Прогресс:** Пакет A (заявки на доступ, rate limiting, UI, скрипты) вышел в
 v1.2.0. Пакет B задеплоен: `ai-pets.ru` отдаёт лендинг, `app.ai-pets.ru` —
 React SPA и `/api/*`, `www` редиректит на apex; DNS и TLS настроены на
-edge-хосте. В web-root `landing/` пока лежат служебные файлы, их блокирует
-Caddy (`@landing_private`); вынос — задача T-114.
+edge-хосте. T-114 выполнен: служебные файлы вынесены в `docs/landing/`,
+web-root `landing/` содержит только публичную статику, матчер
+`@landing_private` удалён.
 
 ## 0. Итог: лендинг и приложение разделены по доменам
 
@@ -34,8 +34,11 @@ https://www.ai-pets.ru/       -> 301 на https://ai-pets.ru/
   `handle`; исправлено на `handle @landing_private { respond 404 }`, и
   `/README.md`, `/DEPLOY.md`, `/nginx.conf`, `/compose.edge.fragment.yml`,
   `/Caddyfile.edge.snippet` отвечают 404 до проксирования.
-- **Осталось:** T-114 — вынести служебные файлы из web-root и убрать
-  `@landing_private`; Пакеты C (SEO/аналитика/мониторинг) и D (CSP,
+- **T-114 (очистка web-root):** `README.md`, `DEPLOY.md`, `nginx.conf`,
+  `compose.edge.fragment.yml` и `Caddyfile.edge.snippet` перенесены в
+  `docs/landing/`; `nginx.conf` монтируется оттуда, `@landing_private` удалён.
+  Smoke-проверка 404 для служебных путей сохранена как регрессия.
+- **Осталось:** Пакеты C (SEO/аналитика/мониторинг) и D (CSP,
   ограничение `/health`, CORS) — следующие итерации.
 
 ## 1. Цель
@@ -234,16 +237,12 @@ landing/
 │   ├── app.png         # реальный скриншот из docs/assets/react-ui.png
 │   └── og.png          # 1200×630
 ├── robots.txt
-├── sitemap.xml
-├── nginx.conf          # конфиг контейнера; Caddy блокирует /nginx.conf
-├── compose.edge.fragment.yml
-├── Caddyfile.edge.snippet
-└── DEPLOY.md
+└── sitemap.xml
 ```
 
-Служебные файлы в web-root блокируются Caddy (`@landing_private`).
-Целевая чистка — вынести их в `deploy/landing/` и не держать в web-root
-(задача T-114).
+Служебные файлы (`nginx.conf`, `compose.edge.fragment.yml`,
+`Caddyfile.edge.snippet`, `DEPLOY.md`, `README.md`) вынесены в
+`docs/landing/` (T-114); в web-root остаётся только публичная статика.
 
 Контент:
 
@@ -277,7 +276,7 @@ Caddy не зависел от файлов продукта:
     logging: *default-logging
     volumes:
       - ./landing:/usr/share/nginx/html:ro
-      - ./landing/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docs/landing/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
       interval: 30s
@@ -297,7 +296,7 @@ Caddy не зависел от файлов продукта:
 - `ai_VetAssistant/deploy/Caddyfile` — standalone-вариант, синхронизировать.
 
 Было: `ai-pets.ru` целиком уходил в `vetassistant-frontend:80`.
-Стало (задеплоено в v1.2.1):
+Стало (задеплоено в v1.2.1, матчер удалён в v1.3.0/T-114):
 
 ```caddyfile
 ai-pets.ru {
@@ -309,11 +308,7 @@ ai-pets.ru {
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(), microphone=(), camera=()"
 	}
-	# Служебные файлы лежат в web-root лендинга; наружу их не отдаём.
-	@landing_private path /README.md /DEPLOY.md /nginx.conf /compose.edge.fragment.yml /Caddyfile.edge.snippet
-	handle @landing_private {
-		respond 404
-	}
+	# Служебные файлы вынесены в docs/landing/ и в web-root отсутствуют.
 	handle {
 		reverse_proxy vetassistant-landing:80
 	}
@@ -344,10 +339,12 @@ www.ai-pets.ru {
 }
 ```
 
-Матчер вынесен в `handle @landing_private { respond 404 }`: в исходном
-варианте `respond @landing_private 404` не отдавал 404 раньше `handle`, и
-запрос уходил в `reverse_proxy`. Фикс — `f982cd0`; после него служебные пути
-на `ai-pets.ru` возвращают 404 до проксирования.
+Матчер `@landing_private` удалён в T-114: служебных файлов в web-root больше
+нет, поэтому `/README.md`, `/DEPLOY.md`, `/nginx.conf`,
+`/compose.edge.fragment.yml` и `/Caddyfile.edge.snippet` отдают 404
+естественным образом. Исторический фикс `f982cd0` (обёртка матчера в
+`handle`) больше не нужен, но smoke-проверка 404 в
+`deploy/landing/apply-package-b.sh` оставлена как регрессия.
 
 `handle_path /api/*` по-прежнему срезает `/api`; frontend собирается с
 `VITE_API_BASE_URL=/api`, менять не нужно.
@@ -355,7 +352,7 @@ www.ai-pets.ru {
 ### 4.4. Nginx
 
 - `frontend/nginx.conf` — **не меняется** при выборе поддомена.
-- `landing/nginx.conf` — SPA/статика: `try_files $uri $uri/ =404`,
+- `docs/landing/nginx.conf` — SPA/статика: `try_files $uri $uri/ =404`,
   кеш для assets, `X-Content-Type-Options`, без лишних директив.
 - Если всё же выбран `/app/`: дополнительно
   `base: '/app/'` в `frontend/vite.config.ts`,

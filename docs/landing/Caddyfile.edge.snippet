@@ -14,11 +14,7 @@ ai-pets.ru {
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(), microphone=(), camera=()"
 	}
-	# В web-root лежат и инфраструктурные файлы; наружу их не отдаём.
-	@landing_private path /README.md /DEPLOY.md /nginx.conf /compose.edge.fragment.yml /Caddyfile.edge.snippet
-	handle @landing_private {
-		respond 404
-	}
+	# Служебные файлы вынесены в docs/landing/ и в web-root отсутствуют.
 	handle {
 		reverse_proxy vetassistant-landing:80
 	}

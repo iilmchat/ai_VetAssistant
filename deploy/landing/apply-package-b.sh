@@ -29,7 +29,8 @@ SKIP_DNS_CHECK="${SKIP_DNS_CHECK:-0}"
 COMPOSE_LANDING="$VET_DIR/docker-compose.landing.yml"
 CADDYFILE="$INFRA_DIR/Caddyfile"
 LANDING_DIR="$VET_DIR/landing"
-NGINX_CONF="$LANDING_DIR/nginx.conf"
+# nginx.conf вынесен из web-root в docs/landing/, чтобы не отдаваться статикой.
+NGINX_CONF="$VET_DIR/docs/landing/nginx.conf"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="${BACKUP_DIR:-/root/backups/package-b-$STAMP}"
 WORK_DIR="$(mktemp -d)"
@@ -152,11 +153,7 @@ ai-pets.ru {
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(), microphone=(), camera=()"
 	}
-	# Infra files live in the landing web-root; never serve them.
-	@landing_private path /README.md /DEPLOY.md /nginx.conf /compose.edge.fragment.yml /Caddyfile.edge.snippet
-	handle @landing_private {
-		respond 404
-	}
+	# Служебные файлы вынесены в docs/landing/ и в web-root отсутствуют.
 	handle {
 		reverse_proxy vetassistant-landing:80
 	}
@@ -334,6 +331,7 @@ echo "css cache-control:  ${css_cache:-missing}"
 [[ "$root_cache" == "no-cache" ]] || warn "unexpected HTML Cache-Control: ${root_cache:-missing}"
 [[ "$css_cache" == *"max-age=31536000"* ]] || warn "unexpected CSS Cache-Control: ${css_cache:-missing}"
 
+# Эти файлы вынесены из web-root в docs/landing/; 404 — регрессионная проверка.
 for private_path in README.md DEPLOY.md nginx.conf compose.edge.fragment.yml Caddyfile.edge.snippet; do
     code="$(curl -s -o /dev/null -w '%{http_code}' "https://$ROOT_DOMAIN/$private_path" || true)"
     if [[ "$code" == "404" ]]; then
