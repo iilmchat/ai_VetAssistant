@@ -28,11 +28,14 @@ from pathlib import Path
 
 from loguru import logger
 
-from configs.settings import PROJECT_ROOT
 from data_pipeline.cli import configure_logging, positive_int
 
-DEFAULT_KNOWLEDGE_DIR = PROJECT_ROOT / "data" / "knowledge"
-DEFAULT_CHROMA_DIR = PROJECT_ROOT / "data" / "chroma_db"
+# Пути по умолчанию считаются от текущей рабочей директории: в контейнере это
+# /app, поэтому получаются /app/data/knowledge и /app/data/chroma_db. От
+# PROJECT_ROOT их считать нельзя — установленный пакет лежит в site-packages,
+# где каталога data нет (T-119).
+DEFAULT_KNOWLEDGE_DIR = Path.cwd() / "data" / "knowledge"
+DEFAULT_CHROMA_DIR = Path.cwd() / "data" / "chroma_db"
 DEFAULT_COLLECTION = "msd_vet_manual"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 DEFAULT_CHUNK_SIZE = 500

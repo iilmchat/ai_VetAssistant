@@ -50,10 +50,11 @@
   удалён, служебные пути по-прежнему отдают 404.
 - План и история работ: [PHASE2_LANDING_APP.md](docs/development/PHASE2_LANDING_APP.md).
 
-## 📊 Фаза 3 — наблюдаемость и RAG (итоги)
+## 📊 Фаза 3 — наблюдаемость и RAG (завершена)
 
-**Статус:** итоги подведены; финальное подтверждение работы дашбордов
-Grafana — за сисадмином.
+**Статус:** ✅ **Фаза 3 завершена.** Prometheus собирает метрики, Grafana
+настроена, RAG работает в production: тестовый запрос про парацетамол дал
+hit из ChromaDB.
 
 - **Prometheus:** API отдаёт `/metrics`
   (`prometheus-fastapi-instrumentator`): `http_requests_total`,
@@ -67,9 +68,11 @@ Grafana — за сисадмином.
   `vet_rag_index_ready == 0` после деплоя.
 - **RAG:** ChromaDB-коллекция `msd_vet_manual` — **77 чанков** из двух статей
   MSD Vet Manual и трёх демо-файлов; API подтверждает
-  `vet_rag_index_ready 1.0`. `scripts/ingest_knowledge.py` обновляет индекс
-  через `upsert` и не удаляет существующие чанки; `--rebuild` — только
-  осознанно.
+  `vet_rag_index_ready 1.0`, тестовый запрос про парацетамол дал RAG-hit.
+  `scripts/ingest_knowledge.py` обновляет индекс через `upsert` и не удаляет
+  существующие чанки; `--rebuild` — только осознанно. В контейнере скрипт
+  работает без флагов: пути по умолчанию — `/app/data/knowledge` и
+  `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
 

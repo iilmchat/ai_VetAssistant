@@ -535,14 +535,16 @@ VET_API_INGEST_STRICT=0     # 1 — падать деплоем при ошиб�
 ```
 
 Ручное обновление индекса в контейнере (по умолчанию `upsert`: коллекция
-сохраняется, существующие чанки обновляются, новые добавляются):
+сохраняется, существующие чанки обновляются, новые добавляются). Пути по
+умолчанию берутся от рабочей директории `/app`, поэтому флаги не нужны:
 
 ```bash
 docker compose -f docker-compose.edge.yml exec api \
-  python scripts/ingest_knowledge.py \
-  --knowledge-dir /app/data/knowledge \
-  --chroma-dir /app/data/chroma_db
+  python scripts/ingest_knowledge.py
 ```
+
+`--knowledge-dir`/`--chroma-dir` нужны только для нестандартных путей
+(по умолчанию `/app/data/knowledge` и `/app/data/chroma_db`).
 
 Полная пересборка с удалением коллекции — только с флагом `--rebuild`
 (например, после массового удаления статей):
@@ -560,10 +562,7 @@ docker compose -f docker-compose.edge.yml exec api \
 ```bash
 docker compose -f docker-compose.edge.yml stop api
 docker compose -f docker-compose.edge.yml run --rm --no-deps \
-  --entrypoint python api \
-  scripts/ingest_knowledge.py \
-  --knowledge-dir /app/data/knowledge \
-  --chroma-dir /app/data/chroma_db
+  --entrypoint python api scripts/ingest_knowledge.py
 docker compose -f docker-compose.edge.yml up -d api
 ```
 

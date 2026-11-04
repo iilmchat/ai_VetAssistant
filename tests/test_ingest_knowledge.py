@@ -233,3 +233,13 @@ def test_ingest_chunks_rebuild_deletes_collection(
 
     assert deleted == ["msd_vet_manual"]
     assert upserts
+
+
+def test_default_paths_are_relative_to_working_directory() -> None:
+    """T-119: дефолты не зависят от site-packages установленного пакета."""
+    from scripts import ingest_knowledge
+
+    knowledge_dir = ingest_knowledge.DEFAULT_KNOWLEDGE_DIR
+    chroma_dir = ingest_knowledge.DEFAULT_CHROMA_DIR
+    assert knowledge_dir == Path.cwd() / "data" / "knowledge"
+    assert chroma_dir == Path.cwd() / "data" / "chroma_db"
