@@ -1,0 +1,71 @@
+Source: https://www.msdvetmanual.com/toxicology/food-hazards/xylitol-toxicosis-in-dogs
+Title: Xylitol Toxicosis in Dogs
+Downloaded: 2026-11-04
+
+Xylitol is a sugar alcohol used to sweeten sugar-free products, such as gums, candies, mints, peanut butter, and baked goods; xylitol can also be found in a variety of nonfood products, including sunscreens, medications, toothpastes and other oral hygiene products, chewable vitamins and supplements, cosmetics, deodorants, and hair care products. Xylitol is also present in numerous vitamins and nutritional supplements.
+Sugar-free syrups and elixirs used as medicinal bases (eg, liquid gabapentin formulations) also frequently contain xylitol. Ingestion of xylitol or xylitol-containing products by dogs can result in development of
+hypoglycemia
+and, less commonly, hepatic injury or failure.
+Dogs are the only domestic species in which xylitol toxicosis has been reported; cats are not at risk for hypoglycemia or liver injury from xylitol toxicosis.
+Pathogenesis of Xylitol Toxicosis in Dogs
+In most mammals, xylitol has no notable effect on insulin levels, but in dogs xylitol stimulates a rapid, dose-dependent insulin release that can result in profound hypoglycemia. The mechanism for hepatic necrosis is unclear but is hypothesized to be the result of either ATP depletion or the production of reactive oxygen species secondary to xylitol metabolism, which leads to hepatocellular damage.
+Doses of xylitol greater than approximately 100 mg/kg (45 mg/lb) have been associated with hypoglycemia in dogs. Some dogs ingesting xylitol at doses > 500 mg/kg (227 mg/lb) may develop severe hepatic insufficiency or failure.
+Clinical Findings of Xylitol Toxicosis in Dogs
+Clinical signs of hypoglycemia can develop within 30 minutes after ingesting xylitol or may be delayed up to 12–18 hours if the xylitol is in a substrate that slows absorption (eg, some gum products).
+Clinical signs of hypoglycemia include vomiting, weakness, ataxia, lethargy, seizures, and coma.
+Clinical signs of liver injury may not occur until ≥ 24–48 hours after xylitol ingestion, although increases in liver enzymes are often detectable within 4–12 hours of ingestion.
+Clinical signs of liver injury include lethargy, vomiting, icterus, and coagulopathy; other findings of liver injury with xylitol toxicosis include elevated serum alanine aminotransferase, hyperbilirubinemia, thrombocytopenia, and hyperphosphatemia. Not all dogs that develop xylitol-induced liver injury develop hypoglycemia; this may be the result of a rebound increase in serum glucose (Somogyi response) similar to that seen with insulin overdose.
+Additional clinical findings may include hypokalemia and hypophosphatemia.
+Diagnosis of Xylitol Toxicosis in Dogs
+Clinical evaluation
+History of exposure
+Diagnosis of xylitol toxicosis is based on clinical findings and history of exposure. Other causes of hypoglycemia include hypoglycemic drugs, juvenile hypoglycemia, hunting dog hypoglycemia,
+insulinoma
+, and parenteral insulin overdose.
+Differential diagnoses for liver insufficiency include infectious (eg,
+leptospirosis
+,
+viral hepatitis
+), environmental (eg, heatstroke, trauma), and toxic (eg,
+iron
+,
+acetaminophen
+,
+mushroom
+,
+blue-green algae
+,
+cycad palms
+) causes.
+Lesions in dogs succumbing to liver injury following xylitol toxicosis have included hepatic necrosis with loss of normal hepatic architecture.
+Treatment of Xylitol Toxicosis in Dogs
+Early GI decontamination
+Administration of IV dextrose
+Monitoring of liver enzyme values and management of liver insufficiency
+Because xylitol toxicosis may be accompanied by rapid onset of clinical signs of hypoglycemia, emesis should ideally be attempted only under veterinary supervision and in patients that remain clinically normal.
+Activated charcoal does not appreciably bind xylitol and is not recommended.
+If xylitol has been ingested at a dose > 100 mg/kg (45 mg/lb), patients should be hospitalized and baseline blood glucose concentrations measured; dogs ingesting > 500 mg/kg (227 mg/lb) should have baseline liver enzyme activity measured. Blood glucose concentration should be monitored every 1–2 hours for at least 12 hours, and liver enzyme activity should be evaluated every 24 hours for at least 72 hours.
+Hypoglycemia should be managed with IV boluses or constant-rate infusions of dextrose. Hypoglycemia may persist for 24 hours or more, so treatment should be continued until a normal blood glucose concentration can be maintained without supplemental dextrose. Dextrose should be administered to patients that have ingested xylitol at a dose > 500 mg/kg (227 mg/lb), even if they are normoglycemic, and administration of hepatoprotectants such as
+N
+-acetylcysteine,
+S
+-adenosylmethionine, and silymarin should be considered; however, the efficacy of hepatoprotectants in minimizing liver injury is not known.
+Treatment of coagulopathy or other manifestations of liver insufficiency should be performed, as needed.
+The prognosis for uncomplicated hypoglycemia is good if prompt treatment is initiated. Mild increases in liver enzyme activity usually resolve within a few days. Severe increases in liver enzyme activity or signs of liver insufficiency suggest a more guarded prognosis; in one study, 62.5% of dogs with clinical signs of liver injury died or were euthanized despite aggressive veterinary intervention (
+1
+).
+Key Points
+Xylitol, present in a variety of foods, nonfood products, and drug products, can cause profound hypoglycemia if dogs ingest it.
+Liver injury occasionally occurs in dogs after ingestion of > 500 mg/kg.
+If a food product, gum, candy, medicine (especially liquid formulations), or other consumable indicates it is "sugar-free," the ingredient list should be checked to determine whether xylitol is present.
+Treatment includes early GI decontamination, correction of hypoglycemia with IV dextrose, monitoring of liver enzyme activity, and management of hepatic insufficiency, as needed.
+For More Information
+Also see pet owner content regarding
+xylitol poisoning
+.
+References
+Dunayer EK, Gwaltney-Brant SM.
+Acute hepatic failure and coagulopathy associated with xylitol ingestion in eight dogs
+.
+J Am Vet Med Assoc
+. 2006;229(7):1113-1117. doi:10.2460/javma.229.7.1113

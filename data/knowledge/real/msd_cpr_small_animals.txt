@@ -1,0 +1,408 @@
+Source: https://www.msdvetmanual.com/emergency-medicine-and-critical-care/specific-diagnostics-and-therapy/cardiopulmonary-resuscitation-of-small-animals
+Title: Cardiopulmonary Resuscitation of Small Animals
+Downloaded: 2026-11-04
+
+The success of CPR depends on many factors, including the underlying cause of the arrest, the timeliness and effectiveness of the intervention, and the preparedness of the team administering CPR.
+Although the overall prognosis of recovery from cardiopulmonary arrest (CPA) with CPR efforts to have return of spontaneous circulation (ROSC) has been reported to be as high as 58%, only a small percentage of animals (5–7% of dogs and 1–19% of cats) survive to hospital discharge
+(
+1
+); large multicenter studies have yet to be performed. Animals with CPA associated with anesthesia have a better prognosis.
+The American College of Veterinary Emergency and Critical Care developed the first set of guidelines for veterinary CPR in 2012; this effort was termed the
+Reassessment Campaign on Veterinary Resuscitation (RECOVER)
+.
+Online and hands-on courses have been developed to certify veterinary staff as rescuers and instructors of Basic Life Support (BLS) and Advanced Life Support (ALS), which must be renewed biennially to maintain certification. In 2024, CPR guidelines and online and hands-on courses were updated. Hands-on training has been clearly demonstrated to improve CPR techniques, particularly in novices.
+CPR is divided into 5 domains:
+Prevention and preparedness
+Basic life support
+Advanced life support
+Monitoring
+Post–cardiac arrest care
+Prevention and Preparedness in Cardiopulmonary Resuscitation
+In an effort to have the entire veterinary team prepared for CPR on any animal, RECOVER guidelines recommend standardization and regular audit of resuscitation equipment (a
+triage area and a crash cart
+) as well as immediate availability of cognitive aids and descriptive CPR algorithms (eg, dose charts, checklists), which are available through the
+RECOVER website
+(see images of
+and
+).
+Triage area
+Image
+Materials in a triage area include a multiparameter monitor, fluid bag with IV set connected, oxygen, airway-mask-bag unit, catheter materials (catheters, prep, clippers, tape), crash cart with suction and defibrillator, and RECOVER initiative–based recording sheets, along with drug charts and CPR algorithms (available for download from RECOVER in For More Information).
+Courtesy of Dr. Andrew Linklater.
+Cognitive skill training and didactics should be incorporated for all veterinary team members on a regular basis.
+Assigning a leader and having specific leadership training, including debriefing after any CPR efforts, are recommended as well. Each team member should be familiar with available medical equipment and their role during CPR and should exercise clear, closed-loop communication. Regular refreshers of CPR techniques are useful, and biennial recertification by RECOVER is required to maintain certification as a rescuer.
+Every patient admitted to the ICU should have a CPR code status
+. Closely monitoring patients under anesthesia is essential to prevent anesthesia-related CPA. Monitoring patients that are sedated or anesthetized is essential to identify trends and prevent CPA.
+Emergency patients should have an immediate
+triage
+to identify those with life-threatening problems and thus avoid CPA.
+Basic Life Support in Cardiopulmonary Resuscitation
+When CPA is recognized, CPR efforts should begin immediately. Early recognition and intervention are essential.
+The immediate "shake and shout" to determine if a patient is responsive is recommended, with BLS initiated immediately if the patient doesn't respond. Palpation of pulses is not recommended before initiating compressions because this will delay intervention.
+The rescuer should immediately call for help. With a single rescuer,
+compressions are immediately initiated
+, and if there is no risk of zoonotic disease transmission, mouth-to-nose breaths should be performed until
+a tight-fitting mask or, preferentially, endotracheal intubation and positive pressure ventilation with 100% oxygen
+can be accomplished. The
+compression:ventilation ratio with a single rescuer is 30:2.
+In the hospital, intubation should occur early, and ideally, thoracic compressions should be not discontinued to facilitate placement of an endotracheal tube.
+Once the airway is established, it should be immediately secured by inflating the cuff and tying the tube in place. It is imperative to confirm placement with thoracic auscultation, visualization, palpation, and end-tidal CO
+2
+(ETCO
+2
+) monitoring.
+Ventilations should be provided at a rate of 10 breaths/min (1 breath every 6 seconds), with a volume of 10 mL/kg and an inspiratory time of 1 second.
+Ideally, these breaths are provided with a portable bag-valve-mask apparatus; however, an anesthetic bag (flushed free of anesthetic gases) providing 100% oxygen is an alternative. For nonintubated patients, a tight-fitting mask with oxygen supplementation is advised. Ventilations should result in a visible chest rise, and should not exceed 40 mmHg.
+Simultaneous with ventilation, circulation should be promoted in small animals by compressing the chest externally. Even with ideal BLS techniques, only a maximum of 30% of the normal cardiac output can be achieved.
+Proper compression technique is essential for any CPR efforts; the following are
+key points in regard to performing ideal chest compressions
+:
+For animals with a round-shaped chest, the animal is placed in right lateral recumbency (after intubation).
+Elbows should be locked, with one hand on top of the other and with shoulders directly above the hands (see
+). Core muscles should be engaged (compressing with movement from the waist, rather than biceps/triceps); a step stool should be used if needed. The compressor is usually positioned towards the back of the animal.
+Compressions for smaller animals (< 10 kg) may be performed with one of three techniques, directly over the heart: one hand (thumb opposing palm), two hands (both thumbs opposing both palms), or one arm (using the heel of one hand); when using one hand/arm for compressions, the other hand is placed along the spine, stabilizing the patient.
+Compressions should be performed over the widest part or "dome" of the thorax using the "thoracic pump" technique in animals with a thoracic conformation that is equally wide and tall.
+Compressions may be performed directly over the heart (at the 3rd-5th intercostal space) using the "cardiac pump" technique in animals < 10 kg with a thoracic conformation that is taller than it is wide or keel-shaped.
+Compressions should be performed over the sternum for wide-chested animals, such as Bulldogs, placed in dorsal recumbency.
+The compression rate should be 100–120 compressions/min regardless of the animal's size.
+Each compression should be delivered quickly, compressing one-third to one-half of the width of the thoracic wall for patients in lateral recumbency and one-fourth of the chest wall for patients in dorsal recumbency, and allowing full recoil between compressions.
+Thoracic compressions should be done for 2 minutes (also called one cycle) without interruption, as it takes approximately 1 minute of continuous thoracic compressions before myocardial perfusion pressure reaches its maximum.
+CPR, dog
+Image
+CPR being performed on a dog. Note the correct placement of the hands and arms, recording, monitoring, and communication. An IV catheter is placed, through which medications are given; oxygen is delivered through an endotracheal tube.
+Courtesy of Dr. Andrew Linklater.
+When the
+cardiac pump technique
+is used, direct compression of the cardiac ventricles contributes to forward blood flow; in the
+thoracic pump technique
+, changes in thoracic pressure are the important mechanism to generate forward blood flow.
+Simultaneous ventilations and compressions should be done in 2-minute cycles
+; individuals performing the ventilation and compressions should change roles every 2 minutes to prevent fatigue and less-effective compressions.
+After a 2-minute cycle, a brief interruption occurs
+to change the compressor, assess ECG, and palpate for pulses; this should be brief
+(< 10 seconds) and only done between 2-minute cycles of CPR.
+Interposed abdominal compressions may be added for animals without abdominal disease
+if adequately trained staff are available. This is performed by placing both hands on the abdomen and compressing quickly, timing the compression to be done between chest compressions.
+The goal is to improve venous return to the heart during the diastolic phase of the compression cycle.
+Monitoring CPR
+may necessitate a change in CPR technique.
+Advanced Life Support in Cardiopulmonary Resuscitation
+Several
+steps must occur to institute advanced life support (ALS)
+:
+An ECG is obtained to characterize arrhythmias.
+End-tidal CO
+2
+is measured to
+monitor quality of CPR
+efforts.
+IV access is obtained (intraosseous [IO] or intratracheal [IT] routes may be used as alternatives).
+Drugs or defibrillation is administered, based on the identified rhythm.
+The purpose of ALS is to reestablish electrical and mechanical activity of the heart. The ECG is evaluated and pulses palpated only at the 2-minute cycle intervals, when changing compressors and feeling for a pulse.
+The major arresting rhythms in veterinary medicine include
+asystole
+,
+pulseless electrical activity
+(PEA, previously termed electromechanical dissociation),
+pulseless ventricular tachycardia
+, and
+ventricular fibrillation
+.
+Treatment with drugs or defibrillation is selected based on the arrhythmia or known or suspected underlying disease (see the table
+).
+Drugs are administered through the following route priority: central IV, peripheral IV, intraosseous, then intratracheal. Drugs that can be administered via the intratracheal route include naloxone, atropine, vasopressin, epinephrine, and lidocaine (best remembered by the acronym NAVEL). The dose is usually doubled when administration is intratracheal.
+Intracardiac administration of drugs is no longer recommended because this may result in arrhythmias, myocardial hemorrhage, or myocardial vessel laceration. Poster
+algorithms for CPR and drug charts
+are available through the RECOVER initiative. High-dose epinephrine is no longer recommended.
+Pearls & Pitfalls
+Intracardiac administration of drugs is no longer recommended because this may result in arrhythmias, myocardial hemorrhage, or myocardial vessel laceration.
+When administered, atropine should be given early and only one time if bradycardia or high vagal tone is suspected to be a cause of CPA. Reversal drugs for anesthetics or sedatives should be administered early in the course of ALS.
+Determination of arresting rhythm
+is best done using binary questions.
+During ECG assessment, if there is no palpable pulse, it should be determined whether there are consistent repeating complexes.
+If there are consistent repeating complexes, the next question is whether the rate is > 200 bpm.
+If the rate is > 200, then pulseless ventricular tachycardia is the diagnosis, and this is a shockable rhythm; if the rate is < 200 bpm, the diagnosis is most likely PEA (a nonshockable rhythm), which is usually treated with epinephrine every other cycle.
+If there is no pulse and there are no consistent repeating complexes, then determine whether this is a flatline, which is asystole (a nonshockable rhythm), or a chaotic rhythm, which is likely ventricular fibrillation (a shockable rhythm).
+Table
+Drugs and Defibrillation Used in Cardiopulmonary Resuscitation
+Table
+Drugs and Defibrillation Used in Cardiopulmonary Resuscitation
+Drugs and Defibrillation Used in Cardiopulmonary Resuscitation
+Drug
+IV Dosage, mg/kg and mL/kg
+Indications
+Epinephrine
+a
+Low dosage (0.01 mg/kg); equivalent to 0.01 mL/kg of 1 mg/mL or 1:1,000 concentration
+Administered every 3–5 minutes early in CPR (every other cycle) for asystole, PEA
+Vasopressin
+a
+0.8 U/kg; equivalent to 0.04 mL/kg of 20 U/mL concentration
+As an alternative to epinephrine every 3–5 minutes (every second BLS cycle) for asystole, PEA
+Atropine
+a
+0.05 mg/kg;
+0.1 mL/kg of 0.4–0.54 mg/mL concentration
+Sinus bradycardia, arrest associated with high vagal tone. Varying concentration (0.4 vs 0.54 mg/mL is likely insignificant). Single dose only, administered early during CPR.
+Lidocaine
+a
+(dogs only)
+2 mg/kg; equivalent of 0.1 mL/kg of 20 mg/mL or 2% concentration
+Pulseless ventricular tachycardia, ventricular fibrillation refractory to defibrillation, suggested after 2 or more shocks
+Sodium bicarbonate
+1 mEq/kg (1 mEq/mL solution)
+Prolonged CPR efforts (> 15 min), especially if severe metabolic acidemia (pH < 7.0); must be adequately ventilated to be effective, hyperkalemia
+Amiodarone (cats)
+5 mg/kg; equivalent to 0.1 mL/kg of 50 mg/mL solution
+Pulseless ventricular tachycardia, ventricular fibrillation refractory to defibrillation, suggested after 2 or more shocks
+Esmolol
+0.5 mg/kg; equivalent to 0.05 mL/kg of 10 mg/mL solution administered over 10 min, followed by a 50 mcg/kg/min CRI
+Pulseless ventricular tachycardia, ventricular fibrillation refractory to defibrillation, suggested after 2 or more shocks
+Defibrillation
+4–6 J/kg external monophasic;
+2–4 J/kg external biphasic;
+0.5–1 J/kg internal monophasic;
+0.2–0.4 J/kg internal biphasic
+Single shock for ventricular fibrillation or pulseless ventricular tachycardia; resume CPR efforts immediately after defibrillation for one full cycle (2 min) before reassessing ECG. If shockable rhythm still present, dose is doubled once and maintained at that level for subsequent defibrillation attempts.
+Reversal Agents
+IV dosage
+Naloxone
+0.04 mg/kg; equivalent to 0.1 mL/kg of 0.4 mg/mL solution
+To reverse opioids (fentanyl, methadone, hydromorphone, etc)
+Flumazenil
+0.01 mg/kg; equivalent to 0.1 mL/kg of 0.1 mg/mL solution
+To reverse benzodiazepines (midazolam, diazepam, etc)
+Atipamezole
+0.1 mg/kg (or same volume as dexmedetomidine); equivalent to 0.02 mL/kg of 5 mg/mL solution
+To reverse dexmedetomidine, medetomidine
+Dosages are according to the
+2024 RECOVER guidelines
+.
+Abbreviations: BLS, basic life support; PEA, pulseless electrical activity.
+a
+Dosage should be doubled if given via intratracheal route.
+Dosages are according to the
+2024 RECOVER guidelines
+.
+Abbreviations: BLS, basic life support; PEA, pulseless electrical activity.
+a
+Dosage should be doubled if given via intratracheal route.
+Inhalant anesthetics (such as isoflurane) should be discontinued and the anesthetic circuit flushed with oxygen.
+Clinical Calculator
+If the animal is known or suspected to be hypovolemic, isotonic balanced crystalloid solutions may be rapidly infused to restore volume and promote perfusion.
+Overzealous fluid administration can result in fulminant pulmonary edema and may increase the right atrial pressure, which will decrease cerebral and myocardial blood flow in a patient with cardiopulmonary arrest.
+Fluids should not be administered to euvolemic animals because the increase in central venous pressure may decrease myocardial and cerebral blood flow.
+Metabolic alterations such as
+hyperkalemia
+,
+hypocalcemia
+, and severe acidosis should be treated when evident.
+In cardiac arrests known or suspected to be associated with hyperkalemia, calcium gluconate (50–150 mg/kg, slow IV) should be considered. Regular insulin at 0.2 U/kg, IV, followed by dextrose at 1–2 g/U of insulin, slow IV, diluted to 25%, temporarily lowers serum concentrations of potassium and should be considered.
+Arrhythmias of Cardiac Arrest
+Asystole in Cardiac Arrest
+On the ECG, asystole appears as a flat line (with no pulse, and no consistent, repeating complexes) and suggests complete absence of electrical activity (see
+). Epinephrine or vasopressin is administered every second cycle of CPR.
+Atropine may be considered, particularly if bradycardia was previously present or if high vagal tone (disease affecting the eye, neck, chest, abdomen, or urinary system) was suspected to be involved. Atropine should only be administered once during CPR because of its long half-life, and if indicated, should be given early during CPR efforts.
+Pearls & Pitfalls
+Atropine should only be administered once during CPR because of its long half-life, and if indicated, should be given early during CPR efforts.
+Fine ventricular fibrillation may look like asystole, and for this reason, open-chest CPR and direct observation of myocardial activity are warranted early with this arrhythmia; if fibrillation is visualized, defibrillation is indicated.
+Asystole, ECG tracing
+Image
+ECG tracing demonstrating asystole: a flat line indicating no electrical activity of the heart. As part of advanced life support, asystole is treated with epinephrine or vasopressin during CPR every other 2-minute cycle. Atropine may be indicated.
+Courtesy of Dr. Andrew Linklater.
+Pulseless Electrical Activity in Cardiac Arrest
+The ECG tracing of pulseless electrical activity (PEA) shows consistent repeating complexes with a rate of < 200 bpm (see
+). In this instance, the heart has no mechanical activity associated with the electrical activity: no contractions, no cardiac output, and subsequently, no pulses.
+In this arrhythmia, it is vital that evaluation of cardiac perfusion via palpation of femoral pulse or a change in ETCO
+2
+also occurs between BLS cycles. Brief thoracic auscultation or ultrasonographic evaluation of the heart may be performed but should not delay CPR efforts.
+Severe hypovolemia, pericardial effusion, obesity, and substantial accumulation of fluid or air in the pleural cavity can prevent detection of normal heart sounds.
+Epinephrine or vasopressin is the drug of choice with this arrhythmia and is administered every second cycle; atropine may be considered.
+Pulseless electrical activity, ECG tracing
+Image
+ECG tracing demonstrating pulseless electrical activity. Note the consistent, repeating complexes and rate of
+Courtesy of Dr. Andrew Linklater.
+Pulseless Ventricular Tachycardia in Cardiac Arrest
+Pulseless ventricular tachycardia is most often recognized as a nonperfusing arrest rhythm (no pulses) with consistent, repeating complexes and a rate > 200 bpm (see
+). There is no cardiac output with this rhythm and as a shockable rhythm,it is best treated with electrical defibrillation.
+Pulseless ventricular tachycardia, ECG tracing
+Image
+ECG tracing demonstrating pulseless ventricular tachycardia. Note the repeating complexes and rate > 200 bpm. As part of advanced life support, this is best treated with defibrillation.
+Courtesy of Dr. Andrew Linklater.
+Ventricular Fibrillation in Cardiac Arrest
+Ventricular fibrillation implies that multiple foci within the ventricles are firing rapidly and independently, resulting in no coordinated mechanical activity. There are no ventricular contractions and no cardiac output.With ventricular fibrillation, there are no consistent, repeating complexes and the tracing is not a flatline. Often, the QRS is wide and chaotic, and there is no coordinated cardiac output (see
+).
+The goal of treatment is to abruptly stop the abnormal electrical activity and allow a normal, coordinated electrical rhythm to take over.
+Electrical defibrillation is more successful when there are few, strong foci (coarse fibrillation) than when there are multiple, weak foci (fine fibrillation).
+Electrical defibrillation is most successful shortly after fibrillation starts (< 20-second duration), because for every minute of ventricular fibrillation, the likelihood of a successful electrical defibrillation attempt decreases by 10%.
+Once the rhythm is recognized, BLS efforts must be continued, and defibrillation should be verbally organized/coordinated by the team, determining the dose, preparing and charging the defibrillator, and coordinating who will position the patient, because patients often need to be lifted into a dorsal position to optimize paddle placement on either side of the heart.
+Liberal amounts of conduction gel should be applied to the pads and firm pressure applied to either side of the chest.
+The person administering the defibrillation should loudly yell "CLEAR," and all team members should determine that no one is touching the patient or the table while the patient is being defibrillated.
+After defibrillation, the patient is returned to appropriate recumbency, a BLS cycle is immediately started, and the ECG and patient are evaluated after this two-minute cycle.
+If defibrillation was unsuccessful, another shock may be administered, doubling the dose, with all subsequent shocks delivered at this higher dose
+.
+If a defibrillator is not available, a
+precordial thump
+may be delivered.
+If defibrillation is unsuccessful, amiodarone, lidocaine, or esmolol may be administered, following the algorithm; epinephrine or vasopressin may continue every other cycle.
+Ventricularfibrillation, ECG tracing
+Image
+ECG tracing demonstrating ventricular fibrillation. From the time point denoted by the arrow, note the chaotic rhythm and lack of any repeating complexes. As part of advanced life support, ventricular fibrillation is treated with defibrillation.
+Courtesy of Dr. Andrew Linklater.
+Sinus Bradycardia in Cardiac Arrest
+Sinus bradycardia may be an indication of impending arrest but is usually not an arresting rhythm. Sinus bradycardia has P, QRS, and T waves that appear normal, except they occur at a much slower rate. This arresting rhythm can be caused by many disease processes, such as high vagal tone due to GI, urinary, ocular, abdominal, or thoracic disease; hyperkalemia due to urinary obstruction or rupture; severe (oliguric or anuric) renal failure; or hypoadrenocorticism.
+Treatment of known or suspected hyperkalemia with calcium gluconate, insulin, and dextrose with or without sodium bicarbonate may be necessary. Atropine is indicated in this arrhythmia.
+Open-Chest Cardiopulmonary Resuscitation (Emergency Thoracotomy)
+If closed-chest BLS is unsuccessful (as determined by lack of spontaneous respiration or inability to generate detectable forward blood flow) after 5–10 minutes, open-chest CPR may be indicated. Although this is not specifically covered in the RECOVER guidelines,
+instances when open-chest CPR is indicated during initial BLS include the following:
+unwitnessed arrest
+recent abdominal or thoracic surgery
+suspected pleural or pericardial disease
+trauma or pathology of the chest or abdominal wall with blood loss
+diaphragmatic hernia
+larger dogs in which external compressions are unlikely to generate an adequate forward blood flow
+In many of these instances, it is not possible to generate forward blood flow, even with appropriate BLS efforts, because there may be compromise of the thoracic cavity or pericardium, limiting the thoracic or cardiac pump theory of blood flow.
+If possible, a quick clip of the hair along the intended incision site is helpful, but the nature of the situation precludes sufficient time for an aseptic preparation of the area.
+A scalpel blade or Mayo scissors are used to incise the skin, subcutaneous tissues, and muscle layers along the cranial border of the 4th or 5th rib from the spine to the sternum. Guarded by the thumb and forefinger to prevent injury to the heart and lungs, closed Mayo scissors or Carmalt forceps are used to bluntly enter the pleural space at the level of the 4th or 5th intercostal space, while ventilations are temporarily discontinued.
+After the pleura is entered, Mayo scissors are used to incise the intercostal muscles along the entire length of the intercostal space on the cranial aspect of the rib. Care should be taken to avoid incising the internal thoracic vessels running parallel and lateral to the sternum. To improve visualization, Finochietto retractors may be used; suction or temporarily placing the patient in sternal recumbency may be necessary to rapidly remove blood.
+After the thoracic cavity is opened, manual ventilations should resume. The pericardiodiaphragmatic ligament should be elevated with a finger or instrument and incised with scissors, extending the incision dorsally, taking care to avoid causing injury to the phrenic nerve.
+The heart is then lifted out of the pericardial sac and observed for any coordinated spontaneous contractions. If no cardiac contractions are noted, the heart is grasped with one or both hands and compressed progressively from the apex to the base. The compression is then released to allow the cardiac chambers to fill with blood. If fine or coarse fibrillation of the heart muscle is noted, internal defibrillation should be performed in a manner similar to that for external defibrillation, using sterile internal paddles with appropriate energy delivered (see
+).
+Any source of active bleeding can be clamped at this time.
+The descending aorta is located on the dorsal midline and can be isolated and temporarily cross-clamped to direct blood flow to the brain. Aortic cross-clamping can be performed with atraumatic vascular clamps or by using a modified Rommel tourniquet, passing a rubber tube, latex tube, or umbilical tape around the aorta with the assistance of curved hemostats and then clamping on the tube to occlude aortic flow. Aortic cross-clamping can be performed for 10 minutes without serious complications (from lack of blood flow to the spinal cord) and then should be released for 2 minutes.
+The ECG is evaluated and drugs given as indicated during ALS procedures. Return of spontaneous circulation allows lavage of the thorax with large quantities of sterile, warm saline solution (0.9% NaCl); placement of a thoracostomy tube; and surgical closure of the thorax.
+Cardiovascular support
+is frequently required to maintain circulation while the underlying cause of the arrest is treated.
+Monitoring in Cardiopulmonary Resuscitation
+End-tidal CO
+2
+(ETCO
+2
+) should be measured in intubated patients
+, particularly those at risk of having CPA, and is a necessary monitoring tool during CPR efforts. Using an ETCO
+2
+reading along with visualization, palpation, and auscultation can help confirm endotracheal intubation. ETCO
+2
+may also be an early indicator of return of spontaneous circulation (ROSC) and effectiveness of CPR efforts (when minute ventilation is consistent).
+An ETCO
+2
+< 10 mm Hg may indicate esophageal intubation, ineffective CPR technique, incorrect placement of endotracheal tube, or hyperventilation (if adequate perfusion is established).
+A goal during CPR is ETCO
+2
+> 18 mm Hg
+, which indicates adequate CPR efforts. With ETCO
+2
+< 18 mm Hg, efforts should be made to improve CPR technique (eg, hand placement, compression depth or rate, or changing a compressor); evaluate appropriate respiratory rate, depth, and volume; and confirm correct ET tube placement.
+A sharp increase of ETCO
+2
+of > 20 mm Hg or a reading of > 45 mm Hg usually indicates ROSC as CO
+2
+delivery to the lungs increases; the patient should be monitored closely for hypoventilation.
+Routine monitoring of ECG is essential during CPR to allow identification and specific therapy of
+arrhythmias
+(ALS). The
+ECG should only be evaluated at the end of a 2-minute BLS cycle.
+Palpation of pulses, either to detect CPA or to monitor effectiveness of CPR efforts, is not recommended because of the insensitive nature of this test; however, it may be used to monitor for ROSC between cycles (see
+).
+Use of Doppler monitoring (on eyes or peripheral arteries) to detect CPA or monitor efforts of CPR is not recommended; lack of pulsatile blood flow and patient movement during CPR makes this an ineffective monitor.
+Return of spontaneous circulation, cat
+Image
+A cat that had ROSC after a CPA event and CPR. The patient is on positive pressure ventilation and is being closely monitored and evaluated.
+Courtesy of Dr. Andrew Linklater.
+Use of blood samples may help guide therapy in some instances during CPR. Centrally collected samples are ideal; however, many patients do not have a central catheter. Peripheral blood samples do not necessarily reflect the central circulation but may help guide therapy in some instances (such as hyperkalemia or severe acidosis).
+Monitoring with arterial gas samples or pulse oximetry is not recommended; these require pulsatile arterial flow, which is inadequate during CPR.
+Pearls & Pitfalls
+Monitoring with arterial gas samples or pulse oximetry is not recommended during CPR, because these methods require pulsatile arterial flow, which is inadequate during CPR.
+Postresuscitation Care
+Even when ROSC is achieved, the majority of veterinary patients die (rearrest) or are euthanized
+. Post–cardiac arrest care is essential to deal with consequences of global hypoxia, hypoperfusion, and reperfusion.
+Close monitoring of an animal after CPA and ROSC is essential, as major abnormalities may require aggressive treatment. These abnormalities can include ongoing ischemic injury, neurological ischemia, myocardial dysfunction, ischemia-reperfusion injury, and any underlying pathology that led to the CPA.
+Parameters such as
+ECG, blood pressure, neurological status, pulse oximetry, ETCO
+2
+, and venous blood gases should be monitored closely
+.
+With anaerobic metabolism (poor oxygen delivery) that occurs during shock and cardiopulmonary arrest, blood lactate concentrations rise dramatically (normal lactate concentration < 2 mmol/L), and central or mixed venous oxygen saturation (ScvO
+2
+) may fall (< 70 mm Hg). With ROSC, both of these metrics should improve with appropriate intervention.
+Body temperature, glucose, and PCV/total solids provide additional information.
+Rearrest is common, and patients may be consistently hypoventilating or have poor perfusion due to resuscitation efforts and underlying pathology.
+Ventilatory support by way of manual or machine intermittent positive pressure breaths is necessary for a patient that is inadequately ventilating
+. A
+target of a normal ETCO
+2
+(35–45 mm Hg)
+is a good first step; normal arterial blood CO
+2
+(PaCO
+2
+: dog 32–34 mm Hg, cat 26–36 mm Hg) is an alternative way to monitor ventilation.
+Hyperventilation may occur due to manual hyperventilation or in a spontaneously breathing patient due to hypoxia, metabolic acidosis, pain, anxiety or other metabolic disease and should be avoided, because it may lead to vasoconstriction (decreased blood flow) to the brain and other tissues.
+Hypoventilation may occur due to cerebral injury, airway obstruction, poor patient positioning, or sedative/analgesic administration and can lead to hypoxia, acidosis, and vasodilation, which can then lead to hypotension. Hypoventilation should be treated by ensuring a clear airway, placing the patient in sternal recumbency, reversing sedative/analgesic medications, or, finally, intubating and manually ventilating the patient.
+Hypoxia should also be addressed; however, it is best to
+titrate oxygen supplementation to achieve an SpO
+2
+of 94–98% (PaO
+2
+of 80–100 mm Hg) rather than maintain a patient on 100% oxygen, which may worsen neuronal injury because of ischemia-reperfusion.
+(See
+Treatment With Oxygen in Breathing Disorders
+.)
+Blood pressure may fall during the postarrest period as CPR drugs are metabolized and the consequences of systemic hypoperfusion occur, so assessment and optimization of the cardiovascular system is essential. Blood pressure is dependent on cardiac output (which, in turn is dependent upon heart rate, preload, afterload, and stroke volume) as well as on systemic vascular resistance.
+A goal is to
+maintain a blood pressure between 80 and 100 mm Hg (mean) or
+> 100 mm Hg (systolic)
+. Hypotension (a blood pressure below our goals) results most commonly from hypovolemia, systemic vasodilation, or poor cardiac contractility.
+Hypovolemia can be assessed with central venous pressures, ultrasonographic examination of the heart (empty chambers), the
+caudal vena cava collapsibility index
+, or by knowing the underling cause of the arrest; hypovolemia is addressed with
+fluid resuscitation
+.
+Routine use of large volumes of fluids is not recommended and should be avoided in animals with congestive heart failure. It is important to use resuscitation end points during post-CPA care to normalize venous oxygen content, lactate concentration, blood pressure, central venous pressure, PCV, and oxygen saturation (see
+Fluid Therapy in Animals
+). Systemic vasodilation occurs in patients with hypovolemia but persistent hypotension; this vasodilation is treated with infusions of vasopressors such as norepinephrine and vasopressin (epinephrine, dopamine, and phenylephrine are alternative selections).
+Finally, poor cardiac contractility may lead to ongoing hypoxia; this is usually best assessed with echocardiography (subjective for inexperienced clinicians; objective for experienced clinicians) and is treated with positive inotropes such as dobutamine to maintain cardiac output.
+Hypertension is less common and may be neuroprotective; it may occur due to pain, anxiety, or vasopressor administration, which should stimulate the clinician to taper pressors. Close observation is warranted, and
+antihypertensives are rarely indicated and only administered to decrease systolic pressure to < 200 mm Hg.
+Neuroprotection is another essential part of postresuscitation care. Several pathological mechanisms can lead to neuronal edema, which results in increased intracranial pressure. Although compensatory mechanisms exist, substantially elevated intracranial pressure can result in decreased cerebral blood flow and lead to herniation.
+Medications to help decrease cerebral edema
+, such as mannitol (0.5 g/kg, IV or intraosseously over 20 minutes) or hypertonic saline solution (7% NaCl; dogs, 4 mL/kg; cats, 2 mL/kg, IV over 20 minutes), are often recommended. Ensuring appropriate ventilation is important.
+Hypothermia (targeted temperature management) has not been well described to have an improved outcome in veterinary patients with CPA; however,
+slow rewarming (< 1
+°C [1.8
+°F] per hour) with passive warming and avoiding hyperthermia
+is routinely recommended.
+Seizure prophylaxis
+is highly recommended if seizures occur with either a benzodiazepine (eg, midazolam, 0.1–0.3 mg/kg, IV) or levetiracetam (30–50 mg/kg, IV).
+Animals with open-chest CPR will require control of hemorrhage, pleural lavage, placement of a thoracostomy tube, perioperative antimicrobials, and closure of the thoracic cavity. Analgesics may be used cautiously as the patient becomes more stable.
+Investigation into and treatment of the underlying condition that led to the CPA
+is essential to help prevent recurrence. Patients with acute, reversible disease or those who arrest associated with anesthesia have a better prognosis.
+If atropine was used during CPR, dilated pupils should not necessarily be used as a prognostic indicator.
+Key Points
+Initiation of CPR with high-quality basic life support should occur without delay when cardiopulmonary arrest occurs.
+Advanced life support consists of reversal of medications administered (if appropriate), using ECG to identify rhythms to treat with medications or defibrillation, and monitoring ETCO
+2
+to assess quality of BLS efforts.
+There are several indications for open-chest CPR efforts, including recent thoracic or abdominal surgery, pleural or pericardial disease, chest wall trauma or pathology, and diaphragmatic hernia.
+Post–cardiac arrest care for a patient with return of spontaneous circulation includes optimizing oxygenation, ventilation, electrolyte and acid-base status, neuroprotection, seizure treatment, treating the underlying disease, and close monitoring.
+For More Information
+2024 algorithms and drug charts
+. RECOVER Initiative.
+CPR record sheet
+. RECOVER Initiative.
+McIntyre RL, Hopper K, Epstein SE.
+Assessment of cardiopulmonary resuscitation in 121 dogs and 30 cats at a university teaching hospital (2009-2012)
+.
+J Vet Emerg Crit Care (San Antonio)
+. 2014;24(6):693-704.
+Also see pet owner content regarding
+emergency care for dogs and cats
+and
+emergency care for horses
+.
+References
+Burkitt-Creedon JM, Boller M, Fletcher DJ, et al.
+2024 RECOVER guidelines: updated treatment recommendations for CPR in dogs and cats
+.
+J Vet Emerg Crit Care (San Antonio).
+2024;34(S1):1-123.

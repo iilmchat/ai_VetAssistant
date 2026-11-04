@@ -1,0 +1,83 @@
+Source: https://www.msdvetmanual.com/toxicology/food-hazards/grape-raisin-and-tamarind-vitis-spp-tamarindus-spp-toxicosis-in-dogs
+Title: Grape, Raisin, and Tamarind ( Vitis spp, Tamarindus spp) Toxicosis in Dogs
+Downloaded: 2026-11-04
+
+Ingestion of grapes, raisins, and tamarinds has been associated with development of GI upset and anuric renal failure in some dogs. Cases reported to date have been in dogs; anecdotal reports exist of renal failure in cats and ferrets after ingesting grapes or raisins, although there are no published case reports in these species.
+Pathogenesis of Grape, Raisin, and Tamarind (
+Vitis
+spp,
+Tamarindus
+spp) Toxicosis in Dogs
+Ingestion of grapes, raisins, and Zante currants, all members of the
+Vitis
+genus, has occasionally been associated with development of renal failure in dogs. Ingestion of true currants of the genus
+Ribes
+has not been associated with renal injury. Tamarind (
+Tamarindus
+spp) ingestions have also resulted in renal failure in dogs.
+One proposed toxic principle in these fruits is tartaric acid. Tartaric acid, an organic acid, is present in high concentrations in these fruits. Dogs poorly excrete organic acids because they lack the organic acid transporters that other species have, allowing tartaric acid to accumulate in the proximal renal tubular cells.
+Affected dogs develop oliguric or anuric renal failure, generally within 72 hours of ingesting these fruits.
+The tartaric acid content of grapes, raisins, and tamarinds varies, resulting in variable effects following ingestion. In general, more than one grape or raisin per 4.5 kg (10 pounds) of body weight may contain enough tartaric acid to pose a risk for renal effects in dogs.
+Clinical Findings of Grape, Raisin, and Tamarind (
+Vitis
+spp,
+Tamarindus
+spp) Toxicosis in Dogs
+Most dogs with grape, raisin, or tamarind toxicosis develop vomiting or diarrhea within 6–12 hours after ingestion. Other clinical signs include lethargy, anorexia, abdominal pain, weakness, dehydration, polydipsia, and tremors (shivering).
+Serum creatinine concentrations tend to rise prior to serum urea nitrogen concentrations, and elevations seen in the serum creatinine are disproportionately higher compared with serum urea nitrogen concentrations. Oliguric or anuric renal failure develops within 24–72 hours after exposure; once anuric renal failure develops, most dogs die or are euthanized.
+Transient increases in serum glucose concentration, liver enzyme activity, pancreatic enzyme activity, serum calcium concentration, or serum phosphorus concentration develop in some dogs.
+Diagnosis of Grape, Raisin, and Tamarind (
+Vitis
+spp,
+Tamarindus
+spp) Toxicosis in Dogs
+Clinical evaluation
+Patient's history of exposure
+Diagnosis of grape, raisin, or tamarind toxicosis is based on history of exposure and clinical signs. Other causes of renal failure (eg,
+ethylene glycol
+,
+cholecalciferol
+) should be considered as differential diagnoses.
+Treatment of Grape, Raisin, and Tamarind (
+Vitis
+spp,
+Tamarindus
+spp) Toxicosis in Dogs
+GI decontamination
+IV fluid diuresis
+Close monitoring of renal function
+Prompt GI decontamination is the recommended treatment for raisin, grape, or tamarind toxicosis in patients that remain clinically normal. Emesis may be induced using one of the following drugs:
+ropinirole (2.7–5.4 mg/m
+2
+, in the conjunctival sac, repeated in 20 minutes)
+apomorphine (0.03–0.04 mg/kg, IM, IV, SC, or in the conjunctival sac, although IV is preferred due to its rapid onset of effect)
+3% hydrogen peroxide (1–2 mL/kg, PO, maximum of 45 mL)
+Note: Use of emetic drugs licensed for use in dogs should be prioritized over extra-label use of other drugs to ensure emesis and to avoid unintended adverse events.
+The efficacy of activated charcoal is unknown.
+With ingestion of a large quantity of grapes, raisins, or tamarinds, or in cases in which diarrhea has spontaneously developed within 12 hours after ingestion, diuresis with aggressive IV fluid therapy for a minimum of 48 hours is recommended. Renal function and fluid balance should be monitored during fluid administration.
+For oliguric dogs, urine production may be stimulated by administering dopamine (0.5–3 mcg/kg/min, IV), furosemide (2 mg/kg, IV), or both.
+Anuric dogs are unlikely to survive unless peritoneal dialysis or hemodialysis is initiated; even then, the prognosis is guarded.
+Key Points
+Ingestion of
+Vitis
+spp has been associated with development of renal failure in some dogs.
+In cases of exposure to
+Vitis
+spp or
+Tamarindus
+spp in which clinical signs develop, GI decontamination is recommended.
+Treatment entails early GI decontamination and IV fluid diuresis while monitoring renal function.
+For More Information
+Wegenast CA, Meadows ID, Anderson RE, Southard T, González Barrientos CR, Wismer TA.
+Acute kidney injury in dogs following ingestion of cream of tartar and tamarinds and the connection to tartaric acid as the proposed toxic principle in grapes and raisins
+.
+J Vet Emerg Crit Care
+. 2022;32(6):812-816.
+Coyne SR, Landry GM.
+Tartaric acid induces toxicity in Madin–Darby canine kidney cells, but not human kidney-2 cells in vitro, and is prevented by organic anion transporter inhibition and human OAT-4 transfection
+.
+J Vet Emerg Crit Care
+. 2023;33:298-304.
+Also see pet owner content regarding
+raisin and grape poisoning
+.

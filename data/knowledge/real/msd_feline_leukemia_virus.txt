@@ -1,0 +1,227 @@
+Source: https://www.msdvetmanual.com/infectious-diseases/feline-leukemia-virus/feline-leukemia-virus-disease
+Title: Feline Leukemia Virus Disease
+Downloaded: 2026-11-04
+
+The retrovirus status of every cat at risk of infection should be known. Cats exposed to FeLV may develop one of three outcomes: abortive, regressive, or progressive. In its progressive form, FeLV infection is associated with conditions such as profound anemia, malignancies, and immunosuppression. Identification of a cat's infection status may require repeated testing over time, and several types of diagnostic tests. Treatment of infected cats depends on infection type, clinical signs, and patient status.
+Pearls & Pitfalls
+A single testing protocol is difficult to recommend for all cats
+Infected cats may not show clinical signs of disease
+It is not always possible to determine infection status with a single test
+The
+2020 AAFP Feline Retrovirus Testing and Management Guidelines
+, published by the American Association of Feline Practitioners, are a key resource for expert consensus on prevention, diagnosis, and management of FeLV for veterinary practitioners in private practice, animal shelters, and catteries (see table:
+).
+Table
+Summary of Clinical Management of Feline Leukemia Virus
+Table
+Summary of Clinical Management of Feline Leukemia Virus
+Summary of Clinical Management of Feline Leukemia Virus
+Testing recommendations
+Test before vaccination against FeLV.
+Test all sick cats, regardless of age and previous test status.
+Test newly acquired cats as soon as possible after they are acquired and repeat testing ≥30 days later.
+Test cats ≥30 days after most recent risk of exposure.
+Test cats considered at risk with an unknown infection status:
+Regularly test cats that are spending time free-range outdoors.
+Test cats that are living in a home with, or have been exposed to, FeLV-positive cats or cats of unknown FeLV status.
+Cats that are candidates to become blood donors should be tested for FeLV antigen and DNA.
+Cats that are potential breeding stock should be tested for FeLV antigen and DNA.
+Vaccination recommendations
+Kittens, as part of the initial vaccination series and one year later
+Cats that roam outdoors
+Cats in transient group situations such as foster homes or temporary colony housing
+Cats living with known FeLV-positive cats or cats of unknown FeLV status
+Note:
+All cats should be tested for FeLV before vaccination.
+Testing considerations
+Antigen tests do not detect previous vaccination.
+A single testing protocol is difficult to recommend for all cats.
+Infected cats may not show clinical signs of disease.
+It is not always possible to determine infection status with a single test.
+Positive results of a point-of-care (POC) ELISA for FeLV indicates the presence of viral antigen (p27. Confirmatory testing is ideal and should include FeLV quantitative real-time PCR assay. Other confirmatory FeLV tests include a different manufacturer’s POC test, referral laboratory microtiter antigen tests, and immunofluorescence assays (IFA).
+IFA detects secondary viremia after bone marrow infection. IFA test interpretation can be subjective and performance among laboratories differs. This can lead to false positives and negatives. False negative IFA results can also occur in cats with leukopenia and in cats with regressive infection.
+Regressive versus progressive infections may be further clarified via quantitative real-time PCR array.
+Management of infected cats
+Infected cats may have a good quality of life.
+Although many cats die within 3 years of diagnosis, others remain subclinically affected for multiple years.
+Preventive veterinary care, including frequent physical examination, laboratory monitoring, core vaccinations, spay or neuter surgery, dental prophylaxis, and parasite control, is essential.
+Avoid transmission to other cats by preventing access to outdoors and other uninfected cats in the household.
+Vaccinate and routinely test uninfected, in-contact cats.
+Antiviral and immunotherapeutic treatments are described in early trials or anecdotal use; however, none has both wide availability and demonstrated clinical efficacy in controlled field studies.
+Adapted from the Feline Retrovirus Management Guidelines, American Association of Feline Practitioners, 2020.
+Adapted from the Feline Retrovirus Management Guidelines, American Association of Feline Practitioners, 2020.
+Etiology and Pathogenesis of Feline Leukemia Virus Disease
+Classification of viral genome
+Feline leukemia virus is a retrovirus in the family Oncovirinae. As a retrovirus, FeLV is an enveloped virus with a positive-sense single-stranded RNA genome, which relies on a double-stranded DNA intermediate (i.e. provirus stage) in its life cycle for replication (Baltimore classification group VI, (+)ssRNA-RT). Other oncoviruses include feline sarcoma virus (derived from FeLV), mouse leukemia viruses, and two human T-lymphotropic viruses.
+Structure
+Retrovirions consist of an envelope and capsid surrounding a nucleic acid-protein complex containing two copies of the single-stranded RNA genome. In contrast to complex retroviruses (e.g., feline immunodeficiency virus [FIV] in the genus Lentivirus), which possess accessory genes, FeLV has a simple genome containing just three genes:
+gag
+(encoding capsid),
+pol
+(encoding reverse transcriptase and integrase), and
+env
+(encoding the major glycoprotein).
+Replication
+Viral DNA is inserted and integrated into host DNA, serving as a template for formation of new viral RNA genomes, which are released from the infected host cell. The reverse transcriptase enzyme involved with this conversion lacks ability to proofread, resulting in considerable potential for mutation and the emergence of variations in strain, phenotype, and antigenicity.
+Pathogenic mechanisms
+Although oncogenesis is one of their more dramatic effects, oncoviruses cause many other conditions, including degenerative, proliferative, and immunologic disorders. There are four FeLV subgroups of clinical importance. Almost all naturally infected cats are originally infected by FeLV-A, the original, archetypical form of the virus. Additional mutated forms of the original FeLV-A subtype as well as FeLV-B, FeLV-C, or FeLV-T may develop in infected cats. The FeLV-B subtype increases the frequency of neoplastic diseases; FeLV-C is strongly associated with development of erythroid hypoplasia and consequent severe anemia; and FeLV-T has the propensity to infect and destroy T lymphocytes, leading to lymphoid depletion and immunodeficiency. Viruses of all four subgroups are detected (but cannot be distinguished) by commonly used FeLV diagnostic test kits.
+After oronasal inoculation, FeLV first replicates in oropharyngeal lymphoid tissue. From there, virus is carried via monocytes and lymphocytes to peripheral tissue including spleen, lymph nodes, epithelial cells of the intestine and bladder, salivary glands, and bone marrow. This marks the primary viremia phase. Virus also appears in secretions and excretions of these tissues. After transmission to the bone marrow, a secondary viremia phase can arise; FeLV-containing leukocytes and platelets can appear in the peripheral blood.
+Viral antigen is usually detectable 30 or more days after infection. The acute stage of FeLV infection occurring 2–6 weeks after infection is rarely detected but typically characterized by mild fever, malaise, lymphadenopathy, and cytopenia. Cats unable to mount an adequate immune response may become regressively or progressively infected. Progressively infected cats become persistently viremic and develop progressive disease, which is eventually fatal. Oncogenesis occurs when FeLV inserts into the host cellular genome, either in proximity to an oncogene resulting in activation or directly into the oncogene itself to form a recombinant subgroup virus such as FeLV-B that can induce new neoplastic activity in any cell the recombinant virus enters.
+Epidemiology and Transmission of Feline Leukemia Virus Disease
+The prevalence of FeLV infection has been documented in several studies in North America and worldwide. In a large 2017 study in the US and Canada, the prevalence of FeLV was determined to be 3.1%.
+1
+There was an increased risk to cats with an outdoor lifestyle, sexually intact males, and cats with other disease conditions (particularly respiratory disease, oral disease, and abscesses). In the US, prevalence was highest in the Midwest and West and lowest in the Northeast. In 2019, a large European prospective study of FeLV viremia in cats visiting a veterinary hospital found an overall prevalence of 2.3%. The highest prevalence was in southern Europe (5.5%) and the lowest prevalence was in northern Europe (0.7%). Risk factors in the 2019 study included sexually intact males, access to the outdoors, ages 1 to 6 years, living in a group of 5 or more cats, and illness. Although vaccination and test and removal prevention methods have led to decreases in the prevalence of FeLV since the mid-1980s, stagnation in this decline has been reported in some countries in the late 2010s.
+2,3,4
+Otherwise apparently healthy cats with regressive and, most commonly, progressive infections serve as reservoirs of FeLV for both vertical and horizontal viral transmission. The virus is transmitted via close contact among cats. The virus is most commonly shed in saliva, with less common sources of virus including nasal secretions, milk, urine, and feces. Tears and feces may contain virus but are not clinically important in disease transmission or diagnostic detection. Oronasal contact with infectious saliva or urine represents the most likely mode of horizontal transmission, with bite wounds a less common source of horizontal transmission.
+In a US study, FeLV infection was diagnosed in 9% of cats undergoing treatment for bite wounds, approximately 3 times the rate for cats in general. Vertical and horizontal transmission from infected queens to their kittens may occur in utero or via nursing, respectively. Because FeLV is a fragile, enveloped virus, horizontal transmission between adults usually requires prolonged, intimate contact. In addition, the infectious dose required for oronasal transmission of the virus is relatively high. Direct contact, mutual grooming, and shared litter trays and food dishes are the primary methods of horizontal transmission.
+Disease from FeLV infection is considered to be age dependent insofar as young kittens are at higher risk of progressive infection and more rapid disease progression, whereas adults display some age-related resistance to infection. However, transmission can occur at any age, and factors affecting clinical course of disease are complex and incompletely understood.
+Some strains of FeLV can be experimentally grown in human tissue cultures, leading to concerns of potential for transmission to people. Studies addressing this concern have shown no evidence that any zoonotic risk exists, and there are no known cases of zoonotic transmission.
+References
+Burling AN, Levy JK, Scott HM, et al. Seroprevalences of feline leukemia virus and feline immunodeficiency virus infection in cats in the United States and Canada and risk factors for seropositivity.
+J Am Vet Med Assoc
+2017; 251: 187–194.
+Weijer K, UijtdeHaag F, Osterhaus A. Control of feline leukaemia virus infection by a removal programme.
+Vet Rec
+. 1986 Nov 29; 119(22):555–6.
+Spada E, Perego R, Sgamma EA, Proverbio D. Survival time and effect of selected predictor variables on survival in owned pet cats seropositive for feline immunodeficiency and leukemia virus attending a referral clinic in northern Italy.
+Prev Vet Med
+. 2018 Feb 1; 150():38–46.
+Hofmann-Lehmann R, Gönczi E, Riond B, et al. Feline leukemia virus infection: importance and current situation in Switzerland.
+Schweiz Arch Tierheilkd
+. 2018 Feb; 160(2):95–105.
+Clinical Findings of Feline Leukemia Virus Disease
+Clinical signs of illness in FeLV infected cats may be due to unrelated illness, secondary to FeLV-related immunosupression, or directly related to FeLV infection. Cats with illness unrelated to their FeLV status should be managed based on their specific health condition.
+Disease Secondary to FeLV
+Retrovirus-related immunosuppression can predispose cats to infectious disease, neoplasia, and chronic gingivostomatitis. The immunosuppression caused by FeLV increases susceptibility to bacterial, fungal, protozoal, and viral infections. Numbers of neutrophils and lymphocytes in the peripheral blood of affected cats may be decreased, and those cells that are present may be dysfunctional. Many FeLV-positive cats have low blood concentrations of complement system proteins; this contributes to FeLV-associated immunodeficiency and oncogenicity, because the complement system is vital for some forms of antibody-mediated tumor cell lysis. While FeLV infected cats may be at increased risk of infectious disease, it should not be assumed that all infectious diseases occur as a result of FeLV-related immunosuppression.
+In FeLV-infected cats, under conditions in which FeLV antigens are abundant and anti-FeLV IgG antibodies are sparse, antibody-antigen complexes can form, leading to a variety of immune-mediated diseases (eg, systemic vasculitis,
+glomerulonephritis
+, and
+polyarthritis
+).
+Chronic gingivostomatitis is classically associated with
+feline immunodeficiency virus
+(FIV) infection; however, FeLV infection can also predispose cats to chronic ulcerative proliferative gingivostomatitis. Clinical sequelae include pain, anorexia, and tooth loss. An immune-mediated mechanism is likely, particularly in combination with coinfections such as
+feline calicivirus
+. Cats with chronic gingivostomatitis are most likely to benefit from full mouth extraction including complete extraction of all tooth roots. Dental radiography before and after surgical extraction is essential. Medical management using repeated antimicrobial courses, anti-inflammatories, and other immune modulators rarely resolve the condition.
+Immunosuppression may increase risks associated with anemia-causing infectious agents such as
+Mycoplasma haemofelis
+. A nonregenerative anemia of chronic disease may occur related to high concentrations of circulating cytokines. Abnormalities in CBC results should always be investigated in full, regardless of FeLV status, in the event that the change is due to a treatable condition.
+Diseases Caused by FeLV
+The
+anemia
+caused by FeLV is typically nonregenerative and normochromic. Macrocytosis or regenerative hemolytic anemia occurs in only 10% of FeLV-induced anemia cases. The cause of nonregenerative anemia is usually bone marrow suppression due to viral infection of the hematopoietic stem cells and the supporting stromal cells. Platelet dysfunction, thrombocytopenia, and neutropenia are all possible sequelae as well.
+Lymphoma is the most frequently diagnosed malignancy of cats. Tumors such as lymphoma and lymphoid leukemia develop in as many as 30% of cats with progressive FeLV infections. Regressive infections are also implicated in the occurrence of these tumors in the absence of viremia; however, the risk of lymphoma development in cats with progressive infections may be increased up to 60-fold.
+Most cats in the US with mediastinal, multicentric, or spinal forms of lymphoma are FeLV positive. However, these forms of lymphoma became less common as the prevalence of FeLV decreased with the introduction of FeLV vaccination. Diffuse gastrointestinal lymphoma is now more likely to be found in FeLV-negative cats of middle or older age and can be difficult to differentiate from inflammatory bowel disease. Fibrosarcomas and quasi-neoplastic disorders such as multiple cartilaginous exostoses (osteochondromatosis) can be FeLV-associated. Other types of tumors share a suspected but not yet clearly defined link with FeLV.
+Leukemia is characterized by the neoplastic proliferation of hematopoietic cells originating in the bone marrow, including neutrophils, basophils, eosinophils, monocytes, lymphocytes, megakaryocytes, and erythrocytes. Feline leukemias are strongly associated with FeLV infection and typically involve neoplastic cells circulating in the blood. Lymphoid leukemias are further classified as acute or chronic. Acute lymphocytic leukemia is characterized by lymphoblasts circulating in the blood, whereas chronic lymphocytic leukemias have an increased number of circulating lymphocytes with mature morphology.
+Reproductive problems are commonly associated with FeLV infection. Fetal death, resorption, and placental involution may occur in the middle trimester of pregnancy, presumably as a result of in utero infection of fetuses by virus transported across the placenta in maternal leukocytes. Abortion typically occurs in late gestation accompanied by risk of bacterial endometritis, especially in neutropenic queens. Transmission during birth and nursing constitutes the greatest risk of producing live, viremic kittens. There is some evidence that regressively infected queens may pass virus on to their kittens either in utero or in milk. Neonatal kittens are at risk of rapidly progressive infection with clinical manifestations of hypothermia, dehydration, failure to nurse, and early mortality collectively termed
+fading kitten syndrome.
+Coinfection with FeLV and
+feline panleukopenia virus
+(FPV) has been implicated in
+feline panleukopenia-like syndrome (FPLS), which is also termed
+FeLV-associated enteritis (FAE) or myeloblastopenia. The condition resembles feline panleukopenia both clinically and histopathologically and is characterized clinically by progressive anorexia, depression, vomiting, hemorrhagic diarrhea, weight loss, gingivitis, oral ulceration, severe neutropenia, and septicemia. In these cases, FPV antigen is inconsistently detected on diagnostic testing, and the pathogenesis and exact role of each virus in the development of this syndrome are incompletely understood.
+Neurologic disorders associated with FeLV are most often caused by compression of the brain and spinal cord by lymphoma tumor tissue. A mechanism for FeLV-induced neurotoxicity is also suspected and can result in peripheral neuropathies, urinary incontinence, and ocular pathological changes, including anisocoria, mydriasis, Horner's syndrome, and central blindness even in the absence of visible compressive lesions on diagnostic imaging. If antineoplastic treatment is planned, it is important to distinguish neoplasia from neuropathy.
+Infection Response Categories
+Outcomes of FeLV infection are classified as follows:
+Abortive infection.
+After exposure to the virus, cats are able to amount an effective immune response leading to clearance of the virus. Patients with abortive infections will test negative for viral antigen and nucleic acids; however, they will test positive for FeLV antibodies. In studies looking at p27 antigen, proviral DNA, viral RNA, and virus-neutralizing antibodies in Germany (2012) and Australia (2019), 4% and 11% of studied cats were presumed to have abortive infections, respectively.
+Feline leukemia virus clinical staging
+Image
+Diagram outlining FeLV clinical staging. Regressively infected cats will have variable test results at variable times in the infection. They may be antigen positive or negative, have low copies of proviral DNA by PCR assay or be PCR assay negative. Progressively infected cats are positive for viral antigen and have high copy numbers of proviral DNA by PCR assay.
+Courtesy of Dr. Julie Levy.
+Regressive infection.
+After exposure, patients are able to mount an immune response but are unable to eliminate viral replication. The FeLV is able to integrate into the patient's DNA. Regressively infected cats are aviremic, do not shed infectious virus, and are unlikely to develop FeLV-associated diseases. Regressively infected cats will have variable test results at different points in time during the course of infection. They may be antigen positive or negative, have low copy numbers for proviral DNA by PCR assay, or be PCR assay negative. Although regressively infected cats do not actively shed virus, they can be a source of infection if used as blood donors. There is a small risk of reactivation of the virus. Integration of the virus into the DNA can lead to lymphoma or bone marrow suppression. In the German and Australian studies, 1% and 2% of tested cats were presumed to be regressively infected, respectively.
+Progressive infections.
+After exposure, patients are unable to mount an immune response, leaving the virus unchecked. Viral replication occurs extensively in the lymphoid tissues, with viral replication extending into the bone marrow, followed by mucosal and glandular epithelial tissue. These patients are actively shedding virus and must be considered infectious. Progressively infected cats test positive for viral antigen and have high numbers of copies of proviral DNA by PCR assay. Progressively infected cats have a shortened lifespan and will develop and die of FeLV-related disease within several years. In the German and Australian studies, 2% and 0.5% of tested cats were presumed to be progressively infected, respectively.
+Overall, abortive infections are considered the most likely outcome of exposure to FeLV. In contrast, in the 2019 study, which also looked at comingling of healthy and ill infected and uninfected cats, 9% of cats were identified as abortively infected, 25% of cats were identified as regressively infected, and 21% of cats were identified as progressively infected. This suggests that intense infectious pressure, comorbidities, and a stressful environment may impact exposure outcome.
+Diagnosis of Feline Leukemia Virus Disease
+Point-of-care FeLV ELISA, followed by confirmation via laboratory test
+Testing for FeLV infection is recommended when cats are first acquired, before vaccination against FeLV, and if there has been potential exposure or bite wound from a cat of unknown or positive retroviral status. Testing is recommended annually if the cat lives in a household with FeLV-positive cats or cats of unknown status, before blood donation (ELISA and PCR assay), and if the cat has outdoor access.
+For cats entering a new home or known to be at high risk of exposure, testing should be repeated ≥30 days after the first test in case of recent infection that has not yet resulted in detectable circulating antigen. Documentation of a previous negative test does not negate the need for repeated testing in the above situations.
+Feline leukemia virus testing flowchart
+Image
+Flowchart for FeLV testing. Level 1 diagnostic testing may be sufficient in circumstances where the test results are consistent with patient signalment and clinical signs. Level 2 diagnostic testing is recommended as confirmatory testing or in cases where further clarification of the patient’s infection status is needed.
+Courtesy of Dr. Kelly St. Denis. Adapted from Little S, Levy J, Hartman K, et al. 2020 AAFP Feline Retrovirus Testing and Management Guidelines.
+J Feline Med Surg
+2020;22(1):5-30.
+Most testing begins in clinic with a point-of-care (POC) ELISA or rapid immunomigration (RIM) FeLV tests. These tests detect soluble FeLV antigen as early as 30 days after exposure. Most have shown good sensitivity and specificity, ranging from 85%–100% in one study (Levy et al, 2017). Testing can be performed on serum, plasma, or whole blood. Tears and saliva should not be used to test for FeLV antigen. Pooled sampling is not recommended. Positive results of ELISA or RIM testing in a patient should be confirmed with follow-up testing. This is especially important in patients that are at low risk of disease and thus are at increased risk of having a false-positive result. Because detection of infection has such a notable impact on long-term patient care, any questionable results should be reevaluated with repeated or additional testing. Immediate retesting options after a questionable or positive POC test include referral laboratory testing using a microplate ELISA for FeLV p27 antigen or PCR assay for FeLV provirus. An alternate POC test from a different manufacturer may also be used.
+Referral laboratories offer a number of confirmatory testing options including microplate ELISA for FeLV p27 antigen and PCR assay for FeLV provirus, as well as immunofluorescent antibody (IFA) testing. Some laboratories also offer quantitation of proviral DNA (copies/mL) in patients that are PCR assay positive for FeLV provirus.
+An IFA tests for the presence of FeLV p27 and other structural core antigens in the cytoplasm of cells. In clinical practice, peripheral blood smears are usually used for IFA; however, cytologic preparations of bone marrow or other tissues can also be used. An IFA requires submission to a diagnostic laboratory and cannot detect infection until bone marrow involvement occurs. False-negative test results may occur because of technical error, leukopenia, or lack of bone marrow involvement, whereas technical error is most often the cause of false-positive results. Like ELISA, IFA may not detect regressive infection because of the lack of sufficient viral antigen production.
+Diagnostic laboratories increasingly offer PCR assay on whole blood, bone marrow, and other tissues, although validated sensitivity and specificity studies are often lacking. Real-time PCR assay offers great potential to provide extremely sensitive detection of FeLV rapidly after infection and can be useful to detect regressive infections and resolve conflicting test results if a positive result is obtained. Quantitative real-time PCR assay can provide sufficient information to distinguish between regressively and progressively FeLV-infected cats. Cats that are FeLV p27 antigen positive by ELISA and PCR assay proviral DNA positive can be further classified by quantitative real-time PCR assay into those with < 1 million proviral DNA copies/mL, and those with ≥1 million proviral DNA copies/mL. Patients with < 1 million proviral DNA copies/mL are more likely to be regressively infected, while those with ≥1 million proviral DNA copies/mL are more likely to be progressively infected.
+Table
+Feline Leukemia Virus Quantitative Testing
+Table
+Feline Leukemia Virus Quantitative Testing
+Feline Leukemia Virus Quantitative Testing
+Stage of infection
+FeLV antigen by ELISA
+Quantitative real-time PCR assay
+Abortive
+Negative
+Negative
+Regressive
+Positive
+Negative
+Negative
+Positive (< 1 million copies per mL)
+Positive
+Positive (< 1 million copies per mL)
+Progressive
+Positive
+Positive (≥1 million copies per mL)
+Positive
+Adapted from IDEXX https://catvets.com/public/images/Toolkit/Retrovirus/FIG-5-Table-1-hr.jpg.
+Reference: Beall MJ, Buch J, Cahill RJ, et al. Evaluation of a quantitative enzyme-linked immunosorbent assay for feline leukemia virus p27 antigen and comparison to proviral DNA loads by realtime polymerase chain reaction.
+Comp Immunol Microbiol Infect Dis
+2019;67:101348. doi:10.1016/j.cimid.2019.101348
+Adapted from IDEXX https://catvets.com/public/images/Toolkit/Retrovirus/FIG-5-Table-1-hr.jpg.
+Reference: Beall MJ, Buch J, Cahill RJ, et al. Evaluation of a quantitative enzyme-linked immunosorbent assay for feline leukemia virus p27 antigen and comparison to proviral DNA loads by realtime polymerase chain reaction.
+Comp Immunol Microbiol Infect Dis
+2019;67:101348. doi:10.1016/j.cimid.2019.101348
+Discordant results between tests, often a positive initial ELISA result followed by negative results on either repeated ELISA or IFA, may reflect the inconsistent antigen circulation during various stages of FeLV infection, technical error, or possibly regressive infection status. These cats are generally considered presumptively infected and potential sources of infection until further clarification is possible.
+Pearls & Pitfalls
+If results between tests are discordant, a cat should be considered presumptively infected and a potential source of infection until further clarification is possible.
+Diagnosis of FeLV-induced neoplasia is similar to that of other tumors. Cytologic examination of fine-needle aspirates of masses, lymph nodes, body cavity fluids (eg, pleural effusion), and affected organs may reveal malignant lymphocytes. Bone marrow examination may reveal leukemic involvement, even when the peripheral blood appears normal. Biopsy with histologic examination of abnormal tissues is often necessary for diagnostic confirmation. Cellular phenotyping via flow cytometry, immunocytochemical analysis, or other techniques can provide additional diagnostic information.
+Treatment and Prognosis of Feline Leukemia Virus Disease
+High-quality nutrition and regular preventive healthcare
+Treatment of comorbidities and early identification and treatment
+Unfortunately, no cure exists for FeLV infection.
+Early in vitro studies using antiretroviral drugs (eg, raltegravir, tenofovir, gemcitabine, and decitabine) showed promising results. However, there are limited large, controlled, long-term studies available in cats. Those studies that are available have not demonstrated long-lasting benefits and tended to show lower efficacy in feline patients. Many of these drugs require long-term use, are costly and have mild to severe toxic averse effects. Zidovudine (azidothymidine) is a nucleoside analog that has been used in both FeLV and FIV infections. Viral load can be decreased by zidovudine, improving patient immunologic and clinical status. It may be beneficial in retrovirus-infected cats with stomatitis, or those showing neurologic signs. Zidovudine (5–10 mg/kg, PO, every 12 hours as needed long-term) can reduce viral loads and improve clinical signs; however, as the higher doses can cause nonregenerative anemia, it should be used carefully or avoided in FeLV-positive patients.
+Interferons (human and feline) are often used in retrovirus-infected cats as antivirals and immunomodulators. Unfortunately, well-designed studies using these drugs are lacking or have failed to show benefit. Two separate studies have shown some benefit from parenteral feline interferon omega; however, controlled studies using oral feline interferon omega have not been published.
+Some FeLV-positive cats can live without major disease complications for years with routine prophylactic care, good husbandry, minimal stress, and avoidance of secondary infections. Infected cats should be kept strictly indoors to decrease the risk of exposure to infectious agents and to prevent transmission of the virus to other cats. Routine vaccinations and parasite prevention should be maintained based on individual risk assessment and in compliance with local laws. Current evidence does not support the theory that modified-live virus (MLV) vaccines pose a risk when used in retrovirus-infected cats. Studies show that the response to MLV vaccines by subclinically affected retrovirus-infected cats can be similar to that of uninfected cats. Vaccination against FeLV should not be administered after infection because there is no evidence to suggest a benefit. Physical examinations focusing on external parasites, skin infections, dental disease, lymph node size, and body weight should be performed semiannually, along with routine fecal testing, CBC, serum biochemical analysis, and urinalysis. All infected cats should be neutered. Owners should be advised to watch for clinical signs of FeLV-related disease, particularly secondary infections. Although FeLV-positive cats often respond well to treatment, treatment for such infections or other illnesses should be early and aggressive because of potential immunocompromise.
+Although progressive infection with FeLV is often associated with rapid and grave disease, the prognosis may vary depending on husbandry, veterinary care, and individual immune system variation. Large-scale studies have demonstrated an average survival time of 2.4 years after diagnosis among positive cats (versus 6 years after testing for negative control cats), with a mortality rate of 50% by 2 years and 80% by 3 years after diagnosis. Progression of disease is much more rapid in kittens, whereas some adult cats remain healthy for many years and may die of conditions unrelated to their retroviral status.
+Prevention and Control of Feline Leukemia Virus Disease
+Feline leukemia virus is unstable in the environment and is susceptible to all common detergents and disinfectants. Simple precautions such as routine cleaning with disinfectants will eliminate the virus in the environment. As the virus is transmissible via bodily fluids, thorough cleaning and sterilization of equipment, strict attention to washing contaminated hands, and avoiding reuse and sharing of single use and consumable supplies is essential to prevent iatrogenic transmission. In a hospital or boarding setting, FeLV-infected cats may be kept in the general population, provided they are housed in separate cages. Because FeLV-positive patients may be immunosuppressed, they should not be housed in areas with cats or dogs with infectious diseases such as upper respiratory tract infection,
+panleukopenia
+,
+canine parvovirus
+, or
+Bordetella bronchiseptica
+.
+Vaccines against FeLV are not considered core vaccines and are intended to protect cats against FeLV infection or to decrease the likelihood of persistent viremia. Types of vaccines include killed whole virus, subunit, and genetically engineered (recombinant). Vaccines may vary in protective effect, and manufacturer claims and independent comparative studies should be carefully noted. Vaccines are indicated only for uninfected cats because there is no benefit in vaccinating an FeLV-positive cat.
+The American Association of Feline Practitioners (AAFP) 2020 Feline Retrovirus Management Guidelines include the recommendation that all kittens should receive the two-dose FeLV vaccination as a component of the routine initial vaccination series and should also receive a booster vaccination 1 year later. This is prudent, because re-homing and lifestyle changes such as outdoor access frequently occur as cats mature. Annual revaccination after maturity would depend on the cat’s risk of FeLV exposure.
+The adult cat’s risk of exposure to FeLV-positive cats should be determined annually, and vaccines used only for those cats at risk. Vaccines for FeLV have been associated with development of sarcomas at the vaccination site, although the risk of tumor development is very low. According to the 2013 AAFP Feline Vaccination Panel Advisory Report, administration of the vaccine distal to the stifle joint in the left hind limb is recommended in order to decrease morbidity and mortality related to these rare but very aggressive injection site sarcomas. The 2020 AAHA/AAFP Feline Vaccination Guidelines recognizes that practitioners may need to use medically appropriate discretion regarding location of vaccine administration. Uninfected cats in a household with infected cats should be vaccinated; however, vaccination is not universally protective, and other means of decreasing transmission to uninfected cats, such as physical separation, should also be used.
+Although testing of cats in an animal shelter environment is considered optional for individual housing, FeLV status should be determined before placement in group housing and is recommended at the time of adoption or foster home placement. Because tests are not 100% accurate, shelter cats placed in group housing should be vaccinated against FeLV, especially in longterm living situations such as sanctuaries. Because of the equivalent prevalence of FeLV among feral and free-roaming pet cats and the role of neutering in decreasing the transmission of infection, expending resources on FeLV testing is not considered a mandatory component of community trap-neuter-return programs.
+References
+Scherk MS, Ford RB, Gaskell RM, et al. 2013 AAFP Feline Vaccination Advisory Panel Report.
+J Feline Med Surg
+. 2013:15, 785–808.
+https://doi.org/10.1177/1098612X13500429
+Key Points
+The FeLV status of every cat should be known.
+Although vaccines are available for FeLV, identification of infected cats remains an important strategy for preventing new infections.
+Management of infected cats should focus on effective preventive healthcare strategies with timely identification and treatment of illness.
+For More Information
+2020 AAFP Feline Retrovirus Testing and Management Guidelines
+: https://journals.sagepub.com/doi/pdf/10.1177/1098612X19895940
+FeLV: What You Need to Know for Shelter Decision Making
+(UF conference recording): https://www.maddiesfund.org/felv-what-you-need-to-know-for-shelter-decision-making.htm
+European Advisory Board on Cat Diseases:
+Feline Leukemia Virus
+,
+FeLV diagnostic tree
+,
+FeLV diagnostic tool
+Also see pet health content regarding
+feline leukemia virus
+.
