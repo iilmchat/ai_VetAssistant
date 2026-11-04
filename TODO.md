@@ -379,9 +379,39 @@
 ### [ ] T-135. Аналитика в админ-панели на метриках Prometheus
 - **Зависит от:** T-122 (перенесена в v1.6.0), T-117
 - **Что:** Метрики уже собираются в `app/metrics.py` (`vet_llm_generation_requests_total`, `vet_llm_prompt_tokens_total`, `vet_llm_completion_tokens_total`, `vet_llm_generation_seconds`, `vet_rag_searches_total`), но админка их не показывает, а `/metrics` закрыт наружу. Вывести графики прямо в `AdminDashboard`: запросы по времени, сожжённые токены, латентность (TTFT, токенов/с), RAG hit rate и топ пользователей. Для топа нужна новая размерность: сейчас в метриках нет `user_id`.
+- **Решение:** агрегаты отдаёт **API** (`GET /v1/admin/metrics`, за `get_current_admin`), а не iframe Grafana. Причины: (1) админка должна работать и без Grafana — локально, в dev и до развёртывания мониторинга; (2) Grafana потребовала бы анонимного доступа/embed-токена и правки Caddy + CSP `frame-ancestors`, то есть отдельного контура авторизации; (3) продукту нужны агрегаты («токены за 24 ч», «топ пользователей»), а не произвольный PromQL. История берётся из Prometheus, если задан `VET_API_PROMETHEUS_URL` (allowlist запросов на сервере), иначе — из in-process registry `prometheus_client` с пометкой «с момента запуска API». Встраивание Grafana остаётся опцией для ops, но не в UI пользователей.
 - **DoD:** админка показывает графики за 24 часа и 7 дней; API отдаёт агрегаты через админский эндпоинт с проверкой `is_admin`; `/metrics` остаётся недоступным снаружи; высококардинальные метки не появляются; тесты агрегации и прав доступа.
-- **Оценка:** 2
-- **Статус:** запланирована.
+- **Оценка:** 2.5
+- **Статус:** запланирована; подзадачи ниже.
+
+#### Подзадачи T-135
+
+- [ ] **T-135.1. Метрики: размерность пользователя и снимок в процессе.**
+  - В `app/metrics.py` добавить `USER_REQUESTS = Counter("vet_llm_user_requests_total", ..., ("user_id",))` и вызывать её из `chat_completions`/стриминга (`app/main.py`, там уже есть `current_user`); кардинальность ограничена числом пользователей, email в метку не пишем.
+  - Добавить `snapshot()`: прочитать `prometheus_client.REGISTRY` и вернуть суммы по `vet_llm_*`, `vet_rag_*` и `http_requests_total{status}` + `started_at` процесса.
+  - DoD: счётчик растёт на каждый чат-запрос; `snapshot()` покрыт тестом с подменённым registry; `ruff`/`mypy` зелёные.
+
+- [ ] **T-135.2. API: `GET /v1/admin/metrics`.**
+  - Новый эндпоинт в `app/admin.py` (`Annotated[User, Depends(get_current_admin)]`, query `window=24h|7d`).
+  - Модель ответа: `source: "prometheus" | "in_process"`, `degraded: bool`, `generated_at`, `totals` (запросы, prompt/completion токены, RAG hit/miss/error, доля ошибок), `series: [{ts, requests, tokens}]`, `top_users: [{user_id, email, requests}]`.
+  - Запросы к Prometheus — фиксированный allowlist PromQL-выражений (`sum(rate(...))`, `topk`), URL из нового поля `prometheus_url` в `AppSettings` (`VET_API_PROMETHEUS_URL`, `VET_API_PROMETHEUS_TIMEOUT_S`); таймаут 2–3 с; при ошибке — fallback на `snapshot()` и `degraded=true`.
+  - DoD: без Prometheus эндпоинт отвечает 200 в режиме `in_process`; с недоступным URL — `degraded=true`, без 500; не-админ получает 401/403; произвольный PromQL с клиента не принимается; тесты на оба режима и на allowlist.
+
+- [ ] **T-135.3. Frontend: вкладка «Аналитика» в `AdminDashboard`.**
+  - Разделить экран на две вкладки: «Заявки» (текущий список, поведение не меняется) и «Аналитика»; состояние вкладки — локальное, без роутера.
+  - `frontend/src/components/AdminAnalytics.tsx`: 4 KPI-карточки (запросы, токены, RAG hit rate, средняя латентность), график запросов/токенов по времени, таблица топ-5 пользователей; переключатель 24 ч / 7 д; обновление раз в 60 с по кнопке/таймеру.
+  - Графики — собственный SVG-компонент (`frontend/src/components/charts/Sparkline.tsx`), без новой зависимости: в проекте нет chart-библиотеки, а тянуть recharts ради двух линий не нужно.
+  - DoD: вкладка не ломает текущий approve/reject-флоу; состояния loading/empty/error/degraded отображаются честно (badge «с момента запуска API»); `npm run build`/`npm test`/`oxlint` зелёные.
+
+- [ ] **T-135.4. Клиент API и типы.**
+  - `frontend/src/types.ts`: `AdminMetrics`, `AdminMetricsPoint`, `AdminTopUser`, `AdminMetricsSource`.
+  - `frontend/src/lib/api.ts`: `fetchAdminMetrics(window, baseUrl)` рядом с существующими admin-функциями.
+  - DoD: типы экспортируются и используются в `AdminAnalytics`; тест на маппинг серий и на пустой ответ.
+
+- [ ] **T-135.5. Тесты, конфиг и документация.**
+  - `tests/test_admin_metrics.py`: доступ только админу, режим `in_process`, `degraded=true` при недоступном Prometheus, топ пользователей с email.
+  - `DEPLOYMENT.md` §«Метрики Prometheus»: переменные `VET_API_PROMETHEUS_URL`/`VET_API_PROMETHEUS_TIMEOUT_S`, что показывает админка, почему не iframe Grafana; обновить `.env.production.example`.
+  - DoD: `pytest`/`ruff`/`mypy` зелёные; в документации есть пример URL (`http://prometheus:9090`) и объяснение fallback-режима.
 
 ### [ ] T-136. Докачка прерванного ответа вместо потери текста
 - **Зависит от:** T-037
