@@ -904,7 +904,7 @@ scrape_configs:
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `VET_API_PROMETHEUS_URL` | `http://prometheus:9090` | Базовый URL Prometheus в сети `edge`; пусто — только локальный снимок |
+| `VET_API_PROMETHEUS_URL` | `http://vetassistant-prometheus:9090` | Базовый URL Prometheus в сети `edge`; пусто — только локальный снимок |
 | `VET_API_PROMETHEUS_TIMEOUT_S` | `2` | Таймаут одного запроса к Prometheus |
 
 Два режима работы:
@@ -921,7 +921,7 @@ scrape_configs:
 
 ```bash
 docker compose -f docker-compose.edge.yml exec api python -c \
-  "import urllib.request, json; r=json.load(urllib.request.urlopen('http://prometheus:9090/api/v1/query?query=up')); print(r['status'])"
+  "import urllib.request, json; r=json.load(urllib.request.urlopen('http://vetassistant-prometheus:9090/api/v1/query?query=up')); print(r['status'])"
 ```
 
 Если видите `degraded` на проде — проверьте, что Prometheus подключён к сети

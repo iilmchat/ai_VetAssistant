@@ -78,6 +78,10 @@ services:
       VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
       VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
       VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+      # На выделенном VPS Prometheus обычно отсутствует: пустое значение
+      # отключает обращения, админка покажет in-process снимок (T-135).
+      VET_API_PROMETHEUS_URL: ${VET_API_PROMETHEUS_URL:-}
+      VET_API_PROMETHEUS_TIMEOUT_S: ${VET_API_PROMETHEUS_TIMEOUT_S:-2}
       VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
       VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:?VET_API_JWT_SECRET is required}
       VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}

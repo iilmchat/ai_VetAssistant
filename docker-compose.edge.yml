@@ -92,6 +92,9 @@ services:
       # эмбеддингов не конкурировала за RAM с 8B-моделью.
       VET_API_AUTO_INGEST: ${VET_API_AUTO_INGEST:-1}
       VET_API_INGEST_STRICT: ${VET_API_INGEST_STRICT:-0}
+      # T-135: Prometheus в сети edge; админская аналитика ходит сюда.
+      VET_API_PROMETHEUS_URL: ${VET_API_PROMETHEUS_URL:-http://vetassistant-prometheus:9090}
+      VET_API_PROMETHEUS_TIMEOUT_S: ${VET_API_PROMETHEUS_TIMEOUT_S:-2}
       HF_HOME: /root/.cache/huggingface
       VET_API_DATABASE_URL: ${VET_API_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
       VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:?VET_API_JWT_SECRET is required}

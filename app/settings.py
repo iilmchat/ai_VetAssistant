@@ -93,7 +93,7 @@ class AppSettings(BaseSettings):
         ),
     )
     prometheus_url: str = Field(
-        default="http://prometheus:9090",
+        default="http://vetassistant-prometheus:9090",
         description=(
             "Базовый URL Prometheus для админской аналитики (T-135). "
             "Пусто — использовать только in-process снимок"

@@ -257,6 +257,31 @@ def test_env_example_documents_image_version() -> None:
     assert "restart_prod.sh" in env_example
 
 
+def test_edge_compose_passes_prometheus_url() -> None:
+    """T-135: аналитика ходит в Prometheus по имени контейнера в сети edge."""
+    edge = _yaml("docker-compose.edge.yml")
+    environment = edge["services"]["api"]["environment"]
+
+    assert (
+        environment["VET_API_PROMETHEUS_URL"]
+        == "${VET_API_PROMETHEUS_URL:-http://vetassistant-prometheus:9090}"
+    )
+    assert environment["VET_API_PROMETHEUS_TIMEOUT_S"] == "${VET_API_PROMETHEUS_TIMEOUT_S:-2}"
+
+    prod = _yaml("docker-compose.prod.yml")
+    assert prod["services"]["api"]["environment"]["VET_API_PROMETHEUS_URL"] == (
+        "${VET_API_PROMETHEUS_URL:-}"
+    )
+
+
+def test_prometheus_defaults_use_container_dns_name() -> None:
+    settings = _read("app/settings.py")
+    env_example = _read(".env.example")
+
+    assert 'default="http://vetassistant-prometheus:9090"' in settings
+    assert "VET_API_PROMETHEUS_URL=http://vetassistant-prometheus:9090" in env_example
+
+
 def test_all_workflows_use_self_hosted_label_set() -> None:
     for name in ("ci.yml", "deploy.yml", "release.yml"):
         workflow = _yaml(f".github/workflows/{name}")

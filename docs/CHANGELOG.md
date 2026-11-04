@@ -19,10 +19,14 @@
   allowlist, клиент выбирает только окно.
 - **Метрики по пользователям:** `vet_llm_user_requests_total{user_id}` и
   `vet_llm_user_tokens_total{user_id,kind}` — основа для топа пользователей.
-- Настройки `VET_API_PROMETHEUS_URL` (по умолчанию `http://prometheus:9090`)
+- Настройки `VET_API_PROMETHEUS_URL` (по умолчанию `http://vetassistant-prometheus:9090`)
   и `VET_API_PROMETHEUS_TIMEOUT_S` (2 секунды).
 - SVG-график `Sparkline` и хелперы `frontend/src/lib/metrics.ts` — без новых
   зависимостей.
+- **`--reset-password` в `scripts/create_telegram_user.py`.** После ротации
+  `VET_BOT_AUTH_SECRET` существующему synthetic-пользователю перезаписывается
+  bcrypt-хэш по новому секрету; без флага скрипт, как и раньше, сообщает
+  «уже существует» и ничего не меняет.
 
 ### Изменено
 
@@ -36,6 +40,13 @@
   но ingest нужно запускать вручную.
 - Версия `1.5.6` в `pyproject.toml`, FastAPI, `frontend/package.json`,
   `frontend/package-lock.json` и README.
+- **Prometheus:** адрес по умолчанию — `http://vetassistant-prometheus:9090`
+  (настройки, `.env.example`, edge-compose); в prod-compose переменная пустая,
+  чтобы не ждать таймаут там, где Prometheus не развёрнут.
+- **Деплой:** шаг `Persist image version to .env` стал best-effort — чужой
+  `.env` (root-only) больше не валит релиз, в лог уходит warning с командой
+  `sudo chown`; добавлен `workflow_dispatch` с параметром `version` для
+  повторного деплоя без нового тега.
 
 ### Исправлено
 
