@@ -4,6 +4,26 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.5.2] — 2026-11-04
+
+### Исправлено
+
+- Fixed Docker image race condition in deploy workflow: `api` и `bot`
+  используют один image tag, поэтому параллельная сборка падала с
+  `image already exists`. Деплой собирает только `api` и `frontend`
+  (`docker compose build api frontend`), затем поднимает стек через
+  `up -d --no-build`.
+- Убрана гонка между `build` и `up`, из-за которой контейнеры могли
+  запуститься на старом образе.
+
+### Изменено
+
+- Optimized CI for self-hosted runner: `apt-get` выполняется только на
+  GitHub-hosted runner (`runner.environment == 'github-hosted'`), на VPS
+  используются уже установленные зависимости.
+- Версия `1.5.2` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
+  и `frontend/package.json`.
+
 ## [1.5.1] — 2026-11-04
 
 ### Исправлено

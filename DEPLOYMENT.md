@@ -337,9 +337,15 @@ docker compose -f docker-compose.edge.yml logs -f bot
 Автодеплой edge-стека по тегу `v*` выполняет
 `.github/workflows/deploy.yml` на **self-hosted runner**, установленном на
 том же VPS. Workflow заходит в `/srv/vetassistant`, делает
-`git pull --ff-only` и пересобирает стек командой
-`docker compose -f docker-compose.edge.yml up -d --build`. SSH-секреты и
-внешние SSH-экшены больше не используются.
+`git pull --ff-only`, затем:
+
+```bash
+docker compose -f docker-compose.edge.yml build api frontend
+docker compose -f docker-compose.edge.yml up -d --no-build
+```
+
+Раздельная сборка убирает гонку Docker за общий image tag между api и bot.
+SSH-секреты и внешние SSH-экшены больше не используются.
 
 ### 6.1. Self-hosted runner на VPS
 

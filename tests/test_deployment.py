@@ -124,32 +124,32 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_5_1_everywhere() -> None:
+def test_release_version_is_1_5_2_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
     dev_compose = _yaml("docker-compose.yml")
     prod_compose = _yaml("docker-compose.prod.yml")
     edge_compose = _yaml("docker-compose.edge.yml")
 
-    assert 'version = "1.5.1"' in _read("pyproject.toml")
-    assert 'version="1.5.1"' in _read("app/main.py")
-    assert package["version"] == "1.5.1"
-    assert lockfile["version"] == "1.5.1"
-    assert lockfile["packages"][""]["version"] == "1.5.1"
-    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.5.1"
+    assert 'version = "1.5.2"' in _read("pyproject.toml")
+    assert 'version="1.5.2"' in _read("app/main.py")
+    assert package["version"] == "1.5.2"
+    assert lockfile["version"] == "1.5.2"
+    assert lockfile["packages"][""]["version"] == "1.5.2"
+    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.5.2"
     assert (
         dev_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.1"
+        == "vetassistant-frontend:1.5.2"
     )
-    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.5.1"
+    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.5.2"
     assert (
         prod_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.1"
+        == "vetassistant-frontend:1.5.2"
     )
-    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.5.1"
+    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.5.2"
     assert (
         edge_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.1"
+        == "vetassistant-frontend:1.5.2"
     )
 
 
@@ -233,7 +233,11 @@ def test_deployment_documents_self_hosted_runner() -> None:
     assert "self-hosted, linux, x64, vps" in deployment
     assert "appleboy/ssh-action" not in deployment
     assert "git pull --ff-only" in deployment
-    assert "docker compose -f docker-compose.edge.yml up -d --build" in deployment
+    assert (
+        "docker compose -f docker-compose.edge.yml build api frontend"
+        in deployment
+    )
+    assert "docker compose -f docker-compose.edge.yml up -d --no-build" in deployment
 
 
 def test_edge_compose_enables_rag_autofill_before_api_start() -> None:
