@@ -30,6 +30,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
+from app.admin import router as admin_router
 from app.auth import (
     AccessRequestCreate,
     AccessRequestResponse,
@@ -253,7 +254,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.3.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.4.0", lifespan=lifespan)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -275,6 +276,7 @@ app.add_middleware(
 # доступен лишь во внутренних сетях Docker — Prometheus ходит на
 # vetassistant-api:8000 по сети edge.
 Instrumentator().instrument(app).expose(app)
+app.include_router(admin_router)
 
 
 def _auth_response(user: User, settings: AppSettings) -> AuthResponse:
@@ -402,6 +404,7 @@ async def change_password(
             session,
             user_id=user.id,
             hashed_password=hash_password(payload.new_password),
+            must_change_password=False,
         )
 
     logger.info("Auth: пользователь {} сменил пароль", current_user.id)

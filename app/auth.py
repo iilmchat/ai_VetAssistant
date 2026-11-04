@@ -89,6 +89,8 @@ class UserRead(BaseModel):
     id: int
     email: str
     created_at: datetime
+    is_admin: bool = False
+    must_change_password: bool = False
 
 
 class AuthResponse(BaseModel):
@@ -208,3 +210,15 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+async def get_current_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """FastAPI-зависимость: текущий пользователь должен быть администратором."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Требуются права администратора",
+        )
+    return current_user

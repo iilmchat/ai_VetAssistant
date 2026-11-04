@@ -2,6 +2,8 @@ export interface AuthUser {
   id: number
   email: string
   created_at: string
+  is_admin: boolean
+  must_change_password: boolean
 }
 
 export interface AuthSession {
@@ -30,6 +32,8 @@ function parseUser(value: unknown): AuthUser | null {
     id: value.id,
     email: value.email,
     created_at: value.created_at,
+    is_admin: value.is_admin === true,
+    must_change_password: value.must_change_password === true,
   }
 }
 

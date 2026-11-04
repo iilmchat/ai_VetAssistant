@@ -61,3 +61,17 @@ export interface Reminder {
 }
 
 export type ApiStatus = 'checking' | 'online' | 'offline'
+
+export type AccessRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface AdminAccessRequest {
+  id: number
+  email: string
+  reason: string
+  status: AccessRequestStatus
+  created_at: string
+  reviewed_at: string | null
+  reviewed_by: number | null
+  approved_user_id: number | null
+  rejection_reason: string | null
+}

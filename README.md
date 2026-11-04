@@ -1,14 +1,14 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.3.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.4.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.3.0** (2026-11-04)
-**Релиз:** метрики Prometheus, готовность RAG к production и разделение
-лендинга и приложения по доменам
+**Статус:** ✅ **Production Ready — v1.4.0** (2026-11-04)
+**Релиз:** админ-панель заявок, метрики Prometheus, готовность RAG к
+production и разделение лендинга и приложения по доменам
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
@@ -18,6 +18,7 @@
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
 - **Метрики:** Prometheus `GET /metrics` + Grafana — HTTP-запросы, латентность LLM, токены, TTFT и RAG
+- **Админ-панель:** заявки на доступ, approve с одноразовым паролем и reject с причиной
 - **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
 - **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)

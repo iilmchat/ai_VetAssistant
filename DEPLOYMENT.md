@@ -616,6 +616,26 @@ docker compose -f docker-compose.edge.yml up -d api
 Файл, скопированный только через `scp`, не попадёт в Git: если статья нужна
 на всех окружениях, положите её в `data/knowledge/` локально и закоммитьте.
 
+### Миграции админ-панели (T-120)
+
+Схема админ-панели добавляет в `users` поля `is_admin` и
+`must_change_password`, а в `access_requests` — `reviewed_at`, `reviewed_by`,
+`approved_user_id`, `rejection_reason`. Применить миграцию к существующей БД:
+
+```bash
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/migrate_admin_panel.py
+```
+
+Скрипт идемпотентен (`create_all` + `ALTER TABLE ... ADD COLUMN` только для
+отсутствующих полей) и не удаляет данные. Выдать права администратора:
+
+```bash
+docker compose -f docker-compose.edge.yml exec db \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "UPDATE users SET is_admin = true WHERE email = 'admin@example.com';"
+```
+
 ## 9. Проверка после запуска
 
 ```bash

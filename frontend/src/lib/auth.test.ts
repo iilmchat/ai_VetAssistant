@@ -16,6 +16,8 @@ const session: AuthSession = {
     id: 7,
     email: 'owner@example.com',
     created_at: '2026-11-03T10:00:00Z',
+    is_admin: false,
+    must_change_password: false,
   },
 }
 

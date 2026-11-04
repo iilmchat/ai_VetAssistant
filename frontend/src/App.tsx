@@ -39,6 +39,7 @@ import { Composer } from './components/Composer'
 import { Welcome } from './components/Welcome'
 import { AuthScreen } from './components/AuthScreen'
 import { ChangePasswordDialog } from './components/ChangePasswordDialog'
+import { AdminDashboard } from './components/AdminDashboard'
 
 const MAX_CONTEXT_MESSAGES = 20
 const DEFAULT_SETTINGS: ChatSettings = {
@@ -126,6 +127,7 @@ function App() {
   const [recordsLoading, setRecordsLoading] = useState(true)
   const [recordsError, setRecordsError] = useState<string | null>(null)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [authNotice, setAuthNotice] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
@@ -146,6 +148,7 @@ function App() {
     setRecordsLoading(true)
     setSidebarOpen(false)
     setPasswordDialogOpen(false)
+    setAdminOpen(false)
   }, [])
 
   const handleAuthenticated = useCallback((next: AuthSession) => {
@@ -202,6 +205,14 @@ function App() {
 
   useEffect(() => {
     setAuthToken(session?.access_token ?? null)
+  }, [session])
+
+  useEffect(() => {
+    // Временный пароль из админ-панели: сразу предлагаем сменить его.
+    if (session?.user.must_change_password) {
+      // oxlint-disable-next-line react/set-state-in-effect
+      setPasswordDialogOpen(true)
+    }
   }, [session])
 
   useEffect(() => {
@@ -433,6 +444,10 @@ function App() {
     return <AuthScreen onAuthenticated={handleAuthenticated} notice={authNotice} />
   }
 
+  if (adminOpen) {
+    return <AdminDashboard onClose={() => setAdminOpen(false)} />
+  }
+
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[#212121] text-zinc-100">
       <Sidebar
@@ -452,6 +467,11 @@ function App() {
         }}
         apiStatus={apiStatus}
         userEmail={session.user.email}
+        isAdmin={session.user.is_admin}
+        onOpenAdmin={() => {
+          setSidebarOpen(false)
+          setAdminOpen(true)
+        }}
         onOpenSettings={() => {
           setSidebarOpen(false)
           setPasswordDialogOpen(true)

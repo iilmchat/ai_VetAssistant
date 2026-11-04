@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  approveAdminAccessRequest,
   buildChatPayload,
   changePassword,
+  fetchAdminAccessRequests,
   normalizeBaseUrl,
   parseSSEEvent,
+  rejectAdminAccessRequest,
   requestAccess,
   setAuthToken,
 } from './api'
@@ -187,5 +190,104 @@ describe('parseSSEEvent', () => {
     expect(
       parseSSEEvent('data: {"choices":[{"delta":{"role":"assistant"}}]}'),
     ).toBeNull()
+  })
+})
+
+describe('admin API', () => {
+  it('запрашивает заявки с фильтром по статусу', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: 1,
+            email: 'guest@example.com',
+            reason: 'Хочу доступ',
+            status: 'pending',
+            created_at: '2026-11-04T00:00:00Z',
+            reviewed_at: null,
+            reviewed_by: null,
+            approved_user_id: null,
+            rejection_reason: null,
+          },
+        ]),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const result = await fetchAdminAccessRequests('pending')
+
+    expect(result).toHaveLength(1)
+    expect(result[0]?.email).toBe('guest@example.com')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/admin/access-requests?status=pending',
+    )
+  })
+
+  it('approve возвращает временный пароль', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          temp_password: 'temp-pass-123',
+          user_id: 5,
+          email: 'guest@example.com',
+          user: {
+            id: 5,
+            email: 'guest@example.com',
+            created_at: '2026-11-04T00:00:00Z',
+            is_admin: false,
+            must_change_password: true,
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await approveAdminAccessRequest(3)
+
+    expect(result.temp_password).toBe('temp-pass-123')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/admin/access-requests/3/approve',
+    )
+  })
+
+  it('reject отправляет причину', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 3,
+          email: 'guest@example.com',
+          reason: 'Хочу доступ',
+          status: 'rejected',
+          created_at: '2026-11-04T00:00:00Z',
+          reviewed_at: '2026-11-04T00:01:00Z',
+          reviewed_by: 1,
+          approved_user_id: null,
+          rejection_reason: 'Нет необходимости',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await rejectAdminAccessRequest(3, 'Нет необходимости')
+
+    expect(result.status).toBe('rejected')
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({
+      reason: 'Нет необходимости',
+    })
   })
 })

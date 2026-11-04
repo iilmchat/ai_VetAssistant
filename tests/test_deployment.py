@@ -123,32 +123,32 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_3_0_everywhere() -> None:
+def test_release_version_is_1_4_0_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
     dev_compose = _yaml("docker-compose.yml")
     prod_compose = _yaml("docker-compose.prod.yml")
     edge_compose = _yaml("docker-compose.edge.yml")
 
-    assert 'version = "1.3.0"' in _read("pyproject.toml")
-    assert 'version="1.3.0"' in _read("app/main.py")
-    assert package["version"] == "1.3.0"
-    assert lockfile["version"] == "1.3.0"
-    assert lockfile["packages"][""]["version"] == "1.3.0"
-    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.3.0"
+    assert 'version = "1.4.0"' in _read("pyproject.toml")
+    assert 'version="1.4.0"' in _read("app/main.py")
+    assert package["version"] == "1.4.0"
+    assert lockfile["version"] == "1.4.0"
+    assert lockfile["packages"][""]["version"] == "1.4.0"
+    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.4.0"
     assert (
         dev_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.3.0"
+        == "vetassistant-frontend:1.4.0"
     )
-    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.3.0"
+    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.4.0"
     assert (
         prod_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.3.0"
+        == "vetassistant-frontend:1.4.0"
     )
-    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.3.0"
+    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.4.0"
     assert (
         edge_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.3.0"
+        == "vetassistant-frontend:1.4.0"
     )
 
 

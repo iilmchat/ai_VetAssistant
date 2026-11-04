@@ -12,7 +12,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import hash_password
-from app.database import Database, create_user, list_pending_access_requests
+from app.database import (
+    Database,
+    create_access_request,
+    create_user,
+    list_pending_access_requests,
+)
 from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model, limiter
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION
 from app.settings import DEFAULT_MODEL_ID, get_app_settings
@@ -206,6 +211,61 @@ def client(
 def _create_second_user(client: TestClient) -> dict[str, str]:
     """Создать второго пользователя и вернуть его auth-заголовки."""
     return _seed_user(client, "other@example.com", "secret-pass-2")
+
+
+def _seed_admin(
+    client: TestClient,
+    email: str = "admin@example.com",
+    password: str = "admin-pass-1",
+) -> dict[str, str]:
+    """Создать администратора и войти под ним."""
+    database: Database = client.app.state.db
+
+    async def seed() -> None:
+        seeded = Database(database.url)
+        try:
+            async with seeded.session() as session:
+                await create_user(
+                    session,
+                    email=email,
+                    hashed_password=hash_password(password),
+                    is_admin=True,
+                )
+        finally:
+            await seeded.dispose()
+
+    asyncio.run(seed())
+
+    response = client.post(
+        "/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def _seed_access_request(
+    client: TestClient,
+    email: str,
+    reason: str = "Хочу протестировать сервис",
+) -> int:
+    """Создать заявку напрямую в БД и вернуть её id."""
+    database: Database = client.app.state.db
+
+    async def seed() -> int:
+        seeded = Database(database.url)
+        try:
+            async with seeded.session() as session:
+                request = await create_access_request(
+                    session,
+                    email=email,
+                    reason=reason,
+                )
+                return request.id
+        finally:
+            await seeded.dispose()
+
+    return asyncio.run(seed())
 
 
 def test_public_registration_is_closed_and_login_works(client: TestClient) -> None:
@@ -1035,3 +1095,94 @@ def test_metrics_endpoint_exposes_prometheus_metrics(client: TestClient) -> None
     assert "vet_llm_generation_seconds" in body
     assert "vet_rag_searches_total" in body
     assert "vet_rag_index_ready" in body
+
+
+def test_admin_endpoints_require_admin_role(client: TestClient) -> None:
+    """T-120: обычный пользователь получает 403 на /v1/admin/*."""
+    assert client.get("/v1/admin/access-requests").status_code == 403
+    assert (
+        client.post("/v1/admin/access-requests/1/approve").status_code == 403
+    )
+    assert (
+        client.post(
+            "/v1/admin/access-requests/1/reject",
+            json={"reason": "нет"},
+        ).status_code
+        == 403
+    )
+
+
+def test_admin_approve_creates_user_with_temp_password(
+    client: TestClient,
+) -> None:
+    """T-120: approve создаёт пользователя и возвращает временный пароль."""
+    admin = _seed_admin(client)
+    client.headers["Authorization"] = admin["Authorization"]
+    request_id = _seed_access_request(client, "new@example.com")
+
+    response = client.post(f"/v1/admin/access-requests/{request_id}/approve")
+
+    assert response.status_code == 200
+    data = response.json()
+    temp_password = data["temp_password"]
+    assert len(temp_password) >= 8
+    assert data["email"] == "new@example.com"
+
+    login = client.post(
+        "/v1/auth/login",
+        json={"email": "new@example.com", "password": temp_password},
+    )
+    assert login.status_code == 200
+    user = login.json()["user"]
+    assert user["must_change_password"] is True
+    assert user["is_admin"] is False
+
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    changed = client.post(
+        "/v1/auth/change-password",
+        headers=headers,
+        json={
+            "old_password": temp_password,
+            "new_password": "new-secret-pass-1",
+        },
+    )
+    assert changed.status_code == 200
+
+    relogin = client.post(
+        "/v1/auth/login",
+        json={"email": "new@example.com", "password": "new-secret-pass-1"},
+    )
+    assert relogin.status_code == 200
+    assert relogin.json()["user"]["must_change_password"] is False
+
+    approved = client.get("/v1/admin/access-requests?status=approved")
+    assert approved.status_code == 200
+    items = approved.json()
+    assert any(
+        item["id"] == request_id
+        and item["approved_user_id"] == user["id"]
+        and item["reviewed_by"] is not None
+        for item in items
+    )
+
+
+def test_admin_reject_saves_reason_and_status(client: TestClient) -> None:
+    """T-120: reject сохраняет причину и переводит заявку в rejected."""
+    admin = _seed_admin(client)
+    client.headers["Authorization"] = admin["Authorization"]
+    request_id = _seed_access_request(client, "reject@example.com")
+
+    response = client.post(
+        f"/v1/admin/access-requests/{request_id}/reject",
+        json={"reason": "Нет подтверждённой необходимости"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "rejected"
+    assert data["rejection_reason"] == "Нет подтверждённой необходимости"
+    assert data["reviewed_at"] is not None
+
+    rejected = client.get("/v1/admin/access-requests?status=rejected")
+    assert rejected.status_code == 200
+    assert any(item["id"] == request_id for item in rejected.json())

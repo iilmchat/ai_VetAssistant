@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -54,6 +55,16 @@ class User(Base):
         nullable=False,
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -86,6 +97,19 @@ class AccessRequest(Base):
         nullable=False,
     )
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    reviewed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    approved_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Appointment(Base):
@@ -144,6 +168,51 @@ def _migrate_legacy_tables(connection: Connection) -> None:
         )
 
 
+def _migrate_admin_panel(connection: Connection) -> None:
+    """Добавить поля админ-панели в существующие таблицы (T-120)."""
+    inspector = inspect(connection)
+    existing_tables = set(inspector.get_table_names())
+    is_postgres = connection.dialect.name == "postgresql"
+    bool_default = "FALSE" if is_postgres else "0"
+    timestamp_type = "TIMESTAMP WITH TIME ZONE" if is_postgres else "DATETIME"
+    reference = " REFERENCES users(id) ON DELETE SET NULL" if is_postgres else ""
+
+    if "users" in existing_tables:
+        columns = {column["name"] for column in inspector.get_columns("users")}
+        if "is_admin" not in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE users ADD COLUMN is_admin BOOLEAN "
+                    f"NOT NULL DEFAULT {bool_default}"
+                )
+            )
+        if "must_change_password" not in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE users ADD COLUMN must_change_password BOOLEAN "
+                    f"NOT NULL DEFAULT {bool_default}"
+                )
+            )
+
+    if "access_requests" in existing_tables:
+        columns = {
+            column["name"] for column in inspector.get_columns("access_requests")
+        }
+        additions = {
+            "reviewed_at": timestamp_type,
+            "reviewed_by": f"INTEGER{reference}",
+            "approved_user_id": f"INTEGER{reference}",
+            "rejection_reason": "TEXT",
+        }
+        for name, column_type in additions.items():
+            if name not in columns:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE access_requests ADD COLUMN {name} {column_type}"
+                    )
+                )
+
+
 class Database:
     """Async-движок и фабрика сессий SQLAlchemy."""
 
@@ -156,10 +225,11 @@ class Database:
         )
 
     async def create_tables(self) -> None:
-        """Создать таблицы и мягко мигрировать схему до T-039."""
+        """Создать таблицы и мягко мигрировать схему до T-039/T-120."""
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(_migrate_legacy_tables)
+            await connection.run_sync(_migrate_admin_panel)
 
     def session(self) -> AsyncSession:
         """Открыть новую сессию (используйте ``async with``)."""
@@ -183,9 +253,16 @@ async def create_user(
     *,
     email: str,
     hashed_password: str,
+    is_admin: bool = False,
+    must_change_password: bool = False,
 ) -> User:
     """Создать пользователя и вернуть его."""
-    user = User(email=email, hashed_password=hashed_password)
+    user = User(
+        email=email,
+        hashed_password=hashed_password,
+        is_admin=is_admin,
+        must_change_password=must_change_password,
+    )
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -209,12 +286,15 @@ async def update_user_password(
     *,
     user_id: int,
     hashed_password: str,
+    must_change_password: bool | None = None,
 ) -> User | None:
     """Заменить bcrypt-хэш пароля пользователя."""
     user = await get_user_by_id(session, user_id)
     if user is None:
         return None
     user.hashed_password = hashed_password
+    if must_change_password is not None:
+        user.must_change_password = must_change_password
     await session.commit()
     await session.refresh(user)
     return user
@@ -261,6 +341,33 @@ async def list_pending_access_requests(
         .order_by(AccessRequest.created_at, AccessRequest.id)
     )
     return list(result.scalars().all())
+
+
+async def list_access_requests(
+    session: AsyncSession,
+    *,
+    status: str | None = None,
+) -> list[AccessRequest]:
+    """Вернуть заявки, опционально отфильтрованные по статусу."""
+    statement = select(AccessRequest).order_by(
+        AccessRequest.created_at,
+        AccessRequest.id,
+    )
+    if status is not None:
+        statement = statement.where(AccessRequest.status == status)
+    result = await session.execute(statement)
+    return list(result.scalars().all())
+
+
+async def get_access_request_by_id(
+    session: AsyncSession,
+    request_id: int,
+) -> AccessRequest | None:
+    """Найти заявку по идентификатору."""
+    result = await session.execute(
+        select(AccessRequest).where(AccessRequest.id == request_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def book_appointment(

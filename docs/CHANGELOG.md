@@ -4,6 +4,34 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.4.0] — 2026-11-04
+
+### Добавлено
+
+#### Админ-панель заявок (T-120)
+
+- `users`: поля `is_admin` и `must_change_password` (boolean, default false);
+  `access_requests`: аудит `reviewed_at`, `reviewed_by`, `approved_user_id`,
+  `rejection_reason`.
+- Зависимость `get_current_admin` и защищённые эндпоинты:
+  `GET /v1/admin/access-requests?status=pending`,
+  `POST /v1/admin/access-requests/{id}/approve` (создаёт пользователя с
+  временным паролем из `secrets.token_urlsafe` и `must_change_password=True`,
+  возвращает пароль один раз),
+  `POST /v1/admin/access-requests/{id}/reject` (причина отказа).
+- `/v1/auth/login` и `/v1/auth/me` возвращают `is_admin` и
+  `must_change_password`; смена пароля сбрасывает флаг.
+- React: вкладка **«Администрирование»** в сайдбаре (только для админов),
+  страница `AdminDashboard` с таблицей заявок, фильтрами, модалками
+  approve/reject, показом временного пароля с копированием.
+- `scripts/migrate_admin_panel.py` — идемпотентная миграция существующей БД
+  (create_all + мягкие ALTER TABLE), запускается в контейнере без флагов.
+
+### Изменено
+
+- Версия `1.4.0` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
+  и `frontend/package.json`.
+
 ## [1.3.0] — 2026-11-04
 
 ### Добавлено

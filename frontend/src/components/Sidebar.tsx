@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   UserRound,
   Wrench,
@@ -37,6 +38,8 @@ interface SidebarProps {
   onRefreshRecords: () => void
   apiStatus: ApiStatus
   userEmail: string
+  isAdmin: boolean
+  onOpenAdmin: () => void
   onOpenSettings: () => void
   onLogout: () => void
 }
@@ -74,6 +77,8 @@ export function Sidebar({
   onRefreshRecords,
   apiStatus,
   userEmail,
+  isAdmin,
+  onOpenAdmin,
   onOpenSettings,
   onLogout,
 }: SidebarProps) {
@@ -125,6 +130,19 @@ export function Sidebar({
             Новый чат
           </button>
         </div>
+
+        {isAdmin && (
+          <div className="mt-2 px-3">
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="flex w-full items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-3.5 py-2.5 text-left text-[13px] font-medium text-emerald-200 transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/15"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-300" />
+              Администрирование
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 flex-1 space-y-6 overflow-y-auto px-3 pb-4">
           <section>

@@ -1,4 +1,5 @@
 import type {
+  AdminAccessRequest,
   Appointment,
   ChatSettings,
   Reminder,
@@ -50,6 +51,13 @@ export interface ChangePasswordResponse {
 
 export interface AccessRequestResponse {
   message: string
+}
+
+export interface ApproveAccessRequestResponse {
+  temp_password: string
+  user_id: number
+  email: string
+  user: AuthUser
 }
 
 export interface StreamEvent {
@@ -249,6 +257,45 @@ export function requestAccess(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, reason }),
+    },
+    baseUrl,
+  )
+}
+
+export async function fetchAdminAccessRequests(
+  status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending',
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminAccessRequest[]> {
+  const payload = await requestJson<AdminAccessRequest[]>(
+    `/v1/admin/access-requests?status=${status}`,
+    {},
+    baseUrl,
+  )
+  return Array.isArray(payload) ? payload : []
+}
+
+export function approveAdminAccessRequest(
+  requestId: number,
+  baseUrl: string = API_BASE_URL,
+): Promise<ApproveAccessRequestResponse> {
+  return requestJson<ApproveAccessRequestResponse>(
+    `/v1/admin/access-requests/${requestId}/approve`,
+    { method: 'POST' },
+    baseUrl,
+  )
+}
+
+export function rejectAdminAccessRequest(
+  requestId: number,
+  reason: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminAccessRequest> {
+  return requestJson<AdminAccessRequest>(
+    `/v1/admin/access-requests/${requestId}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
     },
     baseUrl,
   )
