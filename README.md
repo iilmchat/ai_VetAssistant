@@ -496,12 +496,18 @@ docker compose up -d bot
 (`telegram-<id>@bot.vetassistant.local`). Остальным бот отвечает:
 «Доступ к боту ограничен. Пожалуйста, запросите доступ на сайте ai-pets.ru».
 
+Если с VPS заблокирован прямой доступ к `api.telegram.org`, укажите
+reverse-proxy (например, Cloudflare Worker) в
+`VET_BOT_TELEGRAM_API_BASE` — бот создаст `AiohttpSession` с этим
+`TelegramAPIServer`.
+
 ### 5. Настройки бота
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | — | Токен от @BotFather (обязателен) |
 | `VET_BOT_ALLOWED_TELEGRAM_IDS` | — | ID через запятую; пусто — бот не стартует |
+| `VET_BOT_TELEGRAM_API_BASE` | `https://api.telegram.org` | База Bot API или URL reverse-proxy (Cloudflare Worker) |
 | `VET_BOT_API_URL` | `http://127.0.0.1:8000/v1/chat/completions` | URL API |
 | `VET_BOT_MODEL_ID` | `qwen3-8b-vet` | Имя модели в запросах |
 | `VET_BOT_TIMEOUT_S` | `300` | Таймаут запроса к API |

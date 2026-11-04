@@ -103,6 +103,15 @@ class BotSettings(BaseSettings):
             "Пусто — доступ запрещён всем"
         ),
     )
+    telegram_api_base: str = Field(
+        default="https://api.telegram.org",
+        validation_alias="VET_BOT_TELEGRAM_API_BASE",
+        min_length=1,
+        description=(
+            "Базовый URL Telegram Bot API; можно указать reverse-proxy "
+            "(например, Cloudflare Worker), если прямой доступ заблокирован"
+        ),
+    )
 
     @property
     def allowed_id_set(self) -> frozenset[int]:

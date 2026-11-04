@@ -13,6 +13,8 @@ import asyncio
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from loguru import logger
 
 from bot.client import VetApiClient
@@ -50,17 +52,27 @@ async def run(settings: BotSettings) -> None:
     if not settings.allowed_id_set:
         raise ValueError("VET_BOT_ALLOWED_TELEGRAM_IDS не задан: доступ запрещён всем")
 
-    bot = Bot(token=token, default=DefaultBotProperties(parse_mode=None))
+    # Bot API может быть недоступен напрямую с VPS: разрешаем reverse-proxy
+    # (Cloudflare Worker) через VET_BOT_TELEGRAM_API_BASE.
+    session = AiohttpSession(
+        api=TelegramAPIServer.from_base(settings.telegram_api_base),
+    )
+    bot = Bot(
+        token=token,
+        session=session,
+        default=DefaultBotProperties(parse_mode=None),
+    )
     dispatcher = Dispatcher()
     service = create_service(settings)
     dispatcher.include_router(build_router(service))
     logger.info(
-        "Telegram-бот запущен: API={}, модель={}, RAG={}, tools={}, allowed_ids={}",
+        "Telegram-бот запущен: API={}, model={}, RAG={}, tools={}, allowed_ids={}, telegram_api={}",
         settings.api_url,
         settings.model_id,
         settings.use_rag,
         settings.use_tools,
         len(settings.allowed_id_set),
+        settings.telegram_api_base,
     )
 
     try:

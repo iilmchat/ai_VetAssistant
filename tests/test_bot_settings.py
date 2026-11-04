@@ -22,3 +22,13 @@ def test_invalid_allowlist_raises() -> None:
 
     with pytest.raises(ValueError, match="целые числа"):
         _ = settings.allowed_id_set
+
+
+def test_telegram_api_base_defaults_to_public_api() -> None:
+    assert BotSettings().telegram_api_base == "https://api.telegram.org"
+
+
+def test_telegram_api_base_can_point_to_reverse_proxy() -> None:
+    settings = BotSettings(telegram_api_base="https://tg.example.workers.dev")
+
+    assert settings.telegram_api_base == "https://tg.example.workers.dev"
