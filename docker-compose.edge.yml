@@ -24,7 +24,10 @@ x-app: &app
   build:
     context: .
     dockerfile: Dockerfile
-  image: vetassistant:1.5.3
+  # Версия образа приходит из тега git (T-131): deploy.yml экспортирует
+  # VETASSISTANT_VERSION=${GITHUB_REF_NAME#v}, поэтому в `docker ps` видно,
+  # какая именно сборка запущена. Локально без переменной — `latest`.
+  image: vetassistant:${VETASSISTANT_VERSION:-latest}
   restart: unless-stopped
   logging: *default-logging
 
@@ -115,7 +118,7 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_MODEL_ID: ${VET_API_MODEL_ID:-qwen3-8b-vet}
-    image: vetassistant-frontend:1.5.3
+    image: vetassistant-frontend:${VETASSISTANT_VERSION:-latest}
     container_name: vetassistant-frontend
     restart: unless-stopped
     logging: *default-logging

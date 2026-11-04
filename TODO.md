@@ -398,6 +398,13 @@
 - **Оценка:** 0.5
 - **Статус:** выполнено: из `.github/workflows/release.yml` удалены `setup-buildx-action` и обе сборки (`docker build` для `api` и `frontend`); job переименован в `create-release` (таймаут 10 минут), остались `actions/checkout` и `softprops/action-gh-release@v2`; единственная сборка production-образов — `deploy.yml` (`docker compose … build api frontend` + `up -d --no-build`). Добавлены workflow-тесты `test_release_workflow_only_creates_github_release` и `test_docker_images_built_only_by_deploy_workflow`; `tests/test_deployment.py` — 21 passed, `ruff`/`mypy` чисто. Запись `v1.5.3` в `docs/CHANGELOG.md` дополнена (T-130, синтетические email, гонки CI/CD), `DEPLOYMENT.md` §6 обновлён; тег `v1.5.4` — контрольный прогон CI/CD с новыми правилами.
 
+### [x] T-131. Динамические версии Docker-образов и фиксация v1.5.5
+- **Зависит от:** T-130
+- **Что:** В `docker-compose.edge.yml` и `docker-compose.prod.yml` тег образа был захардкожен (`vetassistant:1.5.3`), поэтому в `docker ps` не было видно, что на проде запущена сборка хотфикса из тега `v1.5.4`. Заменить тег на `vetassistant:${VETASSISTANT_VERSION:-latest}`, научить `deploy.yml` брать версию из тега (`VETASSISTANT_VERSION=${GITHUB_REF_NAME#v}`) и передавать её в `docker compose` через `env`. Поднять версию проекта до `1.5.5` и зафиксировать процесс «сначала зелёный CI, потом тег».
+- **DoD:** ни в одном compose-файле нет захардкоженной версии; деплой по тегу `v1.5.5` собирает образы `vetassistant:1.5.5` и `vetassistant-frontend:1.5.5`; версия `1.5.5` согласована в `pyproject.toml`, FastAPI, `package.json`, `package-lock.json`, README и CHANGELOG; `DEPLOYMENT.md` описывает порядок «CI → тег»; тесты обновлены; CI зелёный, затем ставится тег `v1.5.5`.
+- **Оценка:** 0.5
+- **Статус:** выполнено: compose-файлы (edge/prod/dev) используют `${VETASSISTANT_VERSION:-latest}`; в `deploy.yml` добавлен шаг `Resolve image version from tag` (output `version`, `env: VETASSISTANT_VERSION` на шаге деплоя); версия `1.5.5` в `pyproject.toml`, `app/main.py`, `frontend/package.json`, `package-lock.json`, README и записи `[1.5.5]` CHANGELOG; `DEPLOYMENT.md` §6.4–6.5 — версия из тега и порядок «сначала CI, потом тег»; тесты `test_docker_compose_uses_dynamic_image_version` и `test_deploy_workflow_passes_image_version_from_tag` добавлены, `tests/test_deployment.py` — 23 passed, `ruff`/`mypy` чисто. Тег `v1.5.5` ставится только после зелёного CI на `main`.
+
 > **Расширение RAG (вне релиза):** скачать дополнительные статьи MSD Vet
 > Manual, прогнать `scripts/ingest_knowledge.py` (upsert безопасен для текущих
 > 77 чанков) и замерить hit rate на 10–20 вопросах. Оценка 0.5–1 день, зависит

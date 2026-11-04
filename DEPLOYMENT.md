@@ -427,8 +427,8 @@ gh api repos/iilmchat/ai_VetAssistant/actions/runners \
 Workflow запускается при пуше тега `v*`:
 
 ```bash
-git tag -a v1.5.1 -m "Deploy test"
-git push origin v1.5.1
+git tag -a v1.5.5 -m "Deploy test"
+git push origin v1.5.5
 ```
 
 Ход выполнения: вкладка **Actions → Deploy**, либо:
@@ -442,12 +442,36 @@ gh run list --workflow=deploy.yml
 ```bash
 cd /srv/vetassistant
 git log -1 --oneline
-docker compose -f docker-compose.edge.yml ps
+docker compose -f docker-compose.edge.yml ps --format '{{.Service}} {{.Image}}'
 ```
 
 > Важно: тег — только триггер workflow. На сервере выполняется
 > `git pull --ff-only` текущей ветки `main`, поэтому тег должен указывать
 > на коммит, который уже есть в `main`.
+
+Версия образа подтягивается из тега (T-131): шаг `Resolve image version from
+tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5.5`) и передаёт
+её в `docker compose` через `env` как `VETASSISTANT_VERSION`. В compose-файлах
+образы описаны как `vetassistant:${VETASSISTANT_VERSION:-latest}` и
+`vetassistant-frontend:${VETASSISTANT_VERSION:-latest}`, поэтому вывод `ps`
+показывает запущенную сборку, а без переменной (локальный запуск) используется
+`latest`.
+
+### 6.5. Порядок релиза: сначала зелёный CI, потом тег
+
+Тег и CI используют один self-hosted runner с одним слотом, поэтому теговые
+workflow стоят в очереди за CI: на `v1.5.4` ожидание составило 35 минут при
+16 минутах самого деплоя. Чтобы не терять это время, соблюдайте порядок:
+
+1. Запушьте коммит в `main`.
+2. Дождитесь зелёного CI: вкладка **Actions** или `gh run list --limit 3`.
+3. Только после этого ставьте тег и пушьте его — `release.yml` и `deploy.yml`
+   сразу получат свободный runner.
+
+```bash
+git tag -a v1.5.5 -m "VetAssistant v1.5.5"
+git push origin v1.5.5
+```
 
 Если деплой не прошёл, проверьте:
 
@@ -458,6 +482,7 @@ docker compose -f docker-compose.edge.yml ps
 | `dubious ownership` в Git | владельца `/srv/vetassistant` и права `runner` |
 | `git pull` не обновляет код | ветку `main`, `--ff-only` и наличие коммита на сервере |
 | `docker compose` падает на переменных | `.env` в `/srv/vetassistant` (JWT, PostgreSQL, Telegram) |
+| В `docker ps` старый тег образа | `VETASSISTANT_VERSION` в логе шага, тег `v*` и `git pull` на сервере |
 
 ## 7. Ручной деплой (если не используете скрипт)
 

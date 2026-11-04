@@ -4,6 +4,33 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.5.5] — 2026-11-04
+
+### Добавлено
+
+- **Динамические версии Docker-образов (T-131).** `docker-compose.edge.yml` и
+  `docker-compose.prod.yml` (а также dev-файл) больше не содержат
+  захардкоженного тега: `image: vetassistant:${VETASSISTANT_VERSION:-latest}` и
+  `vetassistant-frontend:${VETASSISTANT_VERSION:-latest}`. В `deploy.yml`
+  добавлен шаг `Resolve image version from tag`, который превращает тег
+  `v1.5.5` в `1.5.5` и передаёт значение в `docker compose` через `env`.
+  Теперь `docker ps` показывает реально запущенную сборку, а не застывший
+  `1.5.3`.
+
+### Изменено
+
+- Порядок релиза: тег ставится **после** зелёного CI на `main`
+  (`docs`/`DEPLOYMENT.md`, раздел 6.5), поэтому теговые workflow больше не
+  стоят в очереди за CI — на `v1.5.4` это ожидание занимало 35 минут.
+- Версия `1.5.5` в `pyproject.toml`, FastAPI, `frontend/package.json`,
+  `frontend/package-lock.json`, README и Docker Compose.
+
+### Исправлено
+
+- Захардкоженный тег `vetassistant:1.5.3` в compose-файлах: на проде после
+  хотфикса работала сборка `1.5.3`, хотя тег был `v1.5.4`, и по `docker ps`
+  нельзя было понять, какая версия развёрнута.
+
 ## [1.5.3] — 2026-11-04
 
 ### Добавлено

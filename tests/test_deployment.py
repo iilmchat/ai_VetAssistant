@@ -124,33 +124,34 @@ def test_renew_ssl_script_uses_prod_overlay() -> None:
     assert "nginx -s reload" in script
 
 
-def test_release_version_is_1_5_3_everywhere() -> None:
+def test_release_version_is_1_5_5_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
-    dev_compose = _yaml("docker-compose.yml")
-    prod_compose = _yaml("docker-compose.prod.yml")
-    edge_compose = _yaml("docker-compose.edge.yml")
 
-    assert 'version = "1.5.3"' in _read("pyproject.toml")
-    assert 'version="1.5.3"' in _read("app/main.py")
-    assert package["version"] == "1.5.3"
-    assert lockfile["version"] == "1.5.3"
-    assert lockfile["packages"][""]["version"] == "1.5.3"
-    assert dev_compose["services"]["api"]["image"] == "vetassistant:1.5.3"
-    assert (
-        dev_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.3"
-    )
-    assert prod_compose["services"]["api"]["image"] == "vetassistant:1.5.3"
-    assert (
-        prod_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.3"
-    )
-    assert edge_compose["services"]["api"]["image"] == "vetassistant:1.5.3"
-    assert (
-        edge_compose["services"]["frontend"]["image"]
-        == "vetassistant-frontend:1.5.3"
-    )
+    assert 'version = "1.5.5"' in _read("pyproject.toml")
+    assert 'version="1.5.5"' in _read("app/main.py")
+    assert package["version"] == "1.5.5"
+    assert lockfile["version"] == "1.5.5"
+    assert lockfile["packages"][""]["version"] == "1.5.5"
+    assert "latest_release-v1.5.5-blue" in _read("README.md")
+    assert "Production Ready — v1.5.5" in _read("README.md")
+
+
+def test_docker_compose_uses_dynamic_image_version() -> None:
+    """T-131: версия образа приходит из VETASSISTANT_VERSION, а не из файла."""
+    expected_api = "vetassistant:${VETASSISTANT_VERSION:-latest}"
+    expected_frontend = "vetassistant-frontend:${VETASSISTANT_VERSION:-latest}"
+
+    for name in (
+        "docker-compose.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.edge.yml",
+    ):
+        compose = _yaml(name)
+        services = compose["services"]
+        assert services["api"]["image"] == expected_api, name
+        assert services["frontend"]["image"] == expected_frontend, name
+        assert "1.5.5" not in json.dumps(services), name
 
 
 def test_release_documents_exist_and_are_linked() -> None:
@@ -179,8 +180,8 @@ def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     assert job["timeout-minutes"] == 90
 
     steps = job["steps"]
-    assert len(steps) == 1
-    deploy_step = steps[0]
+    assert len(steps) == 2
+    deploy_step = steps[1]
     assert "uses" not in deploy_step
     script = deploy_step["run"]
     assert "cd /srv/vetassistant" in script
@@ -188,6 +189,22 @@ def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     assert "docker compose -f docker-compose.edge.yml build api frontend" in script
     assert "docker compose -f docker-compose.edge.yml up -d --no-build" in script
     assert "appleboy" not in json.dumps(workflow)
+
+
+def test_deploy_workflow_passes_image_version_from_tag() -> None:
+    """T-131: тег `v1.5.5` превращается в `VETASSISTANT_VERSION=1.5.5`."""
+    workflow = _yaml(".github/workflows/deploy.yml")
+    steps = workflow["jobs"]["deploy"]["steps"]
+
+    resolve = steps[0]
+    assert resolve["name"] == "Resolve image version from tag"
+    assert resolve["id"] == "version"
+    expected_echo = 'echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"'
+    assert expected_echo in resolve["run"]
+
+    deploy = steps[1]
+    env = deploy["env"]
+    assert env["VETASSISTANT_VERSION"] == "${{ steps.version.outputs.version }}"
 
 
 def test_all_workflows_use_self_hosted_label_set() -> None:
@@ -220,7 +237,11 @@ def test_release_workflow_only_creates_github_release() -> None:
 def test_docker_images_built_only_by_deploy_workflow() -> None:
     """T-130: единственное место сборки production-образов — deploy.yml."""
     deploy = _yaml(".github/workflows/deploy.yml")
-    script = deploy["jobs"]["deploy"]["steps"][0]["run"]
+    steps = deploy["jobs"]["deploy"]["steps"]
+    deploy_step = next(
+        step for step in steps if step["name"] == "Pull and rebuild on server"
+    )
+    script = deploy_step["run"]
 
     assert "docker compose -f docker-compose.edge.yml build api frontend" in script
     assert "docker compose -f docker-compose.edge.yml up -d --no-build" in script
