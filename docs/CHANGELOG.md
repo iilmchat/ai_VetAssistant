@@ -42,6 +42,22 @@
 - Версия `1.3.0` в `pyproject.toml`, FastAPI, Docker Compose (dev/prod/edge)
   и `frontend/package.json`.
 
+### Итоги Фазы 3 (production)
+
+- **Prometheus** собирает `vetassistant-api:8000/metrics` по сети `edge`:
+  стандартные HTTP-метрики и 10 кастомных `vet_llm_*` / `vet_rag_*`.
+- **Grafana** развёрнута рядом с Prometheus; дашборды — RPS и p95
+  HTTP-латентности, токены/с, p95 TTFT, доля RAG-hit и алерт
+  `vet_rag_index_ready == 0`. Финальное подтверждение работы дашбордов — за
+  сисадмином.
+- **RAG в production:** коллекция `msd_vet_manual` содержит **77 чанков** из
+  двух статей MSD Vet Manual и трёх демо-файлов; API отдаёт
+  `vet_rag_index_ready 1.0`.
+- Инкрементальный ingest через `upsert` сохраняет базу при обновлении статей;
+  `--rebuild` — только осознанная полная пересборка.
+- Публичный путь `/api/metrics` закрывается в Caddy; Prometheus ходит на
+  внутренний адрес API.
+
 ## [1.2.1] — 2026-11-04
 
 ### Изменено

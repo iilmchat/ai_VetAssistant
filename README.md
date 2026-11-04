@@ -9,6 +9,7 @@
 **Статус:** ✅ **Production Ready — v1.3.0** (2026-11-04)
 **Релиз:** метрики Prometheus, готовность RAG к production и разделение
 лендинга и приложения по доменам
+**Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
@@ -16,7 +17,7 @@
 - **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
-- **Метрики:** Prometheus `GET /metrics` — HTTP-запросы, латентность LLM, токены, TTFT и RAG
+- **Метрики:** Prometheus `GET /metrics` + Grafana — HTTP-запросы, латентность LLM, токены, TTFT и RAG
 - **CI/CD:** GitHub Actions — линтеры, тесты, Docker-сборка и автоматические GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
 - **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -48,6 +49,29 @@
   [`docs/landing/`](docs/landing/README.md); Caddy-матчер `@landing_private`
   удалён, служебные пути по-прежнему отдают 404.
 - План и история работ: [PHASE2_LANDING_APP.md](docs/development/PHASE2_LANDING_APP.md).
+
+## 📊 Фаза 3 — наблюдаемость и RAG (итоги)
+
+**Статус:** итоги подведены; финальное подтверждение работы дашбордов
+Grafana — за сисадмином.
+
+- **Prometheus:** API отдаёт `/metrics`
+  (`prometheus-fastapi-instrumentator`): `http_requests_total`,
+  `http_request_duration_seconds` и кастомные `vet_llm_*` / `vet_rag_*` —
+  вызовы модели, токены промпта и генерации, время генерации, TTFT, скорость
+  токенов/с, RAG-поиски и `vet_rag_index_ready`. Prometheus скрапит внутренний
+  `vetassistant-api:8000` по сети `edge`; публичный `/api/metrics` закрывается
+  в Caddy.
+- **Grafana:** развёрнута на VPS рядом с Prometheus. Дашборды: RPS и p95
+  HTTP-латентности, токены/с, p95 TTFT, доля RAG-hit и алерт
+  `vet_rag_index_ready == 0` после деплоя.
+- **RAG:** ChromaDB-коллекция `msd_vet_manual` — **77 чанков** из двух статей
+  MSD Vet Manual и трёх демо-файлов; API подтверждает
+  `vet_rag_index_ready 1.0`. `scripts/ingest_knowledge.py` обновляет индекс
+  через `upsert` и не удаляет существующие чанки; `--rebuild` — только
+  осознанно.
+- **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
+  список метрик и scrape-конфиг Prometheus.
 
 ## 🚀 v1.1.0 — Security and Memory Optimizations
 
