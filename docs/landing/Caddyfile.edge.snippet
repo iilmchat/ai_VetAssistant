@@ -30,6 +30,10 @@ app.ai-pets.ru {
 		Permissions-Policy "geolocation=(), microphone=(), camera=()"
 		X-Robots-Tag "noindex, nofollow"
 	}
+	@app_metrics path /api/metrics
+	handle @app_metrics {
+		respond 404
+	}
 	handle_path /api/* {
 		reverse_proxy vetassistant-api:8000 {
 			flush_interval -1
