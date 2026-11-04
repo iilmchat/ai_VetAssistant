@@ -4,6 +4,14 @@ name: Deploy
   push:
     tags:
       - "v*"
+  # Ручной перезапуск деплоя без пересоздания тега: версия берётся из
+  # `version` (если задана) или из GITHUB_REF_NAME.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия образа без префикса v (например, 1.5.6)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -19,29 +27,43 @@ jobs:
     runs-on: [self-hosted, linux, x64, vps]
     timeout-minutes: 90
     steps:
-      # T-131: версия образа берётся из тега (`v1.5.5` -> `1.5.5`), поэтому
+      # T-131: версия образа берётся из тега (`v1.5.6` -> `1.5.6`), поэтому
       # в `docker ps` видно, какая сборка реально запущена на сервере.
       - name: Resolve image version from tag
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          echo "Deploying image version: ${GITHUB_REF_NAME#v}"
+          version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Deploying image version: ${version}"
 
       # T-132: версия должна переживать ручной `docker compose up` и ребут.
-      # Пишем её в .env сервера идемпотентно: повторные деплои не плодят
-      # дубликаты строк, а compose читает значение из файла сам.
+      # Шаг best-effort: если `.env` принадлежит другому пользователю, деплой
+      # не падает, но в лог уходит warning с готовой командой для правки.
       - name: Persist image version to .env
         env:
           VETASSISTANT_VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd /srv/vetassistant
-          if grep -q '^VETASSISTANT_VERSION=' .env; then
-            sed -i "s|^VETASSISTANT_VERSION=.*|VETASSISTANT_VERSION=${VETASSISTANT_VERSION}|" .env
-          else
-            printf 'VETASSISTANT_VERSION=%s\n' "${VETASSISTANT_VERSION}" >> .env
+          if [[ ! -e .env ]]; then
+            echo "::warning file=.env::.env не найден — версия передана только через окружение"
+            exit 0
           fi
-          echo "VETASSISTANT_VERSION в .env:"
-          grep '^VETASSISTANT_VERSION=' .env
+          if [[ ! -r .env ]]; then
+            echo "::warning file=.env::.env недоступен пользователю $(id -un): версия не сохранена. Исправьте: sudo chown $(id -un):$(id -gn) /srv/vetassistant/.env && chmod 600 /srv/vetassistant/.env"
+            exit 0
+          fi
+          if grep -q '^VETASSISTANT_VERSION=' .env; then
+            if ! sed -i "s|^VETASSISTANT_VERSION=.*|VETASSISTANT_VERSION=${VETASSISTANT_VERSION}|" .env; then
+              echo "::warning file=.env::не удалось записать VETASSISTANT_VERSION (нет прав на запись)"
+            fi
+          elif ! printf 'VETASSISTANT_VERSION=%s\n' "${VETASSISTANT_VERSION}" >> .env; then
+            echo "::warning file=.env::не удалось добавить VETASSISTANT_VERSION (нет прав на запись)"
+          fi
+          grep '^VETASSISTANT_VERSION=' .env \
+            || echo "::warning file=.env::VETASSISTANT_VERSION отсутствует в .env"
 
       - name: Pull and rebuild on server
         env:

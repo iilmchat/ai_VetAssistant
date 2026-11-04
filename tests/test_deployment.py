@@ -173,6 +173,7 @@ def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     triggers = workflow["on"]
 
     assert triggers["push"]["tags"] == ["v*"]
+    assert "workflow_dispatch" in triggers
     assert workflow["permissions"]["contents"] == "read"
     assert workflow["concurrency"]["group"] == "deploy-production"
     job = workflow["jobs"]["deploy"]
@@ -199,8 +200,8 @@ def test_deploy_workflow_passes_image_version_from_tag() -> None:
     resolve = steps[0]
     assert resolve["name"] == "Resolve image version from tag"
     assert resolve["id"] == "version"
-    expected_echo = 'echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"'
-    assert expected_echo in resolve["run"]
+    assert 'version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"' in resolve["run"]
+    assert 'echo "version=${version}" >> "$GITHUB_OUTPUT"' in resolve["run"]
 
     deploy = steps[2]
     env = deploy["env"]
@@ -226,6 +227,10 @@ def test_deploy_workflow_persists_version_to_env_file() -> None:
     assert "grep -q '^VETASSISTANT_VERSION='" in script
     assert "sed -i" in script
     assert "printf 'VETASSISTANT_VERSION=%s\\n'" in script
+    # Best-effort: чужой .env не должен валить деплой (T-135 hotfix).
+    assert "[[ ! -r .env ]]" in script
+    assert "sudo chown" in script
+    assert "::warning" in script
 
 
 def test_restart_prod_script_uses_git_tag_and_skips_build() -> None:

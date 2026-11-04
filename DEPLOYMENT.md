@@ -463,7 +463,25 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.5.5
+# VETASSISTANT_VERSION=1.5.6
+```
+
+Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
+редактировали через `sudo` и он стал root-only, шаг выведет warning с готовой
+командой и продолжит деплой — версия всё равно уйдёт в compose через `env`,
+но персистентность для ручных перезапусков не заработает. Исправляется один
+раз:
+
+```bash
+sudo chown deployer:deployer /srv/vetassistant/.env
+sudo chmod 600 /srv/vetassistant/.env
+```
+
+Перезапустить деплой без нового тега можно вручную (версия передаётся
+входным параметром):
+
+```bash
+gh workflow run deploy.yml --ref main -f version=1.5.6
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
