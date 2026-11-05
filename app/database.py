@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -65,6 +66,12 @@ class User(Base):
         Boolean,
         default=False,
         nullable=False,
+    )
+    telegram_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        unique=True,
+        index=True,
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -143,6 +150,45 @@ class Reminder(Base):
     time: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class TelegramLinkCode(Base):
+    """Одноразовый код привязки Telegram к веб-аккаунту (T-134).
+
+    Хранится только HMAC-SHA256 от кода (``code_hash``), сам код показывается
+    пользователю один раз. ``telegram_id`` и ``used_at`` заполняются при
+    успешном подтверждении ботом и служат источником ``linked_at``.
+    """
+
+    __tablename__ = "telegram_link_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    code_hash: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        index=True,
+        nullable=False,
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
 def _migrate_legacy_tables(connection: Connection) -> None:
     """Добавить ``user_id`` в таблицы, созданные до T-039."""
     inspector = inspect(connection)
@@ -214,6 +260,32 @@ def _migrate_admin_panel(connection: Connection) -> None:
                 )
 
 
+def _migrate_telegram_link(connection: Connection) -> None:
+    """Добавить ``users.telegram_id`` и уникальный индекс (T-134).
+
+    ``Base.metadata.create_all`` не меняет существующие таблицы, поэтому для
+    старых баз колонка добавляется отдельным ``ALTER TABLE``. Уникальный
+    индекс создаётся с ``IF NOT EXISTS`` и позволяет несколько ``NULL``
+    (в обеих СУБД ``NULL`` не конфликтует с ``NULL``). Таблицу
+    ``telegram_link_codes`` создаёт сам ``create_all``.
+    """
+    inspector = inspect(connection)
+    existing_tables = set(inspector.get_table_names())
+    if "users" not in existing_tables:
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("users")}
+    if "telegram_id" not in columns:
+        connection.execute(text("ALTER TABLE users ADD COLUMN telegram_id BIGINT"))
+
+    connection.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id "
+            "ON users (telegram_id)"
+        )
+    )
+
+
 class Database:
     """Async-движок и фабрика сессий SQLAlchemy."""
 
@@ -226,11 +298,12 @@ class Database:
         )
 
     async def create_tables(self) -> None:
-        """Создать таблицы и мягко мигрировать схему до T-039/T-120."""
+        """Создать таблицы и мягко мигрировать схему до T-039/T-120/T-134."""
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(_migrate_legacy_tables)
             await connection.run_sync(_migrate_admin_panel)
+            await connection.run_sync(_migrate_telegram_link)
 
     def session(self) -> AsyncSession:
         """Открыть новую сессию (используйте ``async with``)."""

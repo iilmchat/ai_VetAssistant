@@ -8,16 +8,21 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.database import (
     Database,
+    TelegramLinkCode,
     User,
     book_appointment,
     create_user,
+    get_user_by_email,
+    get_user_by_id,
     list_appointments,
     list_reminders,
     set_reminder,
 )
+from configs.settings import PROJECT_ROOT
 
 
 @pytest.fixture
@@ -198,3 +203,96 @@ async def test_create_tables_migrates_legacy_rows(tmp_path: Path) -> None:
 
     assert [item.pet_name for item in appointments] == ["Новый"]
     await database.dispose()
+
+
+async def test_create_tables_migrates_telegram_link(tmp_path: Path) -> None:
+    """Старая база получает users.telegram_id и таблицу кодов (T-134.1)."""
+    path = tmp_path / "legacy_users.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE users ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "email VARCHAR(320) NOT NULL, "
+            "hashed_password VARCHAR(255) NOT NULL, "
+            "created_at DATETIME NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO users (email, hashed_password, created_at) "
+            "VALUES ('old@example.com', 'hash', '2026-01-01 00:00:00')"
+        )
+
+    database = Database(f"sqlite+aiosqlite:///{path.as_posix()}")
+    try:
+        await database.create_tables()
+        # Повторный запуск не должен падать или дублировать индексы.
+        await database.create_tables()
+
+        async with database.engine.connect() as connection:
+            columns = await connection.execute(text("PRAGMA table_info(users)"))
+            names = {row[1] for row in columns}
+            indexes = await connection.execute(text("PRAGMA index_list(users)"))
+            index_names = {row[1] for row in indexes}
+            code_indexes = await connection.execute(
+                text("PRAGMA index_list(telegram_link_codes)")
+            )
+            code_index_names = {row[1] for row in code_indexes}
+
+        assert "telegram_id" in names
+        assert "ix_users_telegram_id" in index_names
+        assert {
+            "ix_telegram_link_codes_code_hash",
+            "ix_telegram_link_codes_user_id",
+            "ix_telegram_link_codes_expires_at",
+        } <= code_index_names
+
+        async with database.session() as session:
+            user = await get_user_by_email(session, "old@example.com")
+            assert user is not None
+            user.telegram_id = 42
+            await session.commit()
+
+        async with database.session() as session:
+            refreshed = await get_user_by_email(session, "old@example.com")
+            assert refreshed is not None
+            assert refreshed.telegram_id == 42
+    finally:
+        await database.dispose()
+
+
+async def test_telegram_id_is_unique(
+    database: Database,
+    users: tuple[User, User],
+) -> None:
+    """Один Telegram-аккаунт нельзя привязать к двум пользователям."""
+    owner, other = users
+    async with database.session() as session:
+        first = await get_user_by_id(session, owner.id)
+        second = await get_user_by_id(session, other.id)
+        assert first is not None
+        assert second is not None
+        first.telegram_id = 777
+        second.telegram_id = 777
+        with pytest.raises(IntegrityError):
+            await session.commit()
+
+
+def test_telegram_migration_sql_matches_models() -> None:
+    """Сырой SQL для сисадмина не расходится с ORM-моделью (T-134.1)."""
+    script_path = (
+        PROJECT_ROOT / "scripts" / "migrations" / "2026-11-05_telegram_linking.sql"
+    )
+    script = script_path.read_text(encoding="utf-8")
+
+    marker = "CREATE TABLE IF NOT EXISTS telegram_link_codes ("
+    assert marker in script
+    table_block = script.split(marker, 1)[1].split(");", 1)[0]
+    columns = {
+        line.split()[0].rstrip(",").strip()
+        for line in table_block.splitlines()
+        if line.strip()
+    }
+
+    assert columns == {column.name for column in TelegramLinkCode.__table__.columns}
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id" in script
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS ix_telegram_link_codes_code_hash" in script
+    assert "ON DELETE CASCADE" in script

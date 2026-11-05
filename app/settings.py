@@ -92,6 +92,14 @@ class AppSettings(BaseSettings):
             "Разрешить публичную регистрацию; в production обычно false"
         ),
     )
+    telegram_bot_username: str = Field(
+        default="",
+        max_length=64,
+        description=(
+            "Username Telegram-бота без @ (T-134): подставляется в инструкцию "
+            "привязки аккаунта; пусто — инструкция без имени бота"
+        ),
+    )
     prometheus_url: str = Field(
         default="http://vetassistant-prometheus:9090",
         description=(

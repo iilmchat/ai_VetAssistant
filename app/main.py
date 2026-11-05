@@ -25,9 +25,8 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, ConfigDict, Field
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from app.admin import router as admin_router
@@ -63,8 +62,10 @@ from app.metrics import (
     record_user_usage,
     set_rag_index_ready,
 )
+from app.rate_limit import limiter
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
+from app.telegram_link import router as telegram_router
 from app.tools import (
     ToolCall,
     ToolDefinition,
@@ -261,7 +262,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="VetAssistant API", version="1.5.6", lifespan=lifespan)
 
-limiter = Limiter(key_func=get_remote_address)
+# Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
+# в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
 app.state.limiter = limiter
 app.add_exception_handler(
     RateLimitExceeded,
@@ -282,6 +284,7 @@ app.add_middleware(
 # vetassistant-api:8000 по сети edge.
 Instrumentator().instrument(app).expose(app)
 app.include_router(admin_router)
+app.include_router(telegram_router)
 
 
 def _auth_response(user: User, settings: AppSettings) -> AuthResponse:
