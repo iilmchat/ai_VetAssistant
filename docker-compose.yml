@@ -57,6 +57,11 @@ services:
       VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:-dev-insecure-jwt-secret-change-me}
       VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       VET_API_ALLOW_PUBLIC_REGISTRATION: ${VET_API_ALLOW_PUBLIC_REGISTRATION:-true}
+      # T-134: привязка Telegram и уведомления.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      VET_API_TELEGRAM_API_BASE: ${VET_BOT_TELEGRAM_API_BASE:-https://api.telegram.org}
+      VET_API_TELEGRAM_NOTIFY: ${VET_API_TELEGRAM_NOTIFY:-true}
+      VET_API_TELEGRAM_BOT_USERNAME: ${VET_BOT_USERNAME:-}
     healthcheck:
       test:
         - CMD

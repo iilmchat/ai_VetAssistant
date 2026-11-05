@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Protocol, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -65,7 +65,14 @@ from app.metrics import (
 from app.rate_limit import limiter
 from app.router import triage_message, with_emergency_instruction
 from app.settings import AppSettings, get_app_settings
+from app.telegram_link import is_bot_account, resolve_bot_login_user
 from app.telegram_link import router as telegram_router
+from app.telegram_notify import (
+    NOTIFY_TOOLS,
+    is_bot_request,
+    notification_for_tool,
+    send_telegram_message,
+)
 from app.tools import (
     ToolCall,
     ToolDefinition,
@@ -260,7 +267,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.5.6", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.6.0", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -354,13 +361,19 @@ async def login(
 
     async with database.session() as session:
         user = await get_user_by_email(session, email)
-
-    if user is None or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный email или пароль",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        if user is None or not verify_password(
+            payload.password,
+            user.hashed_password,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Неверный email или пароль",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # T-134.3: бот входит под synthetic-аккаунтом, но если Telegram уже
+        # привязан к веб-аккаунту, токен должен принадлежать владельцу —
+        # иначе записи и напоминания из бота останутся в отдельном аккаунте.
+        user = await resolve_bot_login_user(session, user)
 
     logger.info("Auth: вход пользователя {}", user.id)
     return _auth_response(user, settings)
@@ -551,8 +564,15 @@ async def _execute_tool_calls(
     *,
     database: Database,
     user_id: int,
+    telegram_id: int | None = None,
+    background: BackgroundTasks | None = None,
 ) -> list[dict[str, Any]]:
-    """Выполнить вызовы и сформировать сообщения с ролью ``tool``."""
+    """Выполнить вызовы и сформировать сообщения с ролью ``tool``.
+
+    Для привязанного пользователя успешная запись/напоминание ставит в
+    фоновые задачи уведомление в Telegram (T-134.4). Ошибка Telegram не
+    влияет на ответ API.
+    """
     messages: list[dict[str, Any]] = []
     async with database.session() as session:
         for tool_call in tool_calls:
@@ -574,6 +594,18 @@ async def _execute_tool_calls(
                     "message": f"Ошибка выполнения инструмента {name}: {exc}",
                 }
 
+            if (
+                telegram_id is not None
+                and background is not None
+                and name in NOTIFY_TOOLS
+                and result.get("status") == "success"
+            ):
+                background.add_task(
+                    send_telegram_message,
+                    telegram_id,
+                    notification_for_tool(name, str(result.get("message", ""))),
+                )
+
             messages.append(
                 {
                     "role": "tool",
@@ -593,6 +625,8 @@ async def _complete(
     *,
     database: Database,
     user_id: int,
+    telegram_id: int | None = None,
+    background: BackgroundTasks | None = None,
 ) -> ChatCompletionResponse:
     """Сгенерировать ответ, выполняя tool_calls в agentic loop."""
     working = [dict(message) for message in messages]
@@ -625,6 +659,8 @@ async def _complete(
                 tool_calls,
                 database=database,
                 user_id=user_id,
+                telegram_id=telegram_id,
+                background=background,
             )
         )
         response = await _generate_once(
@@ -654,6 +690,8 @@ async def _stream_with_tools(
     *,
     database: Database,
     user_id: int,
+    telegram_id: int | None = None,
+    background: BackgroundTasks | None = None,
 ) -> AsyncIterator[str]:
     """Отдать SSE-поток после выполнения agentic loop.
 
@@ -669,6 +707,8 @@ async def _stream_with_tools(
             model_name,
             database=database,
             user_id=user_id,
+            telegram_id=telegram_id,
+            background=background,
         )
         message = response.choices[0].message
         delta: dict[str, Any] = {
@@ -713,6 +753,8 @@ async def _stream(
     *,
     database: Database,
     user_id: int,
+    telegram_id: int | None = None,
+    background: BackgroundTasks | None = None,
 ) -> AsyncIterator[str]:
     """Отдать ответ потоком SSE в формате OpenAI."""
     if request.tools:
@@ -723,6 +765,8 @@ async def _stream(
             model_name,
             database=database,
             user_id=user_id,
+            telegram_id=telegram_id,
+            background=background,
         ):
             yield chunk
         return
@@ -807,6 +851,8 @@ def health() -> dict[str, Any]:
 @app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
     request: ChatCompletionRequest,
+    http_request: Request,
+    background: BackgroundTasks,
     model: Annotated[ChatModel, Depends(get_model)],
     knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
     database: Annotated[Database, Depends(get_database)],
@@ -861,6 +907,15 @@ async def chat_completions(
     if triage["is_emergency"]:
         messages = with_emergency_instruction(messages)
 
+    # Уведомления в Telegram (T-134.4): только привязанным пользователям и не
+    # для запросов из бота — бот сам отвечает в чат, дублировать не нужно.
+    notify_chat_id = (
+        None
+        if is_bot_request(http_request.headers)
+        or is_bot_account(current_user.email)
+        else current_user.telegram_id
+    )
+
     if request.stream:
         return StreamingResponse(
             _stream(
@@ -870,9 +925,12 @@ async def chat_completions(
                 model_name,
                 database=database,
                 user_id=current_user.id,
+                telegram_id=notify_chat_id,
+                background=background,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            background=background,
         )
 
     return await _complete(
@@ -882,6 +940,8 @@ async def chat_completions(
         model_name,
         database=database,
         user_id=current_user.id,
+        telegram_id=notify_chat_id,
+        background=background,
     )
 
 

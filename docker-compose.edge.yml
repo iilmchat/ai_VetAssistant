@@ -100,6 +100,12 @@ services:
       VET_API_JWT_SECRET: ${VET_API_JWT_SECRET:?VET_API_JWT_SECRET is required}
       VET_API_ACCESS_TOKEN_EXPIRE_MINUTES: ${VET_API_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       VET_API_ALLOW_PUBLIC_REGISTRATION: ${VET_API_ALLOW_PUBLIC_REGISTRATION:-false}
+      # T-134: привязка Telegram и уведомления о записях/напоминаниях.
+      # Токен нужен и api (sendMessage), и bot; username — для инструкции.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      VET_API_TELEGRAM_API_BASE: ${VET_BOT_TELEGRAM_API_BASE:-https://api.telegram.org}
+      VET_API_TELEGRAM_NOTIFY: ${VET_API_TELEGRAM_NOTIFY:-true}
+      VET_API_TELEGRAM_BOT_USERNAME: ${VET_BOT_USERNAME:-}
       VET_API_N_THREADS: ${VET_API_N_THREADS:-3}
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-3}
     healthcheck:

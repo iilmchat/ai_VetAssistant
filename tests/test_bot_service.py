@@ -8,12 +8,18 @@ from typing import Any
 import pytest
 
 from app.tools import AVAILABLE_TOOLS, ToolCall, ToolCallFunction
-from bot.client import ChatResult, VetApiError
+from bot.client import ChatResult, LinkStatus, VetApiError
 from bot.conversation import ConversationStore
 from bot.service import (
     ACCESS_DENIED_TEXT,
     GENERIC_ERROR_TEXT,
+    LINK_SUCCESS_TEXT,
+    LINK_USAGE_TEXT,
     START_TEXT,
+    STATUS_LINKED_TEXT,
+    STATUS_NOT_LINKED_TEXT,
+    UNLINK_DONE_TEXT,
+    UNLINK_NOT_LINKED_TEXT,
     UNSUPPORTED_TEXT,
     VetAssistantBot,
     compose_answer,
@@ -68,10 +74,41 @@ class FakeApi:
         self.calls: list[dict[str, Any]] = []
         self.auth_calls: list[int] = []
         self.closed = False
+        self.link_calls: list[tuple[str, int, str]] = []
+        self.status_calls: list[str] = []
+        self.unlink_calls: list[str] = []
+        self.link_email = "owner@example.com"
+        self.status_result = LinkStatus(linked=False)
+        self.confirm_error: Exception | None = None
+        self.status_error: Exception | None = None
+        self.unlink_error: Exception | None = None
 
     async def authenticate(self, telegram_user_id: int) -> str:
         self.auth_calls.append(telegram_user_id)
         return f"jwt-{telegram_user_id}-{len(self.auth_calls)}"
+
+    async def confirm_link(
+        self,
+        code: str,
+        telegram_id: int,
+        *,
+        token: str,
+    ) -> str:
+        self.link_calls.append((code, telegram_id, token))
+        if self.confirm_error is not None:
+            raise self.confirm_error
+        return self.link_email
+
+    async def link_status(self, *, token: str) -> LinkStatus:
+        self.status_calls.append(token)
+        if self.status_error is not None:
+            raise self.status_error
+        return self.status_result
+
+    async def unlink(self, *, token: str) -> None:
+        self.unlink_calls.append(token)
+        if self.unlink_error is not None:
+            raise self.unlink_error
 
     async def chat(
         self,
@@ -442,3 +479,122 @@ async def test_allowed_user_can_chat() -> None:
 
     assert message.answers == ["Ответ для своего"]
     assert api.auth_calls == [7]
+
+
+# --- T-134.3: привязка Telegram ---------------------------------------------
+
+
+async def test_link_without_code_shows_usage() -> None:
+    api = FakeApi([])
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/link", user_id=7)
+
+    await bot.link(message)
+
+    assert message.answers == [LINK_USAGE_TEXT]
+    assert api.auth_calls == []
+    assert api.link_calls == []
+
+
+async def test_link_confirms_code_and_refreshes_token() -> None:
+    api = FakeApi([])
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/link abcd-2345", user_id=7)
+
+    await bot.link(message)
+
+    assert message.answers == [
+        LINK_SUCCESS_TEXT.format(email="owner@example.com")
+    ]
+    assert api.auth_calls == [7]
+    assert api.link_calls == [("abcd-2345", 7, "jwt-7-1")]
+
+    # После привязки кэш токена сброшен: /status логинится заново и получает
+    # JWT уже привязанного веб-пользователя.
+    status = FakeMessage("/status", user_id=7)
+    await bot.status(status)
+
+    assert api.auth_calls == [7, 7]
+    assert api.status_calls == ["jwt-7-2"]
+
+
+async def test_link_shows_friendly_error_for_expired_code() -> None:
+    api = FakeApi([])
+    api.confirm_error = VetApiError(
+        "expired",
+        user_message="Срок действия кода истёк. Получите новый код на сайте.",
+        status=400,
+    )
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/link ABCDEFGH", user_id=7)
+
+    await bot.link(message)
+
+    assert message.answers == [
+        "Срок действия кода истёк. Получите новый код на сайте."
+    ]
+
+
+async def test_status_reports_linked_email() -> None:
+    api = FakeApi([])
+    api.status_result = LinkStatus(
+        linked=True,
+        telegram_id=42,
+        email="owner@example.com",
+    )
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/status", user_id=7)
+
+    await bot.status(message)
+
+    assert message.answers == [
+        STATUS_LINKED_TEXT.format(email="owner@example.com")
+    ]
+
+
+async def test_status_reports_not_linked() -> None:
+    api = FakeApi([])
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/status", user_id=7)
+
+    await bot.status(message)
+
+    assert message.answers == [STATUS_NOT_LINKED_TEXT]
+
+
+async def test_unlink_when_not_linked_does_not_call_api() -> None:
+    api = FakeApi([])
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/unlink", user_id=7)
+
+    await bot.unlink(message)
+
+    assert message.answers == [UNLINK_NOT_LINKED_TEXT]
+    assert api.unlink_calls == []
+
+
+async def test_unlink_removes_link() -> None:
+    api = FakeApi([])
+    api.status_result = LinkStatus(
+        linked=True,
+        telegram_id=42,
+        email="owner@example.com",
+    )
+    bot = VetAssistantBot(api, ConversationStore())
+    message = FakeMessage("/unlink", user_id=7)
+
+    await bot.unlink(message)
+
+    assert message.answers == [UNLINK_DONE_TEXT]
+    assert api.unlink_calls == ["jwt-7-1"]
+
+
+async def test_link_respects_allowlist() -> None:
+    api = FakeApi([])
+    bot = VetAssistantBot(api, ConversationStore(), allowed_ids=frozenset({2}))
+    message = FakeMessage("/link ABCDEFGH", user_id=1)
+
+    await bot.link(message)
+
+    assert message.answers == [ACCESS_DENIED_TEXT]
+    assert api.auth_calls == []

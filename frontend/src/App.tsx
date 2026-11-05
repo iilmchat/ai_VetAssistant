@@ -40,6 +40,7 @@ import { Composer } from './components/Composer'
 import { Welcome } from './components/Welcome'
 import { AuthScreen } from './components/AuthScreen'
 import { ChangePasswordDialog } from './components/ChangePasswordDialog'
+import { SettingsDialog } from './components/SettingsDialog'
 import { AdminDashboard } from './components/AdminDashboard'
 
 const MAX_CONTEXT_MESSAGES = 20
@@ -130,6 +131,7 @@ function App() {
   const [recordsLoading, setRecordsLoading] = useState(true)
   const [recordsError, setRecordsError] = useState<string | null>(null)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [authNotice, setAuthNotice] = useState<string | null>(null)
 
@@ -153,6 +155,7 @@ function App() {
     setRecordsLoading(true)
     setSidebarOpen(false)
     setPasswordDialogOpen(false)
+    setSettingsOpen(false)
     setAdminOpen(false)
   }, [])
 
@@ -520,10 +523,20 @@ function App() {
         }}
         onOpenSettings={() => {
           setSidebarOpen(false)
-          setPasswordDialogOpen(true)
+          setSettingsOpen(true)
         }}
         onLogout={handleLogout}
       />
+
+      {settingsOpen && (
+        <SettingsDialog
+          onClose={() => setSettingsOpen(false)}
+          onOpenPasswordChange={() => {
+            setSettingsOpen(false)
+            setPasswordDialogOpen(true)
+          }}
+        />
+      )}
 
       {passwordDialogOpen && (
         <ChangePasswordDialog

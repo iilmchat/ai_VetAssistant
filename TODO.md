@@ -369,52 +369,53 @@
 - **Оценка:** 1
 - **Статус:** выполнено: 10 статей MSD добавлены в `data/knowledge/real/` и проиндексированы — **766 чанков** (было 204, ×3.75) через `upsert` с логом «Новых чанков / будет обновлено / всего в коллекции»; `scripts/download_msd.py --url` умеет скачивать по прямым ссылкам; `scripts/create_telegram_user.py --reset-password` для сброса пароля после ротации `VET_BOT_AUTH_SECRET`; `scripts/evaluate_rag.py` + `docs/development/reports/RAG_EVAL.md` — прогон 12 вопросов дал **12/12 RAG hit (100 %), 0 miss, 0 ошибок, среднее 74.6 с**; регрессии на старых темах нет.
 
-### [ ] T-134. Привязка Telegram к веб-аккаунту
+### [x] T-134. Привязка Telegram к веб-аккаунту
 - **Зависит от:** T-121, T-039
 - **Что:** Сейчас Telegram-пользователь создаётся скриптом `scripts/create_telegram_user.py` с synthetic email и живёт отдельным аккаунтом: записи и напоминания, сделанные на сайте, в боте не видны. Добавить `telegram_id` в `users`, привязку существующего аккаунта по одноразовому коду и уведомления в чат о записях и напоминаниях. Вход на сайт через Telegram Login Widget — отдельный этап (T-134.7), в эту итерацию не входит.
 - **Решение:** привязка инициируется на сайте, подтверждается в боте. Сайт выпускает одноразовый код и показывает «отправьте боту `/link КОД`»; бот вызывает `POST /v1/telegram/confirm` под своим synthetic-JWT, а API проверяет, что email из токена соответствует `telegram-<id>@bot.vetassistant.local` для переданного `telegram_id`. Пароль synthetic-аккаунта выводится из `VET_BOT_AUTH_SECRET` (HMAC), поэтому такой JWT может получить только бот — отдельный shared secret для внутреннего эндпоинта не нужен. Коды хранятся только как HMAC-SHA256 от `VET_API_JWT_SECRET`.
 - **Безопасность:** код — 8 символов Crockford base32 (без `0/O/1/I`), TTL 10 минут, одноразовый, максимум 3 активных кода на пользователя, лимит 5 запросов/час; `users.telegram_id UNIQUE`; коды не пишутся в логи; synthetic-JWT с чужим `telegram_id` → 403. Автоматического слияния аккаунтов в эндпоинте нет: конфликт `telegram_id` → 409, слияние — только вручную скриптом с `--merge-user`.
-- **DoD:** привязка и отвязка работают без смены пароля; старые synthetic-аккаунты продолжают работать (backfill `telegram_id`); уведомления приходят только привязанным; миграция идемпотентна на SQLite и PostgreSQL; тесты на код/истечение/повтор/чужой ID/отвязку/уведомления; `ruff`/`mypy`/`pytest` и frontend-проверки зелёные; `DEPLOYMENT.md` описывает миграцию, команды и откат.
+- **DoD:** привязка и отвязка работают без смены пароля; старые synthetic-аккаунты продолжают работать (JWT-remap на привязанный веб-аккаунт); уведомления приходят только привязанным; миграция идемпотентна на SQLite и PostgreSQL; тесты на код/истечение/повтор/чужой ID/отвязку/уведомления; `ruff`/`mypy`/`pytest` и frontend-проверки зелёные; `DEPLOYMENT.md` описывает миграцию, команды и откат.
 - **Оценка:** 3
-- **Статус:** запланирована; подзадачи ниже.
+- **Статус:** выполнено в v1.6.0. Отличие от первоначального плана: **backfill `telegram_id` для synthetic-аккаунтов не выполняется** — он занял бы `telegram_id` и сделал бы привязку веб-аккаунта невозможной (409). Вместо удаления synthetic-аккаунта при `--merge-user` он сохраняется (иначе бот теряет пароль для входа), а записи/напоминания переносятся; вход бота после привязки отдаёт JWT веб-пользователя. SQL прогнан на PostgreSQL 16 дважды, полный `pytest`/`ruff`/`mypy` и frontend-проверки зелёные.
 
 #### Подзадачи T-134
 
-- [ ] **T-134.1. Схема БД и миграции (0.5).**
+- [x] **T-134.1. Схема БД и миграции (0.5).**
   - `users.telegram_id BIGINT NULL` + `UNIQUE`-индекс `ix_users_telegram_id`; поле в модели `User`.
   - Новая таблица `telegram_link_codes`: `id`, `user_id` (FK `ON DELETE CASCADE`), `code_hash CHAR(64)`, `expires_at`, `used_at`, `created_at`; индексы по `user_id` и `expires_at`.
   - Мягкая миграция `_migrate_telegram_link(connection)` в `app/database.py` по образцу `_migrate_admin_panel` (ALTER TABLE + `CREATE UNIQUE INDEX IF NOT EXISTS`, совместимо с SQLite и Postgres) и вызов из `create_tables`.
-  - `scripts/migrate_telegram_link.py`: идемпотентный запуск, `--dry-run`, backfill `telegram_id` из synthetic email (`telegram-<id>@bot.vetassistant.local`), `--merge-user EMAIL TELEGRAM_ID` для ручного слияния (перенос `appointments`/`reminders`, удаление synthetic-пользователя, отчёт по строкам).
-  - DoD: повторный запуск миграции не меняет данные и не падает; backfill не перезаписывает уже заполненные `telegram_id`; `--merge-user` переносит записи без потерь; тесты миграции на временной SQLite.
+  - `scripts/migrate_telegram_link.py`: отчёт по synthetic-аккаунтам, `--dry-run`, `--merge-user EMAIL TELEGRAM_ID` (перенос `appointments`/`reminders`, привязка `telegram_id`; synthetic-аккаунт сохраняется для входа бота).
+  - DoD: повторный запуск миграции не меняет данные и не падает; `--merge-user` переносит записи без потерь и идемпотентен; тесты миграции на временной SQLite.
 
-- [ ] **T-134.2. API: коды, привязка и отвязка (1).**
+- [x] **T-134.2. API: коды, привязка и отвязка (1).**
   - `app/telegram_link.py`: генерация кода (Crockford base32), HMAC-хеширование, TTL, лимиты, проверки.
-  - `POST /v1/telegram/link-code` (JWT пользователя) → `{code, expires_at, bot_username, instructions}`; предыдущие активные коды инвалидируются; лимит запросов.
-  - `GET /v1/telegram/link` (JWT) → `{linked, telegram_id, linked_at}`.
+  - `POST /v1/telegram/link-code` (JWT пользователя) → `{code, expires_at, bot_username, instructions}`; не более 3 активных кодов, лимит 5 запросов/час.
+  - `GET /v1/telegram/link` (JWT) → `{linked, telegram_id, linked_at, email}`.
   - `POST /v1/telegram/confirm` (JWT бота + `{code, telegram_id}`): проверка связки email↔telegram_id, TTL, одноразовость, уникальность; запись `users.telegram_id`, `used_at`, ревокация остальных кодов.
   - `DELETE /v1/telegram/link` (JWT пользователя) и `POST /v1/telegram/unlink` (JWT бота) — отвязка.
   - DoD: код живёт 10 минут; повторное использование → 400; занятый `telegram_id` → 409; без токена → 401; synthetic-JWT с чужим ID → 403; в БД только HMAC кода; тесты всех веток и лимитов.
 
-- [ ] **T-134.3. Бот: `/link`, `/unlink`, `/status` (0.5).**
+- [x] **T-134.3. Бот: `/link`, `/unlink`, `/status` (0.5).**
   - `bot/handlers.py` + `bot/service.py`: команды привязки, человеческие сообщения об ошибках (код истёк, неверный, занят другим аккаунтом), обновлённые `/help` и `/start`.
   - `bot/client.py`: методы `confirm_link`, `unlink`, `link_status` с JWT (код выпускает только сайт).
+  - Вход бота: synthetic-JWT обменивается на JWT привязанного веб-пользователя (`resolve_bot_login_user`), иначе записи из бота остались бы в отдельном аккаунте.
   - Allowlist `VET_BOT_ALLOWED_TELEGRAM_IDS` проверяется до любых действий (fail closed).
-  - DoD: `/link КОД` привязывает и отвечает «Аккаунт привязан: <email>. Уведомления включены»; неверный код не раскрывает лишних деталей; `/unlink` отвязывает; тесты хендлеров на фейковом API.
+  - DoD: `/link КОД` привязывает и отвечает «Аккаунт привязан: <email>»; неверный код не раскрывает лишних деталей; `/unlink` отвязывает; тесты хендлеров на фейковом API.
 
-- [ ] **T-134.4. Уведомления API → Telegram (0.5).**
-  - `app/telegram_notify.py`: `send_telegram_message(chat_id, text)` через Bot API (`VET_BOT_TELEGRAM_API_BASE`), timeout 5 с, ошибки только в лог; флаг `VET_API_TELEGRAM_NOTIFY` (по умолчанию включён).
+- [x] **T-134.4. Уведомления API → Telegram (0.5).**
+  - `app/telegram_notify.py`: `send_telegram_message(chat_id, text)` через Bot API (`VET_API_TELEGRAM_API_BASE`), timeout 5 с, ошибки только в лог; флаг `VET_API_TELEGRAM_NOTIFY` (по умолчанию включён).
   - `api` получает `TELEGRAM_BOT_TOKEN` в edge-compose (бот уже получает).
-  - Триггеры: после успешных `book_appointment`/`set_reminder` в `_execute_tool_calls`, если у пользователя есть `telegram_id` и запрос пришёл не из бота (synthetic email → пропуск, бот и так отвечает в чат).
+  - Триггеры: после успешных `book_appointment`/`set_reminder` в `_execute_tool_calls`, если у пользователя есть `telegram_id`; запросы бота помечаются заголовком `X-Vet-Client` и не дублируются.
   - DoD: уведомление о записи и напоминании приходит в чат; ошибка Telegram не ломает ответ API; при выключенном флаге отправки нет; тест с моком httpx.
 
-- [ ] **T-134.5. Frontend: блок «Telegram» в настройках (1).**
+- [x] **T-134.5. Frontend: блок «Telegram» в настройках (1).**
   - `types.ts`/`lib/api.ts`: `TelegramLinkStatus`, `fetchTelegramLink`, `createTelegramLinkCode`, `unlinkTelegram`.
   - UI в настройках: статус, кнопка «Привязать» → код + инструкция + обратный отсчёт, «Отвязать» с подтверждением, состояния loading/error.
   - DoD: привязка и отвязка из UI; код не сохраняется в `localStorage`; `npm run build`/`npm test`/`oxlint` зелёные; тесты клиента и логики таймера.
 
-- [ ] **T-134.6. Документация, релиз и откат (0.5).**
+- [x] **T-134.6. Документация, релиз и откат (0.5).**
   - `DEPLOYMENT.md`: миграция (`scripts/migrate_telegram_link.py`), команды бота, переменные `VET_BOT_USERNAME`, `TELEGRAM_BOT_TOKEN` в `api`, `VET_API_TELEGRAM_NOTIFY`; откат — `UPDATE users SET telegram_id = NULL`.
-  - `.env.production.example`, README, CHANGELOG; версия следующего релиза (`v1.5.7` или `v1.6.0` — решить перед стартом).
+  - `.env.production.example`, README, CHANGELOG; версия `v1.6.0`.
   - DoD: инструкция позволяет повторить настройку с нуля; `pytest`/`ruff`/`mypy` и frontend-проверки зелёные; релиз по обычной схеме CI → тег → деплой.
 
 - [ ] **T-134.7. (опционально, отдельная итерация) Вход на сайт через Telegram Login Widget.** Проверка подписи `hash` от Telegram, выдача обычного JWT, привязка при первом входе. Требует подтверждённого домена и HTTPS; в оценку T-134 не входит.

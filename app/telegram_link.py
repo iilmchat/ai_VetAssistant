@@ -38,6 +38,7 @@ from app.database import (
     User,
     get_database,
     get_user_by_id,
+    get_user_by_telegram_id,
 )
 from app.rate_limit import limiter
 from app.settings import AppSettings, get_app_settings
@@ -121,6 +122,7 @@ class TelegramLinkResponse(BaseModel):
     linked: bool
     telegram_id: int | None = None
     linked_at: datetime | None = None
+    email: str | None = None
 
 
 class TelegramConfirmResponse(BaseModel):
@@ -171,6 +173,56 @@ def hash_code(code: str, secret: str) -> str:
 def bot_email(telegram_id: int) -> str:
     """Synthetic-email аккаунта бота для указанного Telegram ID."""
     return f"telegram-{telegram_id}@{BOT_EMAIL_DOMAIN}"
+
+
+def telegram_id_from_bot_email(email: str) -> int | None:
+    """Достать Telegram ID из synthetic-email бота.
+
+    ``None`` — email не принадлежит боту (обычный веб-пользователь) или ID
+    вне допустимого диапазона.
+    """
+    normalized = email.strip().casefold()
+    prefix = "telegram-"
+    suffix = f"@{BOT_EMAIL_DOMAIN}"
+    if not normalized.startswith(prefix) or not normalized.endswith(suffix):
+        return None
+
+    raw = normalized[len(prefix) : -len(suffix)]
+    if not raw.isdigit():
+        return None
+    value = int(raw)
+    if value <= 0 or value > MAX_TELEGRAM_ID:
+        return None
+    return value
+
+
+def is_bot_account(email: str) -> bool:
+    """Признак synthetic-аккаунта Telegram-бота (для отключения уведомлений)."""
+    return telegram_id_from_bot_email(email) is not None
+
+
+async def resolve_bot_login_user(session: AsyncSession, user: User) -> User:
+    """Для synthetic-аккаунта вернуть привязанного веб-пользователя (T-134.3).
+
+    Бот входит под synthetic-аккаунтом, пароль которого выводится из секрета
+    бота. Если этот Telegram уже привязан к веб-аккаунту, бот должен работать
+    от имени владельца: записи, напоминания и уведомления становятся общими с
+    сайтом. Без привязки возвращается сам synthetic-аккаунт (прежнее поведение).
+    """
+    telegram_id = telegram_id_from_bot_email(user.email)
+    if telegram_id is None:
+        return user
+
+    linked = await get_user_by_telegram_id(session, telegram_id)
+    if linked is None or linked.id == user.id:
+        return user
+
+    logger.info(
+        "Telegram: synthetic-вход {} → аккаунт {}",
+        telegram_id,
+        linked.id,
+    )
+    return linked
 
 
 def build_instructions(bot_username: str, code: str) -> str:
@@ -366,7 +418,7 @@ async def get_telegram_link(
 ) -> TelegramLinkResponse:
     """Вернуть статус привязки текущего пользователя."""
     if current_user.telegram_id is None:
-        return TelegramLinkResponse(linked=False)
+        return TelegramLinkResponse(linked=False, email=current_user.email)
 
     async with database.session() as session:
         used_at = await session.scalar(
@@ -385,6 +437,7 @@ async def get_telegram_link(
         linked=True,
         telegram_id=current_user.telegram_id,
         linked_at=linked_at,
+        email=current_user.email,
     )
 
 

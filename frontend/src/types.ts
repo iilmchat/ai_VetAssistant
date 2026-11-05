@@ -63,6 +63,25 @@ export interface Reminder {
 
 export type ApiStatus = 'checking' | 'online' | 'offline'
 
+export interface TelegramLinkStatus {
+  linked: boolean
+  telegram_id: number | null
+  linked_at: string | null
+  email?: string | null
+}
+
+export interface TelegramLinkCode {
+  code: string
+  expires_at: string
+  bot_username: string | null
+  instructions: string
+}
+
+export interface TelegramUnlinkResponse {
+  linked: boolean
+  message: string
+}
+
 export type AccessRequestStatus = 'pending' | 'approved' | 'rejected'
 
 export interface AdminAccessRequest {

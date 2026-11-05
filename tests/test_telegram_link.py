@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from httpx import Response
 from sqlalchemy import select, update
 
-from app.auth import hash_password
+from app.auth import decode_access_token, hash_password
 from app.database import (
     Database,
     TelegramLinkCode,
@@ -233,6 +233,7 @@ def test_link_status_is_unlinked_by_default(
         "linked": False,
         "telegram_id": None,
         "linked_at": None,
+        "email": WEB_EMAIL,
     }
 
 
@@ -486,3 +487,71 @@ def test_unlink_from_bot_rejects_foreign_telegram_id(
     )
 
     assert response.status_code == 403
+
+
+# --- T-134.3: вход бота от имени привязанного веб-аккаунта ------------------
+
+
+def _bot_login(client: TestClient) -> dict[str, str]:
+    return _login(client, BOT_EMAIL, BOT_PASSWORD)
+
+
+def test_bot_login_returns_synthetic_account_before_linking(
+    client: TestClient,
+    bot: dict[str, str],
+) -> None:
+    me = client.get("/v1/auth/me", headers=bot)
+
+    assert me.status_code == 200
+    assert me.json()["email"] == BOT_EMAIL
+
+
+def test_bot_login_returns_linked_web_account_after_linking(
+    client: TestClient,
+    web: dict[str, str],
+    bot: dict[str, str],
+) -> None:
+    owner = _user_by_email(client, WEB_EMAIL)
+    assert owner is not None
+    code = _issue_code(client, web)
+    assert _confirm(client, bot, code).status_code == 200
+
+    response = client.post(
+        "/v1/auth/login",
+        json={"email": BOT_EMAIL, "password": BOT_PASSWORD},
+    )
+
+    assert response.status_code == 200, response.text
+    token = response.json()["access_token"]
+    payload = decode_access_token(token, get_app_settings())
+    assert int(payload["sub"]) == owner.id
+
+    me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["id"] == owner.id
+    assert me.json()["email"] == WEB_EMAIL
+
+    status = client.get(
+        "/v1/telegram/link",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert status.status_code == 200
+    assert status.json()["linked"] is True
+    assert status.json()["email"] == WEB_EMAIL
+
+
+def test_bot_login_returns_synthetic_account_after_unlink(
+    client: TestClient,
+    web: dict[str, str],
+    bot: dict[str, str],
+) -> None:
+    code = _issue_code(client, web)
+    assert _confirm(client, bot, code).status_code == 200
+
+    linked_login = _bot_login(client)
+    unlink = client.delete("/v1/telegram/link", headers=linked_login)
+    assert unlink.status_code == 200
+
+    fresh_login = _bot_login(client)
+    me = client.get("/v1/auth/me", headers=fresh_login)
+    assert me.json()["email"] == BOT_EMAIL

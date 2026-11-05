@@ -4,6 +4,55 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.6.0] — 2026-11-05
+
+### Добавлено
+
+- **Привязка Telegram к веб-аккаунту (T-134).** Пользователь создаёт
+  одноразовый код в настройках сайта и отправляет боту `/link КОД`; после
+  подтверждения бот работает от имени веб-пользователя, а записи,
+  напоминания и уведомления становятся общими с сайтом.
+  - Схема: `users.telegram_id` (`BIGINT`, UNIQUE) и таблица
+    `telegram_link_codes` (только HMAC-SHA256 от кода, `expires_at`,
+    `used_at`). Мягкая миграция в `create_tables` и идемпотентный SQL
+    `scripts/migrations/2026-11-05_telegram_linking.sql` для прода.
+  - API: `POST /v1/telegram/link-code`, `POST /v1/telegram/confirm`,
+    `POST /v1/telegram/unlink`, `GET /v1/telegram/link`,
+    `DELETE /v1/telegram/link`. Код живёт 10 минут, одноразовый, не более
+    трёх активных, 5 запросов в час; чужой synthetic-JWT → 403, занятый
+    `telegram_id` → 409.
+  - Бот: команды `/link КОД`, `/unlink`, `/status`; логин synthetic-аккаунтом
+    возвращает JWT привязанного веб-пользователя (synthetic-аккаунт
+    сохраняется как техническая identity бота).
+  - **Уведомления API → Telegram (T-134.4):** после успешных
+    `book_appointment`/`set_reminder` привязанному пользователю уходит
+    сообщение в чат (таймаут 5 с, ошибки только в лог). Запросы бота
+    помечаются `X-Vet-Client` и не дублируются.
+  - **Frontend:** в настройках появился блок «Telegram» — статус, привязка,
+    код с обратным отсчётом и копированием, отвязка с подтверждением.
+  - `scripts/migrate_telegram_link.py`: отчёт по synthetic-аккаунтам,
+    перенос старых `appointments`/`reminders` на веб-аккаунт и привязка
+    `telegram_id` (`--merge-user ... --dry-run`). Synthetic-аккаунт не
+    удаляется — иначе бот не сможет войти.
+- Настройки API `VET_API_TELEGRAM_NOTIFY`, `VET_API_TELEGRAM_API_BASE`,
+  `VET_API_TELEGRAM_BOT_USERNAME`; `TELEGRAM_BOT_TOKEN` теперь передаётся и
+  сервису `api` (для `sendMessage`).
+
+### Изменено
+
+- Версия `1.6.0` в `pyproject.toml`, FastAPI, `frontend/package.json`,
+  `frontend/package-lock.json` и README.
+- `DEPLOYMENT.md`: раздел «Миграция Telegram-привязки (T-134)» — SQL,
+  проверка схемы, переменные, команды бота, перенос данных и откат.
+- README: описание привязки, команды бота и переменные уведомлений.
+
+### Безопасность
+
+- В БД хранится только HMAC-SHA256 кода; сам код не логируется. Проверка
+  synthetic-email `telegram-<id>@bot.vetassistant.local` не даёт подтвердить
+  привязку за чужой Telegram; конфликт `telegram_id` не сливает аккаунты
+  автоматически.
+
 ## [1.5.6] — 2026-11-05
 
 ### Добавлено

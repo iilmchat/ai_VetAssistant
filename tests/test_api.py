@@ -16,6 +16,7 @@ from app.database import (
     Database,
     create_access_request,
     create_user,
+    get_user_by_email,
     list_pending_access_requests,
 )
 from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model, limiter
@@ -211,6 +212,28 @@ def client(
 def _create_second_user(client: TestClient) -> dict[str, str]:
     """Создать второго пользователя и вернуть его auth-заголовки."""
     return _seed_user(client, "other@example.com", "secret-pass-2")
+
+
+def _set_telegram_id(
+    client: TestClient,
+    email: str,
+    telegram_id: int | None,
+) -> None:
+    """Привязать/отвязать Telegram у пользователя напрямую в БД (T-134.4)."""
+    database: Database = client.app.state.db
+
+    async def update_user() -> None:
+        seeded = Database(database.url)
+        try:
+            async with seeded.session() as session:
+                user = await get_user_by_email(session, email)
+                assert user is not None
+                user.telegram_id = telegram_id
+                await session.commit()
+        finally:
+            await seeded.dispose()
+
+    asyncio.run(update_user())
 
 
 def _seed_admin(
@@ -898,6 +921,127 @@ def test_agent_loop_executes_tool_and_returns_final_text(
     assert len(appointments) == 1
     assert appointments[0]["pet_name"] == "Мурзик"
     assert appointments[0]["date"] == "2026-11-04"
+
+
+def _capture_notifications(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[int, str]]:
+    """Подменить отправку в Telegram и вернуть список отправленных сообщений."""
+    sent: list[tuple[int, str]] = []
+
+    async def fake_send(chat_id: int, text: str) -> bool:
+        sent.append((chat_id, text))
+        return True
+
+    monkeypatch.setattr("app.main.send_telegram_message", fake_send)
+    return sent
+
+
+def test_tool_sends_telegram_notification_for_linked_user(
+    client: TestClient,
+    fake_model: FakeModel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = _capture_notifications(monkeypatch)
+    _set_telegram_id(client, "owner@example.com", 424242)
+    fake_model.responses = [
+        _tool_response(
+            arguments={
+                "date": "2026-11-04",
+                "time": "10:00",
+                "pet_name": "Мурзик",
+            }
+        ),
+        _final_response("Записал Мурзика."),
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Запиши Мурзика"}],
+            "tools": [BOOK_APPOINTMENT_TOOL],
+        },
+    )
+
+    assert response.status_code == 200
+    assert sent == [(424242, "🐾 Записали Мурзика на 2026-11-04 в 10:00")]
+
+
+def test_reminder_sends_telegram_notification_for_linked_user(
+    client: TestClient,
+    fake_model: FakeModel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = _capture_notifications(monkeypatch)
+    _set_telegram_id(client, "owner@example.com", 424242)
+    fake_model.responses = [
+        _tool_response(
+            name="set_reminder",
+            arguments={"time": "20:00", "text": "Дать таблетку"},
+        ),
+        _final_response("Напоминание создано."),
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Напомни дать таблетку"}],
+            "tools": [SET_REMINDER_TOOL],
+        },
+    )
+
+    assert response.status_code == 200
+    assert sent == [
+        (424242, "⏰ Напоминание создано: Дать таблетку (20:00)"),
+    ]
+
+
+def test_unlinked_user_gets_no_telegram_notification(
+    client: TestClient,
+    fake_model: FakeModel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = _capture_notifications(monkeypatch)
+    fake_model.responses = [
+        _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
+        _final_response("Записал."),
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Запиши Мурзика"}],
+            "tools": [BOOK_APPOINTMENT_TOOL],
+        },
+    )
+
+    assert response.status_code == 200
+    assert sent == []
+
+
+def test_bot_requests_do_not_send_telegram_notifications(
+    client: TestClient,
+    fake_model: FakeModel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = _capture_notifications(monkeypatch)
+    _set_telegram_id(client, "owner@example.com", 424242)
+    fake_model.responses = [
+        _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
+        _final_response("Записал."),
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Запиши Мурзика"}],
+            "tools": [BOOK_APPOINTMENT_TOOL],
+        },
+        headers={"X-Vet-Client": "telegram-bot"},
+    )
+
+    assert response.status_code == 200
+    assert sent == []
 
 
 def test_agent_loop_writes_records_for_current_user(

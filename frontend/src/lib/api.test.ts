@@ -3,13 +3,16 @@ import {
   approveAdminAccessRequest,
   buildChatPayload,
   changePassword,
+  createTelegramLinkCode,
   fetchAdminAccessRequests,
   fetchAdminMetrics,
+  fetchTelegramLink,
   normalizeBaseUrl,
   parseSSEEvent,
   rejectAdminAccessRequest,
   requestAccess,
   setAuthToken,
+  unlinkTelegram,
 } from './api'
 import { AVAILABLE_TOOLS } from './tools'
 import type { ChatSettings } from '../types'
@@ -328,5 +331,78 @@ describe('admin API', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       'http://127.0.0.1:8000/v1/admin/metrics?window=24h',
     )
+  })
+})
+
+describe('telegram linking', () => {
+  it('fetchTelegramLink читает статус с Bearer-токеном', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          linked: true,
+          telegram_id: 42,
+          linked_at: '2026-11-05T20:00:00Z',
+          email: 'owner@example.com',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const status = await fetchTelegramLink()
+
+    expect(status.linked).toBe(true)
+    expect(status.email).toBe('owner@example.com')
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/telegram/link')
+    const init = call?.[1] as RequestInit
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer jwt-token',
+    )
+  })
+
+  it('createTelegramLinkCode отправляет POST и возвращает код', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 'ABCD2345',
+          expires_at: '2026-11-05T20:10:00Z',
+          bot_username: 'vetassistant_bot',
+          instructions: 'Отправьте /link ABCD2345',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await createTelegramLinkCode()
+
+    expect(result.code).toBe('ABCD2345')
+    expect(result.bot_username).toBe('vetassistant_bot')
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/telegram/link-code',
+    )
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('POST')
+  })
+
+  it('unlinkTelegram отправляет DELETE', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ linked: false, message: 'Telegram отвязан' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await unlinkTelegram()
+
+    expect(result.message).toBe('Telegram отвязан')
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/telegram/link')
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('DELETE')
   })
 })

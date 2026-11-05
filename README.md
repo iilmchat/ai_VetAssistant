@@ -1,18 +1,17 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.5.6-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.6.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.5.6** (2026-11-05)
-**Релиз:** аналитика использования в админ-панели, расширение RAG до 766 чанков,
-динамические версии Docker-образов, защищённый Telegram-бот в production
-и экспорт истории
+**Статус:** ✅ **Production Ready — v1.6.0** (2026-11-05)
+**Релиз:** привязка Telegram к веб-аккаунту, уведомления о записях и напоминаниях,
+команды `/link`, `/unlink`, `/status`, перенос старых записей с synthetic-аккаунта
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
-- **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; доступ в production — только по allowlist Telegram ID
+- **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; привязка к веб-аккаунту по одноразовому коду (`/link`), уведомления в чат и доступ в production — только по allowlist Telegram ID
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
 - **Экспорт:** история диалога скачивается в Markdown одной кнопкой
 - **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
@@ -424,8 +423,8 @@ docker compose up --build frontend
 
 Бот работает отдельным процессом, хранит историю диалога для каждого
 пользователя и обращается к тому же FastAPI. Поддерживаются команды
-`/start`, `/reset`, `/help`, а также Function Calling: запись питомца на
-приём и создание напоминания.
+`/start`, `/reset`, `/help`, `/link КОД`, `/unlink`, `/status`, а также
+Function Calling: запись питомца на приём и создание напоминания.
 
 ### 1. Получите токен у @BotFather
 
@@ -460,11 +459,12 @@ $env:VET_BOT_API_URL="http://127.0.0.1:8000/v1/chat/completions"
 ```
 
 После запуска откройте своего бота в Telegram и отправьте `/start`.
-При `/start` бот автоматически регистрирует или находит аккаунт
-`telegram-<id>@bot.vetassistant.local` и получает JWT, поэтому все записи
-привязаны к этому Telegram-пользователю и не пересекаются с веб-аккаунтами.
-Пароль синтетического аккаунта вычисляется из `VET_BOT_AUTH_SECRET`
-(или `TELEGRAM_BOT_TOKEN`) и в БД не хранится.
+При `/start` бот входит в аккаунт `telegram-<id>@bot.vetassistant.local`.
+Пока Telegram не привязан к веб-аккаунту, это отдельный synthetic-аккаунт:
+его записи не пересекаются с сайтом. После привязки (см. ниже) API выдаёт
+боту JWT веб-пользователя, и записи, напоминания и уведомления становятся
+общими с сайтом. Пароль синтетического аккаунта вычисляется из
+`VET_BOT_AUTH_SECRET` (или `TELEGRAM_BOT_TOKEN`) и в БД не хранится.
 
 ### 3. Запуск в Docker Compose
 
@@ -510,7 +510,46 @@ reverse-proxy (например, Cloudflare Worker) в
 `VET_BOT_TELEGRAM_API_BASE` — бот создаст `AiohttpSession` с этим
 `TelegramAPIServer`.
 
-### 5. Настройки бота
+### 5. Привязка к веб-аккаунту (T-134)
+
+Сайт и бот используют один аккаунт после привязки по одноразовому коду:
+
+1. На сайте откройте **Настройки → Telegram** и нажмите «Привязать Telegram».
+2. API выпустит 8-символьный код на 10 минут (в БД хранится только HMAC-хэш).
+3. Отправьте боту `/link КОД` — бот подтвердит владение Telegram-аккаунтом.
+4. Бот ответит «Аккаунт привязан: <email>», а его следующие запросы пойдут
+   от имени веб-пользователя.
+
+| Команда | Действие |
+|---|---|
+| `/link КОД` | привязать веб-аккаунт (код создаётся на сайте) |
+| `/unlink` | отвязать Telegram |
+| `/status` | показать, к какому аккаунту привязан Telegram |
+
+API: `POST /v1/telegram/link-code`, `POST /v1/telegram/confirm`,
+`POST /v1/telegram/unlink`, `GET /v1/telegram/link`, `DELETE /v1/telegram/link`.
+Код одноразовый, живёт 10 минут, не более трёх активных кодов; запросы к
+`link-code` ограничены 5 в час.
+
+Уведомления о записях и напоминаниях приходят в чат только привязанным
+пользователям; запросы самого бота не дублируются. Переменные API:
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | — | Токен бота; API использует его для `sendMessage` |
+| `VET_BOT_USERNAME` | — | Username бота для инструкции на сайте |
+| `VET_API_TELEGRAM_NOTIFY` | `true` | Отправлять уведомления |
+| `VET_API_TELEGRAM_API_BASE` | `https://api.telegram.org` | База Bot API |
+
+Старые записи synthetic-аккаунта переносятся скриптом (synthetic-аккаунт
+сохраняется — он нужен боту для входа):
+
+```bash
+python scripts/migrate_telegram_link.py --merge-user owner@example.com 111111111 --dry-run
+python scripts/migrate_telegram_link.py --merge-user owner@example.com 111111111
+```
+
+### 6. Настройки бота
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
@@ -670,8 +709,8 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/reminders -Headers $headers
 - Access-токен — JWT HS256 со сроком 7 дней (настраивается
   `VET_API_ACCESS_TOKEN_EXPIRE_MINUTES`).
 - Защищены `/v1/chat/completions`, `/v1/appointments`, `/v1/reminders`,
-  `/v1/tools/execute`, `/v1/auth/me` и `/v1/auth/change-password`; без токена
-  они возвращают `401`.
+  `/v1/tools/execute`, `/v1/auth/me`, `/v1/auth/change-password` и
+  `/v1/telegram/*`; без токена они возвращают `401`.
 - `user_id` берётся только из JWT и никогда из аргументов модели, поэтому
   Agentic Loop записывает приём владельцу текущей сессии.
 
@@ -947,7 +986,9 @@ git push origin v1.5.5
 - **UI:** React 19 + Vite + TypeScript + Tailwind CSS 4 (`frontend/`): SSE-стриминг, Markdown, бейджи инструментов, настройки и «Мои записи».
 - **Streamlit:** резервный UI (`app/ui.py`) с потоковым выводом и настройками температуры.
 - **Telegram:** aiogram 3.x, отдельный процесс/контейнер `bot` в dev и
-  edge-стеке; в production доступ ограничен allowlist `VET_BOT_ALLOWED_TELEGRAM_IDS`.
+  edge-стеке; привязка к веб-аккаунту по одноразовому коду и уведомления
+  в чат; в production доступ ограничен allowlist
+  `VET_BOT_ALLOWED_TELEGRAM_IDS`.
 - **Развёртывание:** Docker Compose для выделенного VPS и edge-стек для общего VPS с Caddy; Nginx/SSE и Caddy-блок.
 - **Production:** `docker-compose.prod.yml` + `docker-compose.ssl.yml`, единый домен, Let's Encrypt/Certbot, `scripts/deploy.sh`.
 - **CI/CD:** GitHub Actions — ruff, mypy, pytest, тесты и сборка React, Docker-образы.

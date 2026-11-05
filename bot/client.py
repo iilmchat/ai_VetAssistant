@@ -13,6 +13,7 @@ import httpx
 from loguru import logger
 from pydantic import ValidationError
 
+from app.telegram_notify import BOT_CLIENT_HEADER, BOT_CLIENT_VALUE
 from app.tools import ToolCall
 
 API_DOWN_MESSAGE = (
@@ -29,6 +30,19 @@ ACCOUNT_NOT_PROVISIONED_MESSAGE = (
     "Аккаунт для этого Telegram не создан. "
     "Запросите доступ на сайте ai-pets.ru и дождитесь одобрения."
 )
+
+#: Сообщения команд привязки Telegram (T-134.3).
+LINK_CODE_INVALID_MESSAGE = "Код недействителен. Проверьте код и попробуйте снова."
+LINK_CODE_EXPIRED_MESSAGE = (
+    "Срок действия кода истёк (10 минут). Получите новый код на сайте."
+)
+LINK_CODE_USED_MESSAGE = "Этот код уже использован. Получите новый код на сайте."
+LINK_TELEGRAM_BUSY_MESSAGE = (
+    "Этот Telegram уже привязан к другому аккаунту. Обратитесь в поддержку."
+)
+LINK_FORBIDDEN_MESSAGE = "Не удалось подтвердить привязку. Попробуйте позже."
+LINK_RATE_LIMIT_MESSAGE = "Слишком много попыток. Подождите немного и повторите."
+LINK_UNAVAILABLE_MESSAGE = "Привязка Telegram временно недоступна. Попробуйте позже."
 
 
 class VetApiError(RuntimeError):
@@ -52,6 +66,16 @@ class ChatResult:
 
     content: str
     tool_calls: tuple[ToolCall, ...] = ()
+
+
+@dataclass(frozen=True)
+class LinkStatus:
+    """Статус привязки Telegram (``GET /v1/telegram/link``)."""
+
+    linked: bool
+    telegram_id: int | None = None
+    email: str | None = None
+    linked_at: str | None = None
 
 
 def chat_endpoint(api_url: str) -> str:
@@ -166,6 +190,28 @@ def _error_detail(response: httpx.Response) -> str:
     return ""
 
 
+def _link_error_message(status: int, detail: str) -> str:
+    """Человеческое сообщение для ошибок привязки Telegram."""
+    if status == 401:
+        return AUTH_EXPIRED_MESSAGE
+    if status == 403:
+        return LINK_FORBIDDEN_MESSAGE
+    if status == 409:
+        return LINK_TELEGRAM_BUSY_MESSAGE
+    if status == 429:
+        return LINK_RATE_LIMIT_MESSAGE
+    if status == 503:
+        return LINK_UNAVAILABLE_MESSAGE
+    if status == 400:
+        normalized = detail.casefold()
+        if "истёк" in normalized or "истек" in normalized:
+            return LINK_CODE_EXPIRED_MESSAGE
+        if "использован" in normalized:
+            return LINK_CODE_USED_MESSAGE
+        return LINK_CODE_INVALID_MESSAGE
+    return API_ERROR_MESSAGE
+
+
 class VetApiClient:
     """HTTP-клиент к FastAPI: JWT-аутентификация и chat completions."""
 
@@ -262,6 +308,98 @@ class VetApiClient:
         logger.info("Bot auth: Telegram user {} авторизован", telegram_user_id)
         return token
 
+    async def _link_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        token: str,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Запрос к эндпоинтам привязки Telegram с общим маппингом ошибок."""
+        try:
+            response = await self._client.request(
+                method,
+                f"{self._base_url}{path}",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            logger.warning("Bot link: таймаут API — {}", exc)
+            raise VetApiError(
+                "таймаут привязки Telegram",
+                user_message=API_TIMEOUT_MESSAGE,
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            detail = _error_detail(exc.response)
+            logger.warning("Bot link: HTTP {} — {}", status, detail)
+            raise VetApiError(
+                f"link HTTP {status}: {detail}",
+                user_message=_link_error_message(status, detail),
+                status=status,
+            ) from exc
+        except httpx.RequestError as exc:
+            logger.warning("Bot link: API недоступен — {}", exc)
+            raise VetApiError(
+                "API недоступен",
+                user_message=API_DOWN_MESSAGE,
+            ) from exc
+
+        try:
+            data: Any = response.json()
+        except ValueError as exc:
+            raise VetApiError(
+                "некорректный JSON привязки",
+                user_message=API_ERROR_MESSAGE,
+            ) from exc
+        if not isinstance(data, dict):
+            raise VetApiError(
+                "API вернул не объект",
+                user_message=API_ERROR_MESSAGE,
+            )
+        return data
+
+    async def confirm_link(
+        self,
+        code: str,
+        telegram_id: int,
+        *,
+        token: str,
+    ) -> str:
+        """Подтвердить код привязки и вернуть email привязанного аккаунта."""
+        data = await self._link_request(
+            "POST",
+            "/v1/telegram/confirm",
+            token=token,
+            payload={"code": code, "telegram_id": telegram_id},
+        )
+        email = data.get("email")
+        if not isinstance(email, str) or not email:
+            raise VetApiError(
+                "API не вернул email привязки",
+                user_message=API_ERROR_MESSAGE,
+            )
+        return email
+
+    async def link_status(self, *, token: str) -> LinkStatus:
+        """Вернуть статус привязки Telegram для владельца токена."""
+        data = await self._link_request("GET", "/v1/telegram/link", token=token)
+        telegram_id = data.get("telegram_id")
+        linked_at = data.get("linked_at")
+        email = data.get("email")
+        return LinkStatus(
+            linked=bool(data.get("linked")),
+            telegram_id=telegram_id if isinstance(telegram_id, int) else None,
+            email=email if isinstance(email, str) and email else None,
+            linked_at=linked_at if isinstance(linked_at, str) else None,
+        )
+
+    async def unlink(self, *, token: str) -> None:
+        """Отвязать Telegram от аккаунта владельца токена."""
+        await self._link_request("DELETE", "/v1/telegram/link", token=token)
+
     async def chat(
         self,
         messages: Sequence[dict[str, str]],
@@ -288,7 +426,11 @@ class VetApiClient:
             response = await self._client.post(
                 self._endpoint,
                 json=payload,
-                headers={"Authorization": f"Bearer {token}"},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    # T-134.4: API не дублирует уведомления для запросов бота.
+                    BOT_CLIENT_HEADER: BOT_CLIENT_VALUE,
+                },
             )
             response.raise_for_status()
         except httpx.TimeoutException as exc:

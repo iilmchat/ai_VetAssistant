@@ -14,7 +14,7 @@ from typing import Any, Protocol
 from loguru import logger
 
 from app.tools import AVAILABLE_TOOLS, ToolCall
-from bot.client import ChatResult, VetApiError
+from bot.client import ChatResult, LinkStatus, VetApiError
 from bot.conversation import ConversationStore
 
 START_TEXT = (
@@ -26,7 +26,9 @@ START_TEXT = (
     "При опасных симптомах (затруднённое дыхание, судороги, отравление, "
     "сильное кровотечение) немедленно обратитесь в клинику.\n\n"
     "Напишите, что беспокоит питомца. Контекст диалога сохраняется; "
-    "команда /reset очищает историю."
+    "команда /reset очищает историю.\n\n"
+    "Чтобы получать уведомления о записях и напоминаниях, привяжите "
+    "веб-аккаунт: создайте код в настройках на сайте и отправьте /link КОД."
 )
 
 HELP_TEXT = (
@@ -36,6 +38,9 @@ HELP_TEXT = (
     "• запишу питомца на приём и создам напоминание.\n\n"
     "Команды:\n"
     "/start — приветствие и дисклеймер\n"
+    "/link КОД — привязать веб-аккаунт к Telegram\n"
+    "/unlink — отвязать Telegram\n"
+    "/status — статус привязки\n"
     "/reset — очистить историю диалога\n"
     "/help — эта справка\n\n"
     "⚠️ Я ИИ-ассистент, а не врач. При экстренных симптомах сразу "
@@ -52,6 +57,27 @@ NO_RESPONSE_TEXT = "Модель не вернула ответ. Попробу�
 ACCESS_DENIED_TEXT = (
     "Доступ к боту ограничен. Пожалуйста, запросите доступ на сайте ai-pets.ru"
 )
+
+#: Тексты команд привязки Telegram (T-134.3).
+LINK_USAGE_TEXT = (
+    "Отправьте код привязки: /link КОД.\n"
+    "Код создаётся в настройках на сайте (раздел «Telegram») и действует 10 минут."
+)
+LINK_SUCCESS_TEXT = (
+    "✅ Аккаунт привязан: {email}.\n"
+    "Записи и напоминания теперь общие с сайтом, уведомления приходят сюда."
+)
+LINK_FAILED_TEXT = "Не удалось привязать аккаунт. Попробуйте ещё раз позже."
+STATUS_LINKED_TEXT = "🔗 Telegram привязан к аккаунту {email}."
+STATUS_NOT_LINKED_TEXT = (
+    "Telegram пока не привязан к веб-аккаунту.\n"
+    "Откройте настройки на сайте, создайте код и отправьте его боту: /link КОД."
+)
+UNLINK_DONE_TEXT = (
+    "Telegram отвязан. Общие записи с сайтом и уведомления отключены."
+)
+UNLINK_NOT_LINKED_TEXT = "Этот Telegram не был привязан к веб-аккаунту."
+UNLINK_FAILED_TEXT = "Не удалось отвязать Telegram. Попробуйте позже."
 
 
 class TelegramUser(Protocol):
@@ -104,6 +130,18 @@ class ChatApi(Protocol):
         use_rag: bool,
         tools: Sequence[dict[str, Any]] | None = None,
     ) -> ChatResult: ...
+
+    async def confirm_link(
+        self,
+        code: str,
+        telegram_id: int,
+        *,
+        token: str,
+    ) -> str: ...
+
+    async def link_status(self, *, token: str) -> LinkStatus: ...
+
+    async def unlink(self, *, token: str) -> None: ...
 
     async def close(self) -> None: ...
 
@@ -178,6 +216,17 @@ def _user_id(message: TelegramMessage) -> int | None:
     return message.from_user.id if message.from_user is not None else None
 
 
+def _command_argument(text: str | None) -> str | None:
+    """Вернуть аргумент команды (``/link ABC`` → ``ABC``)."""
+    if not text:
+        return None
+    parts = text.strip().split(maxsplit=1)
+    if len(parts) < 2:
+        return None
+    argument = parts[1].strip()
+    return argument or None
+
+
 class VetAssistantBot:
     """Обработчик сообщений: история, API, инструменты и ответы Telegram."""
 
@@ -250,6 +299,134 @@ class VetAssistantBot:
         if await self._deny_if_not_allowed(message):
             return
         await message.answer(HELP_TEXT)
+
+    async def _fresh_token(self, user_id: int) -> str:
+        """Перелогиниться и получить актуальный токен.
+
+        После привязки Telegram synthetic-вход отдаёт JWT веб-владельца,
+        поэтому кэш токенов нужно сбрасывать перед командами привязки.
+        """
+        self._tokens.pop(user_id, None)
+        return await self._token_for(user_id)
+
+    async def link(self, message: TelegramMessage) -> None:
+        """Обработать ``/link КОД``: подтвердить привязку в API."""
+        if await self._deny_if_not_allowed(message):
+            return
+        user_id = _user_id(message)
+        if user_id is None:
+            await message.answer(
+                "Не удалось определить пользователя. Попробуйте ещё раз."
+            )
+            return
+
+        code = _command_argument(message.text)
+        if code is None:
+            await message.answer(LINK_USAGE_TEXT)
+            return
+
+        try:
+            token = await self._fresh_token(user_id)
+            email = await self._api.confirm_link(code, user_id, token=token)
+        except VetApiError as exc:
+            self._tokens.pop(user_id, None)
+            logger.warning(
+                "Bot: привязка Telegram user {} не удалась: {}",
+                user_id,
+                exc,
+            )
+            await message.answer(exc.user_message)
+            return
+        except Exception as exc:
+            logger.exception(
+                "Bot: неожиданная ошибка привязки user {}: {}",
+                user_id,
+                exc,
+            )
+            await message.answer(LINK_FAILED_TEXT)
+            return
+
+        # Следующий логин вернёт JWT веб-аккаунта, к которому привязан Telegram.
+        self._tokens.pop(user_id, None)
+        await message.answer(LINK_SUCCESS_TEXT.format(email=email))
+
+    async def unlink(self, message: TelegramMessage) -> None:
+        """Обработать ``/unlink``: отвязать Telegram от веб-аккаунта."""
+        if await self._deny_if_not_allowed(message):
+            return
+        user_id = _user_id(message)
+        if user_id is None:
+            await message.answer(
+                "Не удалось определить пользователя. Попробуйте ещё раз."
+            )
+            return
+
+        try:
+            token = await self._fresh_token(user_id)
+            state = await self._api.link_status(token=token)
+            if not state.linked:
+                await message.answer(UNLINK_NOT_LINKED_TEXT)
+                return
+            await self._api.unlink(token=token)
+        except VetApiError as exc:
+            self._tokens.pop(user_id, None)
+            logger.warning(
+                "Bot: отвязка Telegram user {} не удалась: {}",
+                user_id,
+                exc,
+            )
+            await message.answer(exc.user_message)
+            return
+        except Exception as exc:
+            logger.exception(
+                "Bot: неожиданная ошибка отвязки user {}: {}",
+                user_id,
+                exc,
+            )
+            await message.answer(UNLINK_FAILED_TEXT)
+            return
+
+        self._tokens.pop(user_id, None)
+        await message.answer(UNLINK_DONE_TEXT)
+
+    async def status(self, message: TelegramMessage) -> None:
+        """Обработать ``/status``: показать статус привязки Telegram."""
+        if await self._deny_if_not_allowed(message):
+            return
+        user_id = _user_id(message)
+        if user_id is None:
+            await message.answer(
+                "Не удалось определить пользователя. Попробуйте ещё раз."
+            )
+            return
+
+        try:
+            token = await self._fresh_token(user_id)
+            state = await self._api.link_status(token=token)
+        except VetApiError as exc:
+            self._tokens.pop(user_id, None)
+            logger.warning(
+                "Bot: статус привязки user {} не получен: {}",
+                user_id,
+                exc,
+            )
+            await message.answer(exc.user_message)
+            return
+        except Exception as exc:
+            logger.exception(
+                "Bot: неожиданная ошибка статуса user {}: {}",
+                user_id,
+                exc,
+            )
+            await message.answer(GENERIC_ERROR_TEXT)
+            return
+
+        if state.linked:
+            await message.answer(
+                STATUS_LINKED_TEXT.format(email=state.email or "веб-аккаунту")
+            )
+            return
+        await message.answer(STATUS_NOT_LINKED_TEXT)
 
     async def reset(self, message: TelegramMessage) -> None:
         """Обработать /reset: забыть контекст пользователя."""

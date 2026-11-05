@@ -100,6 +100,25 @@ class AppSettings(BaseSettings):
             "привязки аккаунта; пусто — инструкция без имени бота"
         ),
     )
+    telegram_bot_token: str = Field(
+        default="",
+        validation_alias="TELEGRAM_BOT_TOKEN",
+        description=(
+            "Токен Telegram-бота для уведомлений (T-134.4); "
+            "пусто — уведомления не отправляются"
+        ),
+    )
+    telegram_api_base: str = Field(
+        default="https://api.telegram.org",
+        validation_alias="VET_API_TELEGRAM_API_BASE",
+        min_length=1,
+        description="Базовый URL Telegram Bot API для уведомлений",
+    )
+    telegram_notify: bool = Field(
+        default=True,
+        validation_alias="VET_API_TELEGRAM_NOTIFY",
+        description="Отправлять уведомления в Telegram (T-134.4)",
+    )
     prometheus_url: str = Field(
         default="http://vetassistant-prometheus:9090",
         description=(

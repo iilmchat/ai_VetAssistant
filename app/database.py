@@ -355,6 +355,17 @@ async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def get_user_by_telegram_id(
+    session: AsyncSession,
+    telegram_id: int,
+) -> User | None:
+    """Найти пользователя, к которому привязан Telegram ID (T-134.3)."""
+    result = await session.execute(
+        select(User).where(User.telegram_id == telegram_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_users_by_ids(session: AsyncSession, user_ids: Sequence[int]) -> list[User]:
     """Найти пользователей списком id (для админской аналитики, T-135)."""
     unique_ids = list(dict.fromkeys(user_ids))

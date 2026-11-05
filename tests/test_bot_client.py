@@ -12,7 +12,10 @@ from bot.client import (
     API_DOWN_MESSAGE,
     API_TIMEOUT_MESSAGE,
     AUTH_EXPIRED_MESSAGE,
+    LINK_CODE_EXPIRED_MESSAGE,
+    LINK_TELEGRAM_BUSY_MESSAGE,
     MODEL_UNAVAILABLE_MESSAGE,
+    LinkStatus,
     VetApiClient,
     VetApiError,
     api_base_url,
@@ -342,3 +345,107 @@ async def test_chat_maps_401_to_auth_expired_message() -> None:
 
     assert error.value.status == 401
     assert error.value.user_message == AUTH_EXPIRED_MESSAGE
+
+
+# --- T-134.3: привязка Telegram через API -----------------------------------
+
+
+async def test_confirm_link_posts_code_and_returns_email() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["path"] = request.url.path
+        captured["json"] = json.loads(request.content)
+        captured["headers"] = dict(request.headers)
+        return httpx.Response(
+            200,
+            json={
+                "linked": True,
+                "user_id": 1,
+                "email": "owner@example.com",
+                "telegram_id": 42,
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = VetApiClient("http://api:8000", model_id="model", client=http_client)
+        email = await client.confirm_link("ABCD2345", 42, token="jwt-bot")
+
+    assert email == "owner@example.com"
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/v1/telegram/confirm"
+    assert captured["json"] == {"code": "ABCD2345", "telegram_id": 42}
+    assert captured["headers"]["authorization"] == "Bearer jwt-bot"
+
+
+async def test_link_status_parses_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/v1/telegram/link"
+        return httpx.Response(
+            200,
+            json={
+                "linked": True,
+                "telegram_id": 42,
+                "linked_at": "2026-11-05T10:00:00+00:00",
+                "email": "owner@example.com",
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = VetApiClient("http://api:8000", model_id="model", client=http_client)
+        status = await client.link_status(token="jwt-user")
+
+    assert status == LinkStatus(
+        linked=True,
+        telegram_id=42,
+        email="owner@example.com",
+        linked_at="2026-11-05T10:00:00+00:00",
+    )
+
+
+async def test_unlink_calls_delete_endpoint() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["path"] = request.url.path
+        return httpx.Response(200, json={"linked": False, "message": "Telegram отвязан"})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = VetApiClient("http://api:8000", model_id="model", client=http_client)
+        await client.unlink(token="jwt-user")
+
+    assert captured == {"method": "DELETE", "path": "/v1/telegram/link"}
+
+
+async def test_link_errors_are_mapped_to_friendly_messages() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"detail": "Срок действия кода истёк"})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = VetApiClient("http://api:8000", model_id="model", client=http_client)
+        with pytest.raises(VetApiError) as error:
+            await client.confirm_link("ABCD2345", 42, token="jwt-bot")
+
+    assert error.value.status == 400
+    assert error.value.user_message == LINK_CODE_EXPIRED_MESSAGE
+
+
+async def test_link_conflict_is_mapped_to_busy_message() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(409, json={"detail": "Этот Telegram уже привязан"})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = VetApiClient("http://api:8000", model_id="model", client=http_client)
+        with pytest.raises(VetApiError) as error:
+            await client.confirm_link("ABCD2345", 42, token="jwt-bot")
+
+    assert error.value.status == 409
+    assert error.value.user_message == LINK_TELEGRAM_BUSY_MESSAGE

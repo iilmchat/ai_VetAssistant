@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.5.6
+# VETASSISTANT_VERSION=1.6.0
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.5.6
+gh workflow run deploy.yml --ref main -f version=1.6.0
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -780,6 +780,81 @@ docker compose -f docker-compose.edge.yml exec api \
 docker compose -f docker-compose.edge.yml exec db \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "UPDATE users SET is_admin = true WHERE email = 'admin@example.com';"
+```
+
+### Миграция Telegram-привязки (T-134)
+
+Версия 1.6.0 добавляет `users.telegram_id` и таблицу `telegram_link_codes`.
+Новый API докатывает схему при старте (`create_all` + мягкая миграция), но на
+прод рекомендуется выполнить SQL **до деплоя образа**:
+
+```bash
+cd /srv/vetassistant
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < scripts/migrations/2026-11-05_telegram_linking.sql
+```
+
+Скрипт идемпотентен: колонка, таблица и индексы создаются с `IF NOT EXISTS`,
+повторный запуск печатает только `NOTICE ... skipping`. Проверка:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d users"'
+```
+
+Ожидается `telegram_id | bigint` и индексы `ix_users_telegram_id` (UNIQUE),
+`ix_telegram_link_codes_code_hash` (UNIQUE), `_user_id`, `_expires_at`.
+
+**Переменные edge-стека.** `TELEGRAM_BOT_TOKEN` теперь получает и `api`
+(для `sendMessage`); добавлены `VET_BOT_USERNAME` (username бота для
+инструкции на сайте), `VET_API_TELEGRAM_NOTIFY` (по умолчанию `true`) и
+`VET_API_TELEGRAM_API_BASE`. Проверьте, что compose видит переменные:
+
+```bash
+docker compose -f docker-compose.edge.yml config | grep -E "TELEGRAM|VET_BOT_USERNAME"
+```
+
+**Привязка аккаунта.** Пользователь: сайт → «Настройки» → «Telegram» →
+«Привязать Telegram» → одноразовый код. Бот: `/link КОД`. Статус: `/status`,
+отвязка: `/unlink` или кнопка на сайте. Код живёт 10 минут, одноразовый,
+не более трёх активных; в БД хранится только HMAC-хэш.
+
+**Перенос старых записей.** Synthetic-аккаунт **не удаляется**: он нужен боту
+для входа, иначе для этого Telegram не останется пароля. Скрипт переносит
+`appointments`/`reminders` на веб-аккаунт и привязывает `telegram_id`:
+
+```bash
+# отчёт по synthetic-аккаунтам (ничего не меняет)
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/migrate_telegram_link.py
+
+# предпросмотр переноса
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/migrate_telegram_link.py \
+  --merge-user owner@example.com 111111111 --dry-run
+
+# сам перенос
+docker compose -f docker-compose.edge.yml exec api \
+  python scripts/migrate_telegram_link.py \
+  --merge-user owner@example.com 111111111
+```
+
+Скрипт идемпотентен: повторный запуск сообщает «Данные уже перенесены».
+Конфликт (`telegram_id` уже у другого пользователя) завершается кодом 1 и
+ничего не меняет.
+
+**Откат.** Образ предыдущей версии совместим с новой схемой: старый API не
+знает о `telegram_id` и не читает новую таблицу. Полное удаление схемы —
+только после откачки кода:
+
+```sql
+BEGIN;
+UPDATE users SET telegram_id = NULL;
+DROP TABLE IF EXISTS telegram_link_codes;
+DROP INDEX IF EXISTS ix_users_telegram_id;
+ALTER TABLE users DROP COLUMN IF EXISTS telegram_id;
+COMMIT;
 ```
 
 ## 9. Проверка после запуска

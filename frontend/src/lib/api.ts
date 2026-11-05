@@ -6,6 +6,9 @@ import type {
   ChatSettings,
   Reminder,
   Role,
+  TelegramLinkCode,
+  TelegramLinkStatus,
+  TelegramUnlinkResponse,
   ToolCallDelta,
   ToolDefinition,
 } from '../types'
@@ -340,6 +343,32 @@ export async function fetchReminders(
 ): Promise<Reminder[]> {
   const payload = await requestJson<Reminder[]>('/v1/reminders', {}, baseUrl)
   return Array.isArray(payload) ? payload : []
+}
+
+export function fetchTelegramLink(
+  baseUrl: string = API_BASE_URL,
+): Promise<TelegramLinkStatus> {
+  return requestJson<TelegramLinkStatus>('/v1/telegram/link', {}, baseUrl)
+}
+
+export function createTelegramLinkCode(
+  baseUrl: string = API_BASE_URL,
+): Promise<TelegramLinkCode> {
+  return requestJson<TelegramLinkCode>(
+    '/v1/telegram/link-code',
+    { method: 'POST' },
+    baseUrl,
+  )
+}
+
+export function unlinkTelegram(
+  baseUrl: string = API_BASE_URL,
+): Promise<TelegramUnlinkResponse> {
+  return requestJson<TelegramUnlinkResponse>(
+    '/v1/telegram/link',
+    { method: 'DELETE' },
+    baseUrl,
+  )
 }
 
 function parseToolCallDelta(value: unknown): ToolCallDelta | null {
