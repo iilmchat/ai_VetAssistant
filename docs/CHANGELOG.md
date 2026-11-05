@@ -6,7 +6,23 @@
 
 ## [1.6.1] — 2026-11-06
 
-Hotfix T-143 по итогам аудита падений и глюков.
+Hotfix T-143 по итогам аудита падений и глюков + GPU-диспетчер T-144.
+
+### Добавлено
+
+- **T-144 — GPU-бэкенд с fallback на CPU.** `app/backends.py` содержит
+  протокол `InferenceBackend`, `GpuHttpBackend` (LM Studio по
+  OpenAI-протоколу через обратный SSH-туннель) и `CpuLlamaBackend` (текущий
+  llama.cpp с общим локом T-143). `BackendRouter` в `app/router.py` делает
+  probe раз в 15 секунд, держит circuit breaker (3 ошибки → cooldown 180 с)
+  и переключает запросы на CPU; стрим падает обратно на CPU только до первого
+  чанка, чтобы не дублировать текст. `/health` показывает `backend: gpu|cpu`,
+  добавлены метрики `vet_llm_backend_requests_total{backend,status}` и
+  `vet_llm_backend_ttft_seconds`.
+  Настройки: `VET_API_GPU_BACKEND_ENABLED`, `VET_API_GPU_BACKEND_BASE`,
+  `VET_API_GPU_BACKEND_API_KEY`, `VET_API_GPU_BACKEND_MODEL`,
+  `VET_API_GPU_BACKEND_PROBE_INTERVAL_S`, `VET_API_GPU_BACKEND_PROBE_TIMEOUT_S`,
+  `VET_API_GPU_BACKEND_TTFT_FALLBACK_S`.
 
 ### Исправлено
 

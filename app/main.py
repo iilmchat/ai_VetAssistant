@@ -11,17 +11,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
-import threading
 import time
 import uuid
-from collections.abc import AsyncIterator, Generator, Iterable, Sequence
-from contextlib import asynccontextmanager, suppress
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Annotated, Any, Literal, Protocol, cast
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +29,6 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from starlette.concurrency import run_in_threadpool
 
 from app.admin import router as admin_router
 from app.auth import (
@@ -47,6 +44,7 @@ from app.auth import (
     hash_password,
     verify_password,
 )
+from app.backends import ChatModel, CpuLlamaBackend, GpuHttpBackend
 from app.database import (
     Database,
     User,
@@ -67,7 +65,11 @@ from app.metrics import (
     set_rag_index_ready,
 )
 from app.rate_limit import limiter
-from app.router import triage_message, with_emergency_instruction
+from app.router import (
+    BackendRouter,
+    triage_message,
+    with_emergency_instruction,
+)
 from app.settings import AppSettings, get_app_settings
 from app.telegram_link import is_bot_account, resolve_bot_login_user
 from app.telegram_link import router as telegram_router
@@ -92,14 +94,6 @@ DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 0.95
 DEFAULT_MAX_TOKENS = 1024
 MAX_AGENT_STEPS = 3
-
-#: llama-cpp-python не потокобезопасен: одновременно с одним Llama-контекстом
-#: может работать только один вызов. Все обращения к модели (включая стрим)
-#: сериализуются этим локом, иначе параллельные запросы приводят к segfault.
-_GENERATION_LOCK = threading.Lock()
-
-#: Сентинел завершения потока-продюсера SSE.
-_STREAM_DONE = object()
 
 #: Теги reasoning-блока Qwen3.
 _THINK_OPEN = "<think>"
@@ -208,12 +202,6 @@ class ReminderRead(BaseModel):
     time: str
 
 
-class ChatModel(Protocol):
-    """Минимальный интерфейс llama-cpp-python, нужный API."""
-
-    def create_chat_completion(self, **kwargs: Any) -> Any: ...
-
-
 @lru_cache(maxsize=1)
 def _load_model() -> ChatModel:
     """Загрузить GGUF один раз на процесс."""
@@ -251,74 +239,12 @@ def get_model() -> ChatModel:
         raise HTTPException(status_code=503, detail="Модель недоступна") from exc
 
 
-def _locked_chat_completion(model: ChatModel, **kwargs: Any) -> Any:
-    """Вызвать ``create_chat_completion`` под глобальным локом.
-
-    llama-cpp-python 0.3.36 не потокобезопасен, поэтому даже один
-    параллельный вызов может уронить процесс. Лок общий для всех запросов.
-    """
-    with _GENERATION_LOCK:
-        return model.create_chat_completion(**kwargs)
-
-
-def _locked_stream_chunks(model: ChatModel, **kwargs: Any) -> Generator[Any, None, None]:
-    """Итератор стрима, удерживающий лок на всё время генерации.
-
-    ``create_chat_completion(stream=True)`` возвращает ленивый генератор:
-    генерация идёт при итерации, поэтому лок нельзя отпускать после
-    создания генератора — он должен жить до последнего чанка.
-    """
-    stream = cast(Iterable[Any], model.create_chat_completion(**kwargs))
-    with _GENERATION_LOCK:
-        yield from stream
-
-
-async def _iterate_locked_stream(model: ChatModel, **kwargs: Any) -> AsyncIterator[Any]:
-    """Отдавать чанки стрима в event loop, не блокируя его локом.
-
-    ``threading.Lock`` нельзя удерживать в корутине: это остановит весь
-    сервер. Поток-продюсер держит лок, генерирует чанки и складывает их в
-    ``asyncio.Queue``; event loop только читает очередь. Так один и тот же
-    лок защищает и стрим, и обычные вызовы модели.
-    """
-    loop = asyncio.get_running_loop()
-    queue: asyncio.Queue[Any] = asyncio.Queue()
-    stop = threading.Event()
-
-    def deliver(item: Any) -> None:
-        with suppress(RuntimeError):
-            # Event loop уже закрыт (остановка приложения) — терять нечего.
-            loop.call_soon_threadsafe(queue.put_nowait, item)
-
-    def produce() -> None:
-        stream = _locked_stream_chunks(model, **kwargs)
-        try:
-            for chunk in stream:
-                if stop.is_set():
-                    break
-                deliver(chunk)
-        except BaseException as exc:
-            # В том числе GeneratorExit/KeyboardInterrupt: потребитель должен
-            # получить ошибку, а не зависнуть в ожидании _STREAM_DONE.
-            deliver(exc)
-        finally:
-            try:
-                stream.close()
-            finally:
-                deliver(_STREAM_DONE)
-
-    threading.Thread(target=produce, name="llm-stream", daemon=True).start()
-    try:
-        while True:
-            item = await queue.get()
-            if item is _STREAM_DONE:
-                return
-            if isinstance(item, BaseException):
-                raise item
-            yield item
-    finally:
-        # Клиент отключился: просим продюсер остановиться после текущего чанка.
-        stop.set()
+def get_backend_router(request: Request) -> BackendRouter:
+    """FastAPI-зависимость: роутер GPU/CPU, созданный в lifespan."""
+    router = getattr(request.app.state, "backend_router", None)
+    if not isinstance(router, BackendRouter):
+        raise HTTPException(status_code=503, detail="Инференс-бэкенд не инициализирован")
+    return router
 
 
 @asynccontextmanager
@@ -347,9 +273,24 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         "БД готова: {}",
         database.engine.url.render_as_string(hide_password=True),
     )
+
+    # T-144: GPU-бэкенд включается настройкой; CPU-модель загружается лениво,
+    # только если GPU недоступен — иначе GGUF зря занимает RAM.
+    backend_router = BackendRouter(
+        gpu=GpuHttpBackend(settings) if settings.gpu_backend_enabled else None,
+        cpu=CpuLlamaBackend(model_factory=get_model),
+        settings=settings,
+    )
+    application.state.backend_router = backend_router
+    await backend_router.start()
+    logger.info(
+        "Инференс: GPU backend {}",
+        "включён" if backend_router.gpu_enabled else "выключен",
+    )
     try:
         yield
     finally:
+        await backend_router.aclose()
         await database.dispose()
 
 
@@ -579,7 +520,7 @@ def _generation_kwargs(request: ChatCompletionRequest) -> dict[str, Any]:
 
 
 async def _generate_once(
-    model: ChatModel,
+    backend: BackendRouter,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
@@ -589,9 +530,7 @@ async def _generate_once(
     """Один вызов модели с приведением ответа к формату OpenAI."""
     started = time.perf_counter()
     try:
-        result = await run_in_threadpool(
-            _locked_chat_completion,
-            model,
+        result = await backend.create_chat_completion(
             messages=messages,
             **_generation_kwargs(request),
         )
@@ -730,7 +669,7 @@ async def _execute_tool_calls(
 
 
 async def _complete(
-    model: ChatModel,
+    backend: BackendRouter,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
@@ -744,7 +683,7 @@ async def _complete(
     working = [dict(message) for message in messages]
     executed: list[ToolCall] = []
     response = await _generate_once(
-        model,
+        backend,
         working,
         request,
         model_name,
@@ -776,7 +715,7 @@ async def _complete(
             )
         )
         response = await _generate_once(
-            model,
+            backend,
             working,
             request,
             model_name,
@@ -933,7 +872,7 @@ def _sse_chunk(payload: dict[str, Any]) -> str:
 
 
 async def _stream_with_tools(
-    model: ChatModel,
+    backend: BackendRouter,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
@@ -951,7 +890,7 @@ async def _stream_with_tools(
     """
     try:
         response = await _complete(
-            model,
+            backend,
             messages,
             request,
             model_name,
@@ -996,7 +935,7 @@ async def _stream_with_tools(
 
 
 async def _stream(
-    model: ChatModel,
+    backend: BackendRouter,
     messages: Sequence[dict[str, Any]],
     request: ChatCompletionRequest,
     model_name: str,
@@ -1008,8 +947,8 @@ async def _stream(
 ) -> AsyncIterator[str]:
     """Отдать ответ потоком SSE в формате OpenAI."""
     if request.tools:
-        async for chunk in _stream_with_tools(
-            model,
+        async for sse_chunk in _stream_with_tools(
+            backend,
             messages,
             request,
             model_name,
@@ -1018,7 +957,7 @@ async def _stream(
             telegram_id=telegram_id,
             background=background,
         ):
-            yield chunk
+            yield sse_chunk
         return
 
     started = time.perf_counter()
@@ -1029,8 +968,7 @@ async def _stream(
     last_payload: dict[str, Any] | None = None
 
     try:
-        async for chunk in _iterate_locked_stream(
-            model,
+        async for chunk in backend.stream_chat_completion(
             messages=messages,
             stream=True,
             **_generation_kwargs(request),
@@ -1044,15 +982,18 @@ async def _stream(
                 if usage_payload:
                     prompt_tokens = int(usage_payload.get("prompt_tokens", 0))
                     completion_tokens = int(usage_payload.get("completion_tokens", 0))
-                payload = {**_clean_stream_chunk(chunk, think_filters), "model": model_name}
-                last_payload = payload
+                stream_payload = {
+                    **_clean_stream_chunk(chunk, think_filters),
+                    "model": model_name,
+                }
+                last_payload = stream_payload
             else:
-                payload = chunk
-            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                stream_payload = chunk
+            yield f"data: {json.dumps(stream_payload, ensure_ascii=False)}\n\n"
 
         # H-4: хвост, задержанный фильтром (например, «<thi»), отдаём в конце.
-        for payload in _flush_think_filters(think_filters, last_payload, model_name):
-            yield _sse_chunk(payload)
+        for tail_payload in _flush_think_filters(think_filters, last_payload, model_name):
+            yield _sse_chunk(tail_payload)
     except Exception as exc:
         record_generation(
             "stream",
@@ -1088,14 +1029,21 @@ async def _stream(
 
 
 @app.get("/health")
-def health() -> dict[str, Any]:
-    """Проверка живости API, файла модели и текущей конфигурации инференса."""
+def health(
+    backend: Annotated[BackendRouter, Depends(get_backend_router)],
+) -> dict[str, Any]:
+    """Проверка живости API, файла модели и текущего инференс-бэкенда."""
     settings = get_app_settings()
     return {
         "status": "ok",
         "model": settings.model_id,
         "model_path": str(settings.model_path),
         "model_path_exists": settings.model_path.exists(),
+        "backend": backend.active_backend_name,
+        "gpu_backend": {
+            "enabled": backend.gpu_enabled,
+            "available": backend.gpu_available,
+        },
         "config": {
             "n_ctx": settings.n_ctx,
             "n_threads": settings.n_threads,
@@ -1109,7 +1057,7 @@ async def chat_completions(
     request: ChatCompletionRequest,
     http_request: Request,
     background: BackgroundTasks,
-    model: Annotated[ChatModel, Depends(get_model)],
+    backend: Annotated[BackendRouter, Depends(get_backend_router)],
     knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
     database: Annotated[Database, Depends(get_database)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -1175,7 +1123,7 @@ async def chat_completions(
     if request.stream:
         return StreamingResponse(
             _stream(
-                model,
+                backend,
                 messages,
                 request,
                 model_name,
@@ -1190,7 +1138,7 @@ async def chat_completions(
         )
 
     return await _complete(
-        model,
+        backend,
         messages,
         request,
         model_name,

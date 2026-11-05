@@ -132,6 +132,46 @@ class AppSettings(BaseSettings):
         le=30.0,
         description="Таймаут запроса к Prometheus, секунды",
     )
+    gpu_backend_enabled: bool = Field(
+        default=False,
+        description=(
+            "T-144: использовать GPU-бэкенд LM Studio с fallback на CPU; "
+            "включать только при доступном туннеле"
+        ),
+    )
+    gpu_backend_base: str = Field(
+        default="",
+        description="T-144: базовый URL LM Studio, например http://172.18.0.1:8034/v1",
+    )
+    gpu_backend_api_key: str = Field(
+        default="",
+        description="T-144: токен LM Studio (Require Auth), в git не коммитить",
+    )
+    gpu_backend_model: str = Field(
+        default="qwen3-8b-vet@q4_k_m",
+        min_length=1,
+        description="T-144: имя модели LM Studio для запросов",
+    )
+    gpu_backend_probe_interval_s: float = Field(
+        default=15.0,
+        ge=1.0,
+        le=600.0,
+        description="T-144: интервал фонового probe GPU, секунды",
+    )
+    gpu_backend_probe_timeout_s: float = Field(
+        default=3.0,
+        ge=0.1,
+        le=60.0,
+        description="T-144: таймаут probe GPU, секунды",
+    )
+    gpu_backend_ttft_fallback_s: float = Field(
+        default=8.0,
+        ge=0.1,
+        le=120.0,
+        description=(
+            "T-144: сколько ждать первый токен GPU-стрима до fallback на CPU"
+        ),
+    )
 
 
 @lru_cache(maxsize=1)

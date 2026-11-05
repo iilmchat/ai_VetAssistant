@@ -9,13 +9,26 @@
 Роутер намеренно не использует LLM: проверка должна быть дешёвой и быстрой,
 чтобы тяжёлая модель не тратила время на заведомо опасные или вредоносные
 запросы.
+
+Здесь же живёт ``BackendRouter`` (T-144): выбор GPU/CPU-инференса, фоновый
+probe LM Studio и circuit breaker с fallback на CPU.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
-from collections.abc import Sequence
-from typing import TypedDict
+import threading
+import time
+from collections.abc import AsyncIterator, Sequence
+from contextlib import suppress
+from typing import Any, TypedDict
+
+from loguru import logger
+
+from app.backends import CpuLlamaBackend, GpuHttpBackend
+from app.metrics import record_backend_request, record_backend_ttft
+from app.settings import AppSettings
 
 #: Жёсткая инструкция, которая добавляется в system prompt при экстренном случае.
 EMERGENCY_SYSTEM_INSTRUCTION = (
@@ -210,3 +223,253 @@ def with_emergency_instruction(
             return result
 
     return [{"role": "system", "content": EMERGENCY_SYSTEM_INSTRUCTION}, *result]
+
+
+#: Сколько подряд ошибок GPU переводят circuit breaker в открытое состояние.
+GPU_FAILURE_THRESHOLD = 3
+
+#: Сколько секунд после открытия circuit breaker не трогаем GPU.
+GPU_COOLDOWN_S = 180.0
+
+
+async def _close_async_stream(stream: AsyncIterator[dict[str, Any]]) -> None:
+    """Закрыть async-генератор, если он это умеет."""
+    aclose = getattr(stream, "aclose", None)
+    if aclose is None:
+        return
+    with suppress(Exception):
+        await aclose()
+
+
+class BackendRouter:
+    """Выбирает GPU-бэкенд, а при проблемах деградирует на CPU (T-144).
+
+    GPU считается доступным, пока фоновый probe отвечает и circuit breaker
+    не открыт. После трёх подряд ошибок (probe или генерации) GPU помечается
+    недоступным на ``GPU_COOLDOWN_S``; запросы в это время идут на CPU.
+    Стрим переключается на CPU только до первого отданного чанка, иначе
+    пользователь получил бы дубли текста.
+    """
+
+    def __init__(
+        self,
+        *,
+        gpu: GpuHttpBackend | None,
+        cpu: CpuLlamaBackend,
+        settings: AppSettings,
+    ) -> None:
+        self._gpu = gpu
+        self._cpu = cpu
+        self._settings = settings
+        self._gpu_available = False
+        self._failures = 0
+        self._cooldown_until = 0.0
+        self._state_lock = threading.Lock()
+        self._stop = asyncio.Event()
+        self._probe_task: asyncio.Task[None] | None = None
+
+    @property
+    def gpu_enabled(self) -> bool:
+        """Включён ли GPU-бэкенд настройкой и создан ли он."""
+        return self._settings.gpu_backend_enabled and self._gpu is not None
+
+    @property
+    def gpu_available(self) -> bool:
+        """Считает ли роутер GPU доступным прямо сейчас."""
+        with self._state_lock:
+            return self._gpu_available
+
+    @property
+    def name(self) -> str:
+        """Имя активного бэкенда: ``gpu`` или ``cpu``."""
+        return "gpu" if self._use_gpu() else "cpu"
+
+    @property
+    def active_backend_name(self) -> str:
+        """Псевдоним ``name`` для healthcheck-а."""
+        return self.name
+
+    def _use_gpu(self) -> bool:
+        if not self.gpu_enabled:
+            return False
+        with self._state_lock:
+            return self._gpu_available and time.monotonic() >= self._cooldown_until
+
+    def _in_cooldown(self) -> bool:
+        with self._state_lock:
+            return time.monotonic() < self._cooldown_until
+
+    def _record_success(self) -> None:
+        with self._state_lock:
+            was_available = self._gpu_available
+            self._gpu_available = True
+            self._failures = 0
+            self._cooldown_until = 0.0
+        if not was_available:
+            logger.info("GPU backend: доступен, переключаюсь с CPU")
+
+    def _record_failure(self, reason: str) -> None:
+        with self._state_lock:
+            self._failures += 1
+            failures = self._failures
+            if failures >= GPU_FAILURE_THRESHOLD:
+                self._gpu_available = False
+                self._cooldown_until = time.monotonic() + GPU_COOLDOWN_S
+        if failures >= GPU_FAILURE_THRESHOLD:
+            logger.warning(
+                "GPU backend: {} подряд ошибок ({}), CPU fallback на {:.0f} с",
+                failures,
+                reason,
+                GPU_COOLDOWN_S,
+            )
+
+    async def start(self) -> None:
+        """Запустить фоновый probe (только если GPU включён)."""
+        if not self.gpu_enabled or self._probe_task is not None:
+            return
+        self._probe_task = asyncio.create_task(
+            self._probe_loop(),
+            name="gpu-backend-probe",
+        )
+
+    async def aclose(self) -> None:
+        """Остановить probe и закрыть HTTP-клиенты бэкендов."""
+        self._stop.set()
+        if self._probe_task is not None:
+            self._probe_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._probe_task
+            self._probe_task = None
+        if self._gpu is not None:
+            await self._gpu.aclose()
+        await self._cpu.aclose()
+
+    async def _probe_loop(self) -> None:
+        interval = self._settings.gpu_backend_probe_interval_s
+        while not self._stop.is_set():
+            await self.probe_once()
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=interval)
+            except TimeoutError:
+                continue
+
+    async def probe_once(self) -> bool:
+        """Один probe GPU; обновляет состояние circuit breaker."""
+        if not self.gpu_enabled or self._gpu is None:
+            return False
+        if self._in_cooldown():
+            return False
+        try:
+            ok = await self._gpu.probe()
+        except Exception as exc:
+            logger.warning("GPU backend: probe упал — {}", type(exc).__name__)
+            ok = False
+        if ok:
+            self._record_success()
+        else:
+            self._record_failure("probe")
+        return ok
+
+    async def _call_cpu(self, **kwargs: Any) -> dict[str, Any]:
+        try:
+            result = await self._cpu.create_chat_completion(**kwargs)
+        except Exception:
+            record_backend_request("cpu", "error")
+            raise
+        record_backend_request("cpu", "success")
+        return result
+
+    async def create_chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+        """Генерация с GPU→CPU fallback."""
+        backend = self._gpu if self._use_gpu() else None
+        if backend is None:
+            return await self._call_cpu(**kwargs)
+
+        try:
+            result = await backend.create_chat_completion(**kwargs)
+        except Exception as exc:
+            record_backend_request("gpu", "error")
+            self._record_failure("generation")
+            logger.warning(
+                "GPU backend: генерация не удалась ({}), fallback на CPU",
+                type(exc).__name__,
+            )
+            return await self._call_cpu(**kwargs)
+
+        record_backend_request("gpu", "success")
+        return result
+
+    async def stream_chat_completion(self, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
+        """Потоковая генерация с GPU→CPU fallback до первого чанка."""
+        if self._use_gpu() and self._gpu is not None:
+            yielded = False
+            try:
+                async for chunk in self._stream_gpu(self._gpu, **kwargs):
+                    yielded = True
+                    yield chunk
+                return
+            except Exception as exc:
+                if yielded:
+                    raise
+                logger.warning(
+                    "GPU backend: стрим не начался ({}), fallback на CPU",
+                    type(exc).__name__,
+                )
+
+        async for chunk in self._stream_cpu(**kwargs):
+            yield chunk
+
+    async def _stream_gpu(
+        self,
+        backend: GpuHttpBackend,
+        **kwargs: Any,
+    ) -> AsyncIterator[dict[str, Any]]:
+        stream = backend.stream_chat_completion(**kwargs)
+        started = time.perf_counter()
+        first_received = False
+        try:
+            try:
+                first = await asyncio.wait_for(
+                    stream.__anext__(),
+                    timeout=self._settings.gpu_backend_ttft_fallback_s,
+                )
+            except StopAsyncIteration:
+                record_backend_request("gpu", "success")
+                return
+            except Exception:
+                record_backend_request("gpu", "error")
+                self._record_failure("ttft")
+                raise
+
+            first_received = True
+            record_backend_ttft("gpu", time.perf_counter() - started)
+            yield first
+            async for chunk in stream:
+                yield chunk
+        except Exception:
+            if first_received:
+                record_backend_request("gpu", "error")
+                self._record_failure("stream")
+            raise
+        else:
+            record_backend_request("gpu", "success")
+        finally:
+            await _close_async_stream(stream)
+
+    async def _stream_cpu(self, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
+        stream = self._cpu.stream_chat_completion(**kwargs)
+        started = time.perf_counter()
+        first = True
+        try:
+            async for chunk in stream:
+                if first:
+                    record_backend_ttft("cpu", time.perf_counter() - started)
+                    first = False
+                yield chunk
+        except Exception:
+            record_backend_request("cpu", "error")
+            raise
+        else:
+            record_backend_request("cpu", "success")
+        finally:
+            await _close_async_stream(stream)

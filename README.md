@@ -4,13 +4,15 @@
 [![Latest release](https://img.shields.io/badge/latest_release-v1.6.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
-> Легковесный ассистент на базе Qwen3-8B (GGUF), работающий на CPU без GPU. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
+> Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
 **Статус:** ✅ **Production Ready — v1.6.1** (2026-11-06)
 **Релиз:** hotfix: потокобезопасная генерация (H-1), очистка `<think>` (H-4),
 актуальная дата в промпте (H-3), понятная ошибка повторного `/link` (H-2),
-уведомления только о записи к врачу (H-5)
+уведомления только о записи к врачу (H-5); GPU-диспетчер с fallback на CPU (T-144)
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
+
+- **GPU-бэкенд (T-144):** LM Studio через обратный SSH-туннель, probe и circuit breaker, автоматический fallback на CPU; `/health` показывает активный бэкенд
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; привязка к веб-аккаунту по одноразовому коду (`/link`), уведомления в чат и доступ в production — только по allowlist Telegram ID
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»

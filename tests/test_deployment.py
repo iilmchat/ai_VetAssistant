@@ -282,6 +282,29 @@ def test_prometheus_defaults_use_container_dns_name() -> None:
     assert "VET_API_PROMETHEUS_URL=http://vetassistant-prometheus:9090" in env_example
 
 
+def test_compose_passes_gpu_backend_settings() -> None:
+    """T-144: переменные GPU-бэкенда должны доходить до контейнера api."""
+    expected = {
+        "VET_API_GPU_BACKEND_ENABLED": "${VET_API_GPU_BACKEND_ENABLED:-false}",
+        "VET_API_GPU_BACKEND_BASE": "${VET_API_GPU_BACKEND_BASE:-}",
+        "VET_API_GPU_BACKEND_API_KEY": "${VET_API_GPU_BACKEND_API_KEY:-}",
+        "VET_API_GPU_BACKEND_MODEL": "${VET_API_GPU_BACKEND_MODEL:-qwen3-8b-vet@q4_k_m}",
+        "VET_API_GPU_BACKEND_PROBE_INTERVAL_S": (
+            "${VET_API_GPU_BACKEND_PROBE_INTERVAL_S:-15}"
+        ),
+        "VET_API_GPU_BACKEND_PROBE_TIMEOUT_S": (
+            "${VET_API_GPU_BACKEND_PROBE_TIMEOUT_S:-3}"
+        ),
+        "VET_API_GPU_BACKEND_TTFT_FALLBACK_S": (
+            "${VET_API_GPU_BACKEND_TTFT_FALLBACK_S:-8}"
+        ),
+    }
+    for name in ("docker-compose.yml", "docker-compose.prod.yml", "docker-compose.edge.yml"):
+        environment = _yaml(name)["services"]["api"]["environment"]
+        for key, value in expected.items():
+            assert environment[key] == value, (name, key)
+
+
 def test_all_workflows_use_self_hosted_label_set() -> None:
     for name in ("ci.yml", "deploy.yml", "release.yml"):
         workflow = _yaml(f".github/workflows/{name}")

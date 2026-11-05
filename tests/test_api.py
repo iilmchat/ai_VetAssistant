@@ -16,6 +16,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import hash_password
+from app.backends import (
+    _GENERATION_LOCK,
+    CpuLlamaBackend,
+    _locked_chat_completion,
+    _locked_stream_chunks,
+)
 from app.database import (
     Database,
     create_access_request,
@@ -24,18 +30,15 @@ from app.database import (
     list_pending_access_requests,
 )
 from app.main import (
-    _GENERATION_LOCK,
     VET_SYSTEM_PROMPT,
     _date_context,
-    _locked_chat_completion,
-    _locked_stream_chunks,
     app,
+    get_backend_router,
     get_knowledge_base,
-    get_model,
     limiter,
     strip_think_tags,
 )
-from app.router import EMERGENCY_SYSTEM_INSTRUCTION
+from app.router import EMERGENCY_SYSTEM_INSTRUCTION, BackendRouter
 from app.settings import DEFAULT_MODEL_ID, get_app_settings
 from app.tools import BOOK_APPOINTMENT_TOOL, SET_REMINDER_TOOL
 
@@ -232,9 +235,15 @@ def client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[TestClient]:
     monkeypatch.setenv("VET_API_DATABASE_URL", db_url)
+    monkeypatch.setenv("VET_API_GPU_BACKEND_ENABLED", "false")
     get_app_settings.cache_clear()
     limiter.reset()
-    app.dependency_overrides[get_model] = lambda: fake_model
+    backend_router = BackendRouter(
+        gpu=None,
+        cpu=CpuLlamaBackend(model=fake_model),
+        settings=get_app_settings(),
+    )
+    app.dependency_overrides[get_backend_router] = lambda: backend_router
     app.dependency_overrides[get_knowledge_base] = lambda: None
     with TestClient(app) as test_client:
         headers = _seed_user(
@@ -1387,6 +1396,8 @@ def test_health_reports_model(client: TestClient) -> None:
     data = response.json()
     assert data["status"] == "ok"
     assert data["model"] == DEFAULT_MODEL_ID
+    assert data["backend"] == "cpu"
+    assert data["gpu_backend"] == {"enabled": False, "available": False}
     assert "model_path_exists" in data
 
     settings = get_app_settings()

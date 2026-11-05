@@ -54,6 +54,21 @@ TIME_TO_FIRST_TOKEN = Histogram(
     buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0),
 )
 
+#: Запросы к инференс-бэкенду (T-144): backend=gpu|cpu, status=success|error.
+BACKEND_REQUESTS = Counter(
+    "vet_llm_backend_requests_total",
+    "Запросы к GPU/CPU инференс-бэкенду по результату",
+    ("backend", "status"),
+)
+
+#: Время до первого токена в разрезе бэкенда (T-144).
+BACKEND_TTFT = Histogram(
+    "vet_llm_backend_ttft_seconds",
+    "Время до первого токена GPU/CPU-бэкенда, секунды",
+    ("backend",),
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 8.0, 10.0, 30.0, 60.0),
+)
+
 #: Скорость генерации, токенов в секунду (когда известны токены).
 TOKENS_PER_SECOND = Histogram(
     "vet_llm_completion_tokens_per_second",
@@ -270,3 +285,13 @@ def record_rag_search(
 def set_rag_index_ready(ready: bool) -> None:
     """Выставить gauge готовности RAG-индекса."""
     RAG_INDEX_READY.set(1.0 if ready else 0.0)
+
+
+def record_backend_request(backend: str, status: str) -> None:
+    """Учесть запрос к GPU/CPU-бэкенду (T-144)."""
+    BACKEND_REQUESTS.labels(backend=backend, status=status).inc()
+
+
+def record_backend_ttft(backend: str, seconds: float) -> None:
+    """Записать время до первого токена бэкенда (T-144)."""
+    BACKEND_TTFT.labels(backend=backend).observe(max(seconds, 0.0))
