@@ -362,12 +362,12 @@
 - **Оценка:** 0.5
 - **Статус:** выполнено: в `deploy.yml` добавлен шаг `Persist image version to .env` (идемпотентные `sed`/`printf`), создан `scripts/restart_prod.sh` (версия из `git describe --tags`, проверка формата, обновление `.env`, `docker compose up -d --no-build`), переменная описана в `.env.production.example`, `DEPLOYMENT.md` §6.4 и новый §6.6; backlog Фазы 5 — T-133…T-136.
 
-### [ ] T-133. Расширение RAG: ещё 5–10 статей MSD Vet Manual
+### [x] T-133. Расширение RAG: ещё 5–10 статей MSD Vet Manual
 - **Зависит от:** T-124
 - **Что:** Догрузить 5–10 статей (вакцинация, паразиты, экстренная помощь — отравления, травмы, тепловой удар), прогнать `scripts/ingest_knowledge.py` (upsert безопасен) и расширить индекс `msd_vet_manual` с текущих 204 чанков.
 - **DoD:** статьи в Git и доступны после `git pull`; индекс — не меньше 230 чанков; hit rate на 10–20 вопросах измерен и не ниже текущего; тесты ingestion зелёные; обновлён раздел README про RAG.
 - **Оценка:** 1
-- **Статус:** в работе: подготовлен инструментарий — `scripts/download_msd.py` скачивает статьи по прямым ссылкам (`--url`, имя файла из URL), `scripts/ingest_knowledge.py` пишет через `upsert` и логирует «Новых чанков / будет обновлено / всего в коллекции», `scripts/create_telegram_user.py` получил `--reset-password` (сброс пароля после ротации `VET_BOT_AUTH_SECRET`), в `DEPLOYMENT.md` добавлен раздел «Как добавить новые статьи в RAG». 10 статей скачаны и проиндексированы (766 чанков); осталось замерить hit rate.
+- **Статус:** выполнено: 10 статей MSD добавлены в `data/knowledge/real/` и проиндексированы — **766 чанков** (было 204, ×3.75) через `upsert` с логом «Новых чанков / будет обновлено / всего в коллекции»; `scripts/download_msd.py --url` умеет скачивать по прямым ссылкам; `scripts/create_telegram_user.py --reset-password` для сброса пароля после ротации `VET_BOT_AUTH_SECRET`; `scripts/evaluate_rag.py` + `docs/development/reports/RAG_EVAL.md` — прогон 12 вопросов дал **12/12 RAG hit (100 %), 0 miss, 0 ошибок, среднее 74.6 с**; регрессии на старых темах нет.
 
 ### [ ] T-134. Привязка Telegram к веб-аккаунту
 - **Зависит от:** T-121, T-039
