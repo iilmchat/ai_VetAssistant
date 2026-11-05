@@ -1,18 +1,22 @@
 -- ============================================================================
 -- VetAssistant v1.6.0 — привязка Telegram к веб-аккаунту (T-134.1)
 --
--- Назначение: подготовить прод-БД ДО деплоя нового кода API, чтобы после
--- рестарта код не зависел от `create_all` при старте (а на случай откачки
--- образа схема уже была совместима).
+-- Назначение: подготовить прод-БД ДО деплоя нового кода API. Схема появляется
+-- заранее, а `create_all` при старте API видит уже готовые колонку и таблицу
+-- (новый код умеет докатывать их и сам — этот скрипт нужен, чтобы не зависеть
+-- от старта приложения и облегчить откат образа).
 --
 -- Запуск на сервере (PostgreSQL 16), из корня /srv/vetassistant:
 --   docker compose -f docker-compose.edge.yml exec -T db \
---     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+--     sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
 --     < scripts/migrations/2026-11-05_telegram_linking.sql
 --
---   либо, если psql есть на хосте и известен DATABASE_URL:
---   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
---     -f scripts/migrations/2026-11-05_telegram_linking.sql
+--   Переменные POSTGRES_USER/POSTGRES_DB уже заданы внутри контейнера db,
+--   пароль не нужен: psql ходит по локальному сокету.
+--
+-- Проверка после применения:
+--   docker compose -f docker-compose.edge.yml exec -T db \
+--     sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d users"'
 --
 -- Скрипт идемпотентен: повторный запуск не меняет данные и не падает.
 -- Время выполнения: секунды; блокировка users — на время ALTER TABLE.
