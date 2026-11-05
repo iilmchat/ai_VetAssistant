@@ -40,7 +40,9 @@ LINK_CODE_USED_MESSAGE = "Этот код уже использован. Пол�
 LINK_TELEGRAM_BUSY_MESSAGE = (
     "Этот Telegram уже привязан к другому аккаунту. Обратитесь в поддержку."
 )
-LINK_FORBIDDEN_MESSAGE = "Не удалось подтвердить привязку. Попробуйте позже."
+LINK_FORBIDDEN_MESSAGE = (
+    "Этот аккаунт уже привязан. Используйте /unlink, чтобы отвязать."
+)
 LINK_RATE_LIMIT_MESSAGE = "Слишком много попыток. Подождите немного и повторите."
 LINK_UNAVAILABLE_MESSAGE = "Привязка Telegram временно недоступна. Попробуйте позже."
 

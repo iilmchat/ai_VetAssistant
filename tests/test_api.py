@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+import threading
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +23,18 @@ from app.database import (
     get_user_by_email,
     list_pending_access_requests,
 )
-from app.main import VET_SYSTEM_PROMPT, app, get_knowledge_base, get_model, limiter
+from app.main import (
+    _GENERATION_LOCK,
+    VET_SYSTEM_PROMPT,
+    _date_context,
+    _locked_chat_completion,
+    _locked_stream_chunks,
+    app,
+    get_knowledge_base,
+    get_model,
+    limiter,
+    strip_think_tags,
+)
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION
 from app.settings import DEFAULT_MODEL_ID, get_app_settings
 from app.tools import BOOK_APPOINTMENT_TOOL, SET_REMINDER_TOOL
@@ -146,6 +161,31 @@ def _final_response(text: str) -> dict[str, Any]:
         ],
         "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
     }
+
+
+def _stream_chunk(text: str) -> dict[str, Any]:
+    """Один SSE-чанк с текстом ассистента."""
+    return {
+        "id": "chatcmpl-fake",
+        "object": "chat.completion.chunk",
+        "created": 123,
+        "model": "fake",
+        "choices": [
+            {
+                "index": 0,
+                "delta": {"content": text},
+                "finish_reason": None,
+            }
+        ],
+    }
+
+
+def _assert_has_current_date(content: str) -> None:
+    """Проверить, что в промпте есть сегодня и завтра в формате YYYY-MM-DD."""
+    assert re.search(
+        r"Сегодня: \d{4}-\d{2}-\d{2}\. Завтра: \d{4}-\d{2}-\d{2}\.",
+        content,
+    )
 
 
 @pytest.fixture
@@ -592,7 +632,10 @@ def test_vet_system_prompt_is_added_when_missing(
     )
 
     call = fake_model.calls[0]
-    assert call["messages"][0] == {"role": "system", "content": VET_SYSTEM_PROMPT}
+    system = call["messages"][0]
+    assert system["role"] == "system"
+    assert system["content"].startswith(VET_SYSTEM_PROMPT)
+    _assert_has_current_date(system["content"])
     assert call["messages"][1] == {"role": "user", "content": "У собаки понос."}
     assert call["temperature"] == 0.2
     assert call["top_p"] == 0.95
@@ -611,7 +654,9 @@ def test_custom_system_prompt_is_preserved(client: TestClient, fake_model: FakeM
     )
 
     messages = fake_model.calls[0]["messages"]
-    assert messages[0] == {"role": "system", "content": "Отвечай очень кратко."}
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"].startswith("Отвечай очень кратко.")
+    _assert_has_current_date(messages[0]["content"])
     assert sum(1 for message in messages if message["role"] == "system") == 1
 
 
@@ -701,7 +746,8 @@ def test_rag_empty_results_keep_default_prompt(
 
     assert response.status_code == 200
     assert knowledge.queries
-    assert fake_model.calls[0]["messages"][0]["content"] == VET_SYSTEM_PROMPT
+    assert fake_model.calls[0]["messages"][0]["content"].startswith(VET_SYSTEM_PROMPT)
+    _assert_has_current_date(fake_model.calls[0]["messages"][0]["content"])
 
 
 def test_rag_search_error_does_not_break_api(
@@ -791,6 +837,122 @@ def test_streaming_returns_sse_chunks(client: TestClient) -> None:
     assert content == "Обратитесь к ветеринару."
 
 
+def test_date_context_is_deterministic() -> None:
+    assert _date_context(datetime(2026, 11, 6, 23, 59)) == (
+        "Сегодня: 2026-11-06. Завтра: 2026-11-07."
+    )
+
+
+def test_think_tags_are_stripped_from_non_stream_response(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    fake_model.response = _final_response(
+        "<think>Сначала проверю симптомы.</think>Обратитесь к ветеринару."
+    )
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Кот не ест."}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == (
+        "Обратитесь к ветеринару."
+    )
+
+
+def test_think_tags_are_stripped_from_stream_response(
+    client: TestClient, fake_model: FakeModel
+) -> None:
+    """H-4: тег может быть разрезан между чанками — фильтр обязан это пережить."""
+    fake_model.responses = [
+        iter(
+            [
+                _stream_chunk("<thi"),
+                _stream_chunk("nk>Скрытое рассуждение</thi"),
+                _stream_chunk("nk>Обратитесь к ветеринару."),
+                {
+                    "id": "chatcmpl-fake",
+                    "object": "chat.completion.chunk",
+                    "created": 123,
+                    "model": "fake",
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                },
+            ]
+        )
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Кот не ест."}],
+            "stream": True,
+        },
+    )
+
+    assert response.status_code == 200
+    lines = [
+        line.removeprefix("data: ")
+        for line in response.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    chunks = [json.loads(line) for line in lines[:-1]]
+    content = "".join(
+        chunk["choices"][0]["delta"].get("content", "")
+        for chunk in chunks
+        if chunk.get("choices")
+    )
+    assert content == "Обратитесь к ветеринару."
+    assert "<think>" not in response.text
+
+
+def test_strip_think_tags_drops_unclosed_reasoning() -> None:
+    assert strip_think_tags("Ответ.<think>обрыв генерации") == "Ответ."
+
+
+def test_generation_lock_serializes_model_calls() -> None:
+    """H-1: параллельные вызовы модели не должны пересекаться."""
+
+    class ProbeModel:
+        def __init__(self) -> None:
+            self.active = 0
+            self.max_active = 0
+            self._lock = threading.Lock()
+
+        def create_chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+            with self._lock:
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            try:
+                threading.Event().wait(0.02)
+                return {"choices": [{"message": {"content": "ok"}}]}
+            finally:
+                with self._lock:
+                    self.active -= 1
+
+    model = ProbeModel()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda _: _locked_chat_completion(model, messages=[]), range(4)))
+
+    assert model.max_active == 1
+
+
+def test_stream_lock_is_held_until_generator_is_exhausted() -> None:
+    """H-1: лок нельзя отпускать после создания ленивого stream-генератора."""
+    model = FakeModel()
+    generator = _locked_stream_chunks(model, messages=[], stream=True)
+
+    assert next(generator) is not None
+    try:
+        assert _GENERATION_LOCK.locked() is True
+        assert _GENERATION_LOCK.acquire(blocking=False) is False
+    finally:
+        list(generator)
+
+    assert _GENERATION_LOCK.acquire(blocking=False) is True
+    _GENERATION_LOCK.release()
+
+
 def test_prompt_injection_is_rejected_before_generation(
     client: TestClient, fake_model: FakeModel
 ) -> None:
@@ -857,7 +1019,9 @@ def test_emergency_instruction_extends_custom_system_prompt(
 
     assert response.status_code == 200
     system = fake_model.calls[0]["messages"][0]["content"]
-    assert system == f"Отвечай очень кратко.\n\n{EMERGENCY_SYSTEM_INSTRUCTION}"
+    assert system.startswith("Отвечай очень кратко.")
+    _assert_has_current_date(system)
+    assert system.endswith(EMERGENCY_SYSTEM_INSTRUCTION)
 
 
 def test_emergency_instruction_is_not_added_for_normal_message(
@@ -967,11 +1131,12 @@ def test_tool_sends_telegram_notification_for_linked_user(
     assert sent == [(424242, "🐾 Записали Мурзика на 2026-11-04 в 10:00")]
 
 
-def test_reminder_sends_telegram_notification_for_linked_user(
+def test_reminder_does_not_send_telegram_notification(
     client: TestClient,
     fake_model: FakeModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """H-5: напоминания не дублируются в Telegram, уведомляем только о записи."""
     sent = _capture_notifications(monkeypatch)
     _set_telegram_id(client, "owner@example.com", 424242)
     fake_model.responses = [
@@ -991,9 +1156,7 @@ def test_reminder_sends_telegram_notification_for_linked_user(
     )
 
     assert response.status_code == 200
-    assert sent == [
-        (424242, "⏰ Напоминание создано: Дать таблетку (20:00)"),
-    ]
+    assert sent == []
 
 
 def test_unlinked_user_gets_no_telegram_notification(

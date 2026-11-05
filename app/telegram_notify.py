@@ -25,7 +25,9 @@ BOT_CLIENT_HEADER = "X-Vet-Client"
 BOT_CLIENT_VALUE = "telegram-bot"
 
 #: Инструменты, после успешного выполнения которых шлём уведомление.
-NOTIFY_TOOLS = frozenset({"book_appointment", "set_reminder"})
+#: H-5: напоминания (set_reminder) намеренно не уведомляем — иначе бот
+#: заваливает пользователя дублями; оставляем только запись к врачу.
+NOTIFY_TOOLS = frozenset({"book_appointment"})
 
 
 def is_bot_request(headers: Mapping[str, str]) -> bool:

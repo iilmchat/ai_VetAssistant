@@ -11,11 +11,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
+import threading
 import time
 import uuid
-from collections.abc import AsyncIterator, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Generator, Iterable, Sequence
+from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Protocol, cast
 
@@ -27,7 +31,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
+from starlette.concurrency import run_in_threadpool
 
 from app.admin import router as admin_router
 from app.auth import (
@@ -88,6 +92,18 @@ DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 0.95
 DEFAULT_MAX_TOKENS = 1024
 MAX_AGENT_STEPS = 3
+
+#: llama-cpp-python не потокобезопасен: одновременно с одним Llama-контекстом
+#: может работать только один вызов. Все обращения к модели (включая стрим)
+#: сериализуются этим локом, иначе параллельные запросы приводят к segfault.
+_GENERATION_LOCK = threading.Lock()
+
+#: Сентинел завершения потока-продюсера SSE.
+_STREAM_DONE = object()
+
+#: Теги reasoning-блока Qwen3.
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
 
 #: Origins React-фронтенда: Vite dev server и Docker/Nginx.
 CORS_ALLOWED_ORIGINS: tuple[str, ...] = (
@@ -235,6 +251,76 @@ def get_model() -> ChatModel:
         raise HTTPException(status_code=503, detail="Модель недоступна") from exc
 
 
+def _locked_chat_completion(model: ChatModel, **kwargs: Any) -> Any:
+    """Вызвать ``create_chat_completion`` под глобальным локом.
+
+    llama-cpp-python 0.3.36 не потокобезопасен, поэтому даже один
+    параллельный вызов может уронить процесс. Лок общий для всех запросов.
+    """
+    with _GENERATION_LOCK:
+        return model.create_chat_completion(**kwargs)
+
+
+def _locked_stream_chunks(model: ChatModel, **kwargs: Any) -> Generator[Any, None, None]:
+    """Итератор стрима, удерживающий лок на всё время генерации.
+
+    ``create_chat_completion(stream=True)`` возвращает ленивый генератор:
+    генерация идёт при итерации, поэтому лок нельзя отпускать после
+    создания генератора — он должен жить до последнего чанка.
+    """
+    stream = cast(Iterable[Any], model.create_chat_completion(**kwargs))
+    with _GENERATION_LOCK:
+        yield from stream
+
+
+async def _iterate_locked_stream(model: ChatModel, **kwargs: Any) -> AsyncIterator[Any]:
+    """Отдавать чанки стрима в event loop, не блокируя его локом.
+
+    ``threading.Lock`` нельзя удерживать в корутине: это остановит весь
+    сервер. Поток-продюсер держит лок, генерирует чанки и складывает их в
+    ``asyncio.Queue``; event loop только читает очередь. Так один и тот же
+    лок защищает и стрим, и обычные вызовы модели.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[Any] = asyncio.Queue()
+    stop = threading.Event()
+
+    def deliver(item: Any) -> None:
+        with suppress(RuntimeError):
+            # Event loop уже закрыт (остановка приложения) — терять нечего.
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+
+    def produce() -> None:
+        stream = _locked_stream_chunks(model, **kwargs)
+        try:
+            for chunk in stream:
+                if stop.is_set():
+                    break
+                deliver(chunk)
+        except BaseException as exc:
+            # В том числе GeneratorExit/KeyboardInterrupt: потребитель должен
+            # получить ошибку, а не зависнуть в ожидании _STREAM_DONE.
+            deliver(exc)
+        finally:
+            try:
+                stream.close()
+            finally:
+                deliver(_STREAM_DONE)
+
+    threading.Thread(target=produce, name="llm-stream", daemon=True).start()
+    try:
+        while True:
+            item = await queue.get()
+            if item is _STREAM_DONE:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+    finally:
+        # Клиент отключился: просим продюсер остановиться после текущего чанка.
+        stop.set()
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Создать таблицы при старте и закрыть пул БД при остановке."""
@@ -267,7 +353,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.6.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.6.1", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -432,12 +518,35 @@ async def change_password(
     return ChangePasswordResponse(message="Пароль изменён")
 
 
-def build_messages(messages: Sequence[ChatMessage]) -> list[dict[str, str]]:
-    """Добавить ветеринарный system prompt, если клиент его не передал."""
+def _date_context(now: datetime | None = None) -> str:
+    """Строка с текущей и завтрашней датой для системного промпта (H-3).
+
+    Модель не знает реальную дату и иначе отвечает «завтра = 2023-10-10».
+    """
+    moment = now or datetime.now()
+    tomorrow = moment + timedelta(days=1)
+    return (
+        f"Сегодня: {moment.strftime('%Y-%m-%d')}. "
+        f"Завтра: {tomorrow.strftime('%Y-%m-%d')}."
+    )
+
+
+def build_messages(
+    messages: Sequence[ChatMessage],
+    *,
+    now: datetime | None = None,
+) -> list[dict[str, str]]:
+    """Добавить system prompt и актуальную дату перед отправкой в LLM."""
     payload = [message.model_dump() for message in messages]
-    if any(message.role == "system" for message in messages):
-        return payload
-    return [{"role": "system", "content": VET_SYSTEM_PROMPT}, *payload]
+    date_line = _date_context(now)
+    for message in payload:
+        if message["role"] == "system":
+            message["content"] = f"{message['content']}\n\n{date_line}"
+            return payload
+    return [
+        {"role": "system", "content": f"{VET_SYSTEM_PROMPT}\n\n{date_line}"},
+        *payload,
+    ]
 
 
 def _model_name(request: ChatCompletionRequest, settings: AppSettings) -> str:
@@ -481,7 +590,8 @@ async def _generate_once(
     started = time.perf_counter()
     try:
         result = await run_in_threadpool(
-            model.create_chat_completion,
+            _locked_chat_completion,
+            model,
             messages=messages,
             **_generation_kwargs(request),
         )
@@ -529,14 +639,16 @@ async def _generate_once(
     )
 
     allowed_tools = _tool_names(request)
-    content = str(message.get("content") or "")
+    raw_content = str(message.get("content") or "")
     tool_calls = normalize_native_tool_calls(
         message.get("tool_calls"),
         allowed_tools=allowed_tools,
     )
     if request.tools and not tool_calls:
-        tool_calls, content = parse_tool_calls(content, allowed_tools=allowed_tools)
+        tool_calls, raw_content = parse_tool_calls(raw_content, allowed_tools=allowed_tools)
 
+    # H-4: Qwen3 кладёт reasoning в <think>...</think> — в UI он не нужен.
+    content = strip_think_tags(raw_content)
     response_content: str | None = content
     if tool_calls and not content:
         response_content = None
@@ -677,6 +789,144 @@ async def _complete(
     return response
 
 
+def _partial_tag_suffix(text: str, tag: str) -> int:
+    """Длина суффикса ``text``, который может быть началом ``tag``.
+
+    Нужна, чтобы не потерять и не показать пользователю половину тега,
+    когда ``<think>`` или ``</think>`` разрезан между SSE-чанками.
+    """
+    folded = text.casefold()
+    for size in range(min(len(folded), len(tag) - 1), 0, -1):
+        if folded.endswith(tag[:size]):
+            return size
+    return 0
+
+
+class ThinkTagFilter:
+    """Потоковый фильтр reasoning-блоков Qwen3 ``<think>...</think>``.
+
+    Обычный ``re.sub`` не работает на SSE: тег может быть разрезан между
+    чанками. Фильтр хранит хвост, который ещё может оказаться началом тега,
+    и не отдаёт содержимое think-блока наружу.
+    """
+
+    def __init__(self) -> None:
+        self._pending = ""
+        self._in_think = False
+
+    def feed(self, text: str) -> str:
+        """Скормить очередной кусок текста и вернуть безопасный вывод."""
+        data = self._pending + text
+        self._pending = ""
+        parts: list[str] = []
+
+        while data:
+            if self._in_think:
+                index = data.casefold().find(_THINK_CLOSE)
+                if index < 0:
+                    keep = _partial_tag_suffix(data, _THINK_CLOSE)
+                    self._pending = data[-keep:] if keep else ""
+                    return "".join(parts)
+                data = data[index + len(_THINK_CLOSE) :]
+                self._in_think = False
+                continue
+
+            index = data.casefold().find(_THINK_OPEN)
+            if index < 0:
+                keep = _partial_tag_suffix(data, _THINK_OPEN)
+                if keep:
+                    parts.append(data[:-keep])
+                    self._pending = data[-keep:]
+                else:
+                    parts.append(data)
+                return "".join(parts)
+
+            parts.append(data[:index])
+            data = data[index + len(_THINK_OPEN) :]
+            self._in_think = True
+
+        return "".join(parts)
+
+    def flush(self) -> str:
+        """Отдать накопленный хвост в конце потока."""
+        pending, self._pending = self._pending, ""
+        if self._in_think:
+            # Незакрытый think-блок в конце ответа — это reasoning, не ответ.
+            return ""
+        return pending
+
+
+def strip_think_tags(text: str) -> str:
+    """Убрать ``<think>...</think>`` (и незакрытый хвост) из ответа модели."""
+    think_filter = ThinkTagFilter()
+    cleaned = think_filter.feed(text) + think_filter.flush()
+    # Страховка от разрезанных/битых тегов, которые не попали в фильтр.
+    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def _clean_stream_chunk(
+    chunk: Any,
+    filters: dict[int, ThinkTagFilter],
+) -> Any:
+    """Применить ``ThinkTagFilter`` к ``delta.content`` SSE-чанка."""
+    if not isinstance(chunk, dict):
+        return chunk
+    choices = chunk.get("choices")
+    if not isinstance(choices, list):
+        return chunk
+
+    cleaned_choices: list[Any] = []
+    for choice in choices:
+        if not isinstance(choice, dict):
+            cleaned_choices.append(choice)
+            continue
+        delta = choice.get("delta")
+        content = delta.get("content") if isinstance(delta, dict) else None
+        if not isinstance(delta, dict) or not isinstance(content, str):
+            cleaned_choices.append(choice)
+            continue
+
+        raw_index = choice.get("index", 0)
+        index = raw_index if isinstance(raw_index, int) else 0
+        think_filter = filters.setdefault(index, ThinkTagFilter())
+        cleaned_choices.append(
+            {**choice, "delta": {**delta, "content": think_filter.feed(content)}}
+        )
+
+    return {**chunk, "choices": cleaned_choices}
+
+
+def _flush_think_filters(
+    filters: dict[int, ThinkTagFilter],
+    last_payload: dict[str, Any] | None,
+    model_name: str,
+) -> list[dict[str, Any]]:
+    """Сформировать финальные чанки с хвостами, задержанными фильтром."""
+    flushed: list[dict[str, Any]] = []
+    for index, think_filter in filters.items():
+        tail = think_filter.flush()
+        if not tail:
+            continue
+        base = last_payload or {}
+        flushed.append(
+            {
+                "id": base.get("id", f"chatcmpl-{uuid.uuid4().hex}"),
+                "object": "chat.completion.chunk",
+                "created": base.get("created", int(time.time())),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": index,
+                        "delta": {"content": tail},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+        )
+    return flushed
+
+
 def _sse_chunk(payload: dict[str, Any]) -> str:
     """Сериализовать один SSE-чанк."""
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -713,7 +963,7 @@ async def _stream_with_tools(
         message = response.choices[0].message
         delta: dict[str, Any] = {
             "role": "assistant",
-            "content": message.content or "",
+            "content": strip_think_tags(message.content or ""),
         }
         if message.tool_calls:
             delta["tool_calls"] = [
@@ -775,15 +1025,16 @@ async def _stream(
     ttft_s: float | None = None
     prompt_tokens = 0
     completion_tokens = 0
+    think_filters: dict[int, ThinkTagFilter] = {}
+    last_payload: dict[str, Any] | None = None
 
     try:
-        stream = await run_in_threadpool(
-            model.create_chat_completion,
+        async for chunk in _iterate_locked_stream(
+            model,
             messages=messages,
             stream=True,
             **_generation_kwargs(request),
-        )
-        async for chunk in iterate_in_threadpool(stream):
+        ):
             if ttft_s is None:
                 ttft_s = time.perf_counter() - started
             if isinstance(chunk, dict):
@@ -793,10 +1044,15 @@ async def _stream(
                 if usage_payload:
                     prompt_tokens = int(usage_payload.get("prompt_tokens", 0))
                     completion_tokens = int(usage_payload.get("completion_tokens", 0))
-                payload = {**chunk, "model": model_name}
+                payload = {**_clean_stream_chunk(chunk, think_filters), "model": model_name}
+                last_payload = payload
             else:
                 payload = chunk
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        # H-4: хвост, задержанный фильтром (например, «<thi»), отдаём в конце.
+        for payload in _flush_think_filters(think_filters, last_payload, model_name):
+            yield _sse_chunk(payload)
     except Exception as exc:
         record_generation(
             "stream",

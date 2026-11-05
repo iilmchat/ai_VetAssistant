@@ -11,6 +11,7 @@ from app.settings import get_app_settings
 from app.telegram_notify import (
     BOT_CLIENT_HEADER,
     BOT_CLIENT_VALUE,
+    NOTIFY_TOOLS,
     is_bot_request,
     notification_for_tool,
     send_telegram_message,
@@ -135,6 +136,11 @@ def test_bot_request_header_is_detected() -> None:
     assert is_bot_request(headers) is True
     assert is_bot_request(httpx.Headers()) is False
     assert is_bot_request({"x-vet-client": "web"}) is False
+
+
+def test_notifications_are_sent_only_for_appointments() -> None:
+    """H-5: напоминания не спамят в Telegram — только запись к врачу."""
+    assert frozenset({"book_appointment"}) == NOTIFY_TOOLS
 
 
 def test_notification_text_has_context_icon() -> None:

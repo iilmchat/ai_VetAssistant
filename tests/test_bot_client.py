@@ -13,6 +13,7 @@ from bot.client import (
     API_TIMEOUT_MESSAGE,
     AUTH_EXPIRED_MESSAGE,
     LINK_CODE_EXPIRED_MESSAGE,
+    LINK_FORBIDDEN_MESSAGE,
     LINK_TELEGRAM_BUSY_MESSAGE,
     MODEL_UNAVAILABLE_MESSAGE,
     LinkStatus,
@@ -449,3 +450,23 @@ async def test_link_conflict_is_mapped_to_busy_message() -> None:
 
     assert error.value.status == 409
     assert error.value.user_message == LINK_TELEGRAM_BUSY_MESSAGE
+
+
+async def test_link_forbidden_is_mapped_to_already_linked_message() -> None:
+    """H-2: повторный /link после привязки API отвечает 403 — объясняем /unlink."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403,
+            json={"detail": "Токен не принадлежит боту этого Telegram-аккаунта"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = VetApiClient("http://api:8000", model_id="model", client=http_client)
+        with pytest.raises(VetApiError) as error:
+            await client.confirm_link("ABCD2345", 42, token="jwt-owner")
+
+    assert error.value.status == 403
+    assert error.value.user_message == LINK_FORBIDDEN_MESSAGE
+    assert "/unlink" in error.value.user_message
