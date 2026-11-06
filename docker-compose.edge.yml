@@ -95,6 +95,10 @@ services:
       VET_API_CHROMA_COLLECTION: ${VET_API_CHROMA_COLLECTION:-msd_vet_manual}
       VET_API_EMBEDDING_MODEL: ${VET_API_EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
       VET_API_RAG_TOP_K: ${VET_API_RAG_TOP_K:-3}
+      # T-141: hybrid = BM25 + векторы через RRF; vector — только эмбеддинги.
+      VET_API_RAG_MODE: ${VET_API_RAG_MODE:-hybrid}
+      VET_API_RAG_CANDIDATES: ${VET_API_RAG_CANDIDATES:-10}
+      VET_API_RAG_BM25_WEIGHT: ${VET_API_RAG_BM25_WEIGHT:-1}
       VET_API_KNOWLEDGE_DIR: ${VET_API_KNOWLEDGE_DIR:-/app/data/knowledge}
       # Индекс строится entrypoint-скриптом до старта uvicorn, чтобы модель
       # эмбеддингов не конкурировала за RAM с 8B-моделью.

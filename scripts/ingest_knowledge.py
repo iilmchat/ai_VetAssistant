@@ -43,6 +43,9 @@ DEFAULT_CHUNK_SIZE = 500
 DEFAULT_OVERLAP = 50
 SUPPORTED_SUFFIXES = frozenset({".txt", ".pdf"})
 
+#: Максимальная длина заголовка документа в метаданных (T-141).
+TITLE_LIMIT = 200
+
 
 @dataclass(frozen=True)
 class KnowledgeChunk:
@@ -51,6 +54,33 @@ class KnowledgeChunk:
     id: str
     text: str
     source: str
+    title: str = ""
+
+
+def document_title(text: str, *, fallback: str = "") -> str:
+    """Заголовок документа для метаданных и BM25 (T-141).
+
+    У статей MSD Vet Manual заголовок лежит в строке ``Title: ...`` после
+    ``Source:``; у остальных файлов берётся первая содержательная строка.
+    Служебные строки ``Source:``/``Downloaded:`` пропускаются. Длина
+    ограничена :data:`TITLE_LIMIT` символами.
+    """
+    first_line = ""
+    for line in text.splitlines()[:10]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower()
+        if lowered.startswith("title:"):
+            value = stripped.split(":", 1)[1].strip()
+            if value:
+                return value[:TITLE_LIMIT]
+            continue
+        if lowered.startswith(("source:", "downloaded:")):
+            continue
+        if not first_line:
+            first_line = stripped[:TITLE_LIMIT]
+    return first_line or fallback[:TITLE_LIMIT]
 
 
 def chunk_text(
@@ -169,6 +199,7 @@ def build_chunks(
     chunks: list[KnowledgeChunk] = []
     for source, text in documents:
         source_stem = Path(source).with_suffix("").as_posix().replace("/", "-")
+        title = document_title(text, fallback=Path(source).stem)
         for index, chunk in enumerate(
             chunk_text(text, chunk_size=chunk_size, overlap=overlap),
             start=1,
@@ -178,6 +209,7 @@ def build_chunks(
                     id=f"{source_stem}-{index:04d}",
                     text=chunk,
                     source=source,
+                    title=title,
                 )
             )
     return chunks
@@ -267,7 +299,7 @@ def ingest_chunks(
         collection.upsert(
             ids=[chunk.id for chunk in batch],
             documents=[chunk.text for chunk in batch],
-            metadatas=[{"source": chunk.source} for chunk in batch],
+            metadatas=[{"source": chunk.source, "title": chunk.title} for chunk in batch],
             embeddings=[vector.tolist() for vector in embeddings],
         )
         logger.info("Записано чанков: {}/{}", min(start + len(batch), len(chunks)), len(chunks))

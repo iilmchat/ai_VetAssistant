@@ -524,8 +524,22 @@ COMPOSE_FILE=docker-compose.prod.yml ./scripts/restart_prod.sh   # другой 
 2. проверяет формат версии (`^[0-9A-Za-z._-]+$`) и наличие `.env` и
    compose-файла;
 3. идемпотентно обновляет `VETASSISTANT_VERSION` в `.env` и экспортирует её;
-4. поднимает стек **без сборки**: `docker compose up -d --no-build`;
+4. поднимает стек **без сборки**:
+   `docker compose up -d --no-build --remove-orphans`;
 5. печатает таблицу `service / image / status`, чтобы сразу видеть теги.
+
+`--remove-orphans` (T-145) удаляет контейнеры того же compose-проекта,
+которых нет в актуальном compose-файле. Это лечит конфликт имён после
+неудачного деплоя, когда остаётся контейнер вида
+`60577ee94155_vetassistant-api`, держащий имя `vetassistant-api`. Caddy,
+Prometheus и Grafana живут в других проектах и не затрагиваются; сборка
+образов и фиксация `VETASSISTANT_VERSION` остаются как были.
+
+Проверка после деплоя — не должно быть контейнеров с hash-префиксом:
+
+```bash
+docker ps -a --filter name=vetassistant --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+```
 
 Сборка образов остаётся за `deploy.yml` и тегом — скрипт ничего не пересобирает,
 поэтому не может подменить версию «на лету».
@@ -669,8 +683,42 @@ docker compose -f docker-compose.edge.yml run --rm --no-deps \
 docker compose -f docker-compose.edge.yml up -d api
 ```
 
-Существующий индекс при этом не теряется: 77 чанков из текущих статей
-останутся, если не передан `--rebuild`.
+Существующий индекс при этом не теряется: чанки из текущих статей (сейчас
+766) останутся, если не передан `--rebuild`.
+
+### Гибридный поиск и пересборка индекса (T-141)
+
+С T-141 API по умолчанию использует гибридный поиск: BM25 + векторы через
+RRF. BM25 строится в памяти при старте API по тем же чанкам ChromaDB,
+поэтому:
+
+- после `ingest_knowledge.py` API нужно **перезапустить**, иначе BM25 будет
+  работать по старому набору чанков;
+- metadata `title` (нужна для повышенного веса заголовка) появляется у
+  существующих чанков после повторного ingest через `upsert`; `--rebuild`
+  для этого не обязателен;
+- режим и параметры задаются в `.env`:
+
+```bash
+VET_API_RAG_MODE=hybrid        # vector — откат на поведение до T-141
+VET_API_RAG_CANDIDATES=10      # кандидатов от каждого канала до RRF
+VET_API_RAG_BM25_WEIGHT=1.0    # вес BM25; если hybrid просел — 0.5 или 0.3
+```
+
+Замер до/после на реальном индексе (сравнивает поиск, генерация не нужна).
+Запускайте отдельным контейнером, а не `exec` рядом с загруженной 8B-моделью —
+иначе embedding-модель может уронить api по OOM:
+
+```bash
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  --entrypoint python api scripts/evaluate_hybrid_rag.py --mode both \
+  --output /app/data/rag_hybrid_eval_results.json
+```
+
+Отчёт печатается в stdout и сохраняется в JSON; hit rate считается по
+попаданию ожидаемой статьи в `top_k`. Если hybrid ухудшил hit rate —
+снизьте `VET_API_RAG_BM25_WEIGHT` или выключите лексический канал
+(`VET_API_RAG_MODE=vector`) и перезапустите api.
 
 Проверить, что индекс собран:
 

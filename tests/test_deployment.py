@@ -188,7 +188,7 @@ def test_deploy_workflow_runs_on_self_hosted_runner() -> None:
     assert "cd /srv/vetassistant" in script
     assert "git pull --ff-only" in script
     assert "docker compose -f docker-compose.edge.yml build api frontend" in script
-    assert "docker compose -f docker-compose.edge.yml up -d --no-build" in script
+    assert "docker compose -f docker-compose.edge.yml up -d --no-build --remove-orphans" in script
     assert "appleboy" not in json.dumps(workflow)
 
 
@@ -242,7 +242,7 @@ def test_restart_prod_script_uses_git_tag_and_skips_build() -> None:
     assert "git describe --tags --exact-match" in script
     assert "git describe --tags --abbrev=0" in script
     assert "VETASSISTANT_VERSION" in script
-    assert "docker compose -f \"${COMPOSE_FILE}\" up -d --no-build" in script
+    assert "docker compose -f \"${COMPOSE_FILE}\" up -d --no-build --remove-orphans" in script
     assert "docker-compose.edge.yml" in script
     assert "docker-compose.prod.yml" in script
     # Скрипт не должен сам собирать образы: это работа deploy.yml.
@@ -280,6 +280,19 @@ def test_prometheus_defaults_use_container_dns_name() -> None:
 
     assert 'default="http://vetassistant-prometheus:9090"' in settings
     assert "VET_API_PROMETHEUS_URL=http://vetassistant-prometheus:9090" in env_example
+
+
+def test_compose_passes_hybrid_rag_settings() -> None:
+    """T-141: режим поиска и параметры BM25 доходят до контейнера api."""
+    expected = {
+        "VET_API_RAG_MODE": "${VET_API_RAG_MODE:-hybrid}",
+        "VET_API_RAG_CANDIDATES": "${VET_API_RAG_CANDIDATES:-10}",
+        "VET_API_RAG_BM25_WEIGHT": "${VET_API_RAG_BM25_WEIGHT:-1}",
+    }
+    for name in ("docker-compose.yml", "docker-compose.prod.yml", "docker-compose.edge.yml"):
+        environment = _yaml(name)["services"]["api"]["environment"]
+        for key, value in expected.items():
+            assert environment[key] == value, (name, key)
 
 
 def test_compose_passes_gpu_backend_settings() -> None:
@@ -342,11 +355,24 @@ def test_docker_images_built_only_by_deploy_workflow() -> None:
     script = deploy_step["run"]
 
     assert "docker compose -f docker-compose.edge.yml build api frontend" in script
-    assert "docker compose -f docker-compose.edge.yml up -d --no-build" in script
+    assert "docker compose -f docker-compose.edge.yml up -d --no-build --remove-orphans" in script
 
     release = json.dumps(_yaml(".github/workflows/release.yml"))
     assert "docker build" not in release
     assert "docker compose" not in release
+
+
+def test_remove_orphans_is_used_by_deploy_and_restart() -> None:
+    """T-145: осиротевший контейнер не должен держать имя при пересоздании."""
+    deploy = _yaml(".github/workflows/deploy.yml")
+    deploy_script = deploy["jobs"]["deploy"]["steps"][2]["run"]
+    restart = _read("scripts/restart_prod.sh")
+
+    assert "up -d --no-build --remove-orphans" in deploy_script
+    assert deploy_script.index("--no-build") < deploy_script.index("--remove-orphans")
+    assert "up -d --no-build --remove-orphans" in restart
+    # Флаг не заменяет фиксацию версии: она по-прежнему обязательна.
+    assert "VETASSISTANT_VERSION" in restart
 
 
 def test_ci_skips_pull_requests_from_forks() -> None:

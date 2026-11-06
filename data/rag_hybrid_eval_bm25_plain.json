@@ -1,0 +1,241 @@
+{
+  "generated_at": "2026-11-06T00:22:17.735542+00:00",
+  "questions": 17,
+  "top_k": 3,
+  "elapsed_s": 0.117,
+  "summaries": {
+    "bm25": {
+      "questions": 17,
+      "hits": 0,
+      "hit_rate": 0.0,
+      "mrr": 0.0,
+      "avg_ms": 0.5600647042121958,
+      "p95_ms": 1.2039999710395932
+    }
+  },
+  "results": {
+    "bm25": [
+      {
+        "question_id": "xylitol-1",
+        "topic": "Ксилит",
+        "question": "Какие симптомы у собаки после отравления ксилитом и почему он опасен?",
+        "expected_source": "msd_xylitol_toxicosis_dogs.txt",
+        "retrieved_sources": [
+          "paracetamol_cats.txt",
+          "seizures_emergency.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 1.2039999710395932
+      },
+      {
+        "question_id": "xylitol-2",
+        "topic": "Ксилит",
+        "question": "Что делать, если собака съела жвачку с ксилитом?",
+        "expected_source": "msd_xylitol_toxicosis_dogs.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.5028999876230955
+      },
+      {
+        "question_id": "parvo-1",
+        "topic": "Парвовирус",
+        "question": "Какие симптомы парвовирусного энтерита у щенков?",
+        "expected_source": "msd_canine_parvovirus.txt",
+        "retrieved_sources": [
+          "diarrhea_dogs.txt",
+          "seizures_emergency.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.42529997881501913
+      },
+      {
+        "question_id": "parvo-2",
+        "topic": "Парвовирус",
+        "question": "Как лечат парвовирус у собак?",
+        "expected_source": "msd_canine_parvovirus.txt",
+        "retrieved_sources": [
+          "diarrhea_dogs.txt",
+          "seizures_emergency.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.45789999421685934
+      },
+      {
+        "question_id": "epilepsy-1",
+        "topic": "Эпилепсия",
+        "question": "Что делать при эпилептическом приступе у собаки?",
+        "expected_source": "msd_epilepsy_seizures_small_animals.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.6561000482179224
+      },
+      {
+        "question_id": "epilepsy-2",
+        "topic": "Эпилепсия",
+        "question": "Что такое эпилептический статус и чем он опасен?",
+        "expected_source": "msd_epilepsy_seizures_small_animals.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "paracetamol_cats.txt",
+          "paracetamol_cats.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.42050000047311187
+      },
+      {
+        "question_id": "grapes-1",
+        "topic": "Виноград",
+        "question": "Опасен ли виноград для собак и почему?",
+        "expected_source": "msd_grape_raisin_tamarind_toxicosis_dogs.txt",
+        "retrieved_sources": [
+          "paracetamol_cats.txt",
+          "seizures_emergency.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.5415999912656844
+      },
+      {
+        "question_id": "grapes-2",
+        "topic": "Виноград",
+        "question": "Сколько винограда или изюма опасно для собаки?",
+        "expected_source": "msd_grape_raisin_tamarind_toxicosis_dogs.txt",
+        "retrieved_sources": [
+          "paracetamol_cats.txt",
+          "paracetamol_cats.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.4146999563090503
+      },
+      {
+        "question_id": "antifreeze-1",
+        "topic": "Антифриз",
+        "question": "Какие признаки отравления антифризом у кошки?",
+        "expected_source": "msd_ethylene_glycol_toxicosis_animals.txt",
+        "retrieved_sources": [
+          "paracetamol_cats.txt",
+          "diarrhea_dogs.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.5855000345036387
+      },
+      {
+        "question_id": "antifreeze-2",
+        "topic": "Антифриз",
+        "question": "Чем лечат отравление этиленгликолем у животных?",
+        "expected_source": "msd_ethylene_glycol_toxicosis_animals.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.3315999638289213
+      },
+      {
+        "question_id": "pancreatitis-1",
+        "topic": "Панкреатит",
+        "question": "Какие симптомы панкреатита у собак и кошек?",
+        "expected_source": "msd_pancreatitis_dogs_cats.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.6429000059142709
+      },
+      {
+        "question_id": "pancreatitis-2",
+        "topic": "Панкреатит",
+        "question": "Какая диета и кормление показаны при панкреатите у собак?",
+        "expected_source": "msd_pancreatitis_dogs_cats.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.5310000269673765
+      },
+      {
+        "question_id": "drug-fomepizole",
+        "topic": "Антифриз",
+        "question": "Чем лечат отравление антифризом у кошек — фомепизол или этанол?",
+        "expected_source": "msd_ethylene_glycol_toxicosis_animals.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt",
+          "paracetamol_cats.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.520800007507205
+      },
+      {
+        "question_id": "drug-acetylcysteine",
+        "topic": "Парацетамол",
+        "question": "Какой антидот применяют при отравлении парацетамолом у кошек?",
+        "expected_source": "msd_toxicoses_from_human_analgesics.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.4805999924428761
+      },
+      {
+        "question_id": "drug-ivermectin",
+        "topic": "Дирофиляриоз",
+        "question": "Какие препараты, включая ивермектин, применяют для профилактики дирофиляриоза у собак?",
+        "expected_source": "msd_heartworm_dogs_cats_ferrets.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.5890000029467046
+      },
+      {
+        "question_id": "drug-phenobarbital",
+        "topic": "Эпилепсия",
+        "question": "Какие дозы фенобарбитала используют при эпилепсии у собак?",
+        "expected_source": "msd_epilepsy_seizures_small_animals.txt",
+        "retrieved_sources": [
+          "diarrhea_dogs.txt",
+          "seizures_emergency.txt",
+          "seizures_emergency.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.5672000115737319
+      },
+      {
+        "question_id": "drug-levetiracetam",
+        "topic": "Эпилепсия",
+        "question": "Какая доза леветирацетама при эпилепсии у собак и кошек?",
+        "expected_source": "msd_epilepsy_seizures_small_animals.txt",
+        "retrieved_sources": [
+          "seizures_emergency.txt",
+          "seizures_emergency.txt",
+          "diarrhea_dogs.txt"
+        ],
+        "hit_rank": null,
+        "duration_ms": 0.6494999979622662
+      }
+    ]
+  }
+}

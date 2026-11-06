@@ -82,6 +82,61 @@ hit из ChromaDB.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
 
+## 🚀 v1.6.1 — GPU-бэкенд, стабильность и 20× ускорение
+
+**Релиз:** 2026-11-06. Hotfix T-143 (пять дефектов после аудита) и
+GPU-диспетчер T-144; приёмочная тест-матрица пройдена на production
+edge-стеке.
+
+### GPU-бэкенд с fallback на CPU (T-144)
+
+- `app/backends.py`: протокол `InferenceBackend`, `GpuHttpBackend` (LM Studio
+  по OpenAI-протоколу через обратный SSH-туннель) и `CpuLlamaBackend`
+  (llama.cpp с общим локом).
+- `BackendRouter` (`app/router.py`): probe раз в 15 с, circuit breaker
+  (3 ошибки → cooldown 180 с), автоматический перевод запросов на CPU.
+  Стрим падает на CPU только до первого чанка, чтобы не дублировать текст.
+- `/health` показывает `backend: gpu|cpu`, метрики —
+  `vet_llm_backend_requests_total{backend,status}` и
+  `vet_llm_backend_ttft_seconds`.
+- Настройки: `VET_API_GPU_BACKEND_ENABLED`, `VET_API_GPU_BACKEND_BASE`,
+  `VET_API_GPU_BACKEND_API_KEY`, `VET_API_GPU_BACKEND_MODEL` и таймауты
+  probe/TTFT — в `.env.example` и `.env.production.example`.
+
+### Стабильность (T-143)
+
+- **H-1:** все вызовы `llama-cpp-python`, включая стриминг, обёрнуты в общий
+  `threading.Lock`; генерация идёт в отдельном потоке, поэтому параллельные
+  запросы не ломают llama.cpp и не блокируют event loop.
+- **H-4:** reasoning-блоки `<think>…</think>` вырезаются из обычных ответов,
+  ответов агента и SSE-потока (фильтр переживает тег, разрезанный между
+  чанками).
+- **H-3:** в системный промпт добавлена актуальная дата
+  (`Сегодня: … Завтра: …`).
+- **H-2:** повторный `/link` показывает понятное «аккаунт уже привязан».
+- **H-5:** уведомления API → Telegram уходят только после
+  `book_appointment`, `set_reminder` больше не спамит.
+
+### Приёмочная матрица v1.6.1
+
+| Проверка | Результат |
+|---|---|
+| H-1, стресс-тест параллельных запросов | пройден: нет `exit 139`, `RestartCount=0` |
+| GPU → CPU → GPU fallback | переключение в обе стороны без рестарта API |
+| E2E Function Calling на GPU | **3.4 с** вместо **75 с** на CPU (≈**20×**) |
+| Дата в ответе | `2026-11-07` — верная (на момент прогона) |
+| `<think>` в ответах | не просачивается ни в текст, ни в стрим |
+| Telegram-уведомления | пришли только для `book_appointment` |
+
+### Деплой: осиротевшие контейнеры (T-145)
+
+На сервере после прошлых релизов остался контейнер
+`60577ee94155_vetassistant-api`, который держал имя и мешал пересозданию.
+Теперь и `deploy.yml`, и `scripts/restart_prod.sh` поднимают стек с
+`--remove-orphans`: контейнеры того же compose-проекта, которых нет в
+актуальном compose-файле, удаляются. Caddy, Prometheus и Grafana живут в
+других проектах и не затрагиваются.
+
 ## 🚀 v1.1.0 — Security and Memory Optimizations
 
 **Релиз:** смена пароля, экономия RAM и базовая защита сервера.
@@ -593,10 +648,10 @@ python scripts/migrate_telegram_link.py --merge-user owner@example.com 111111111
    python scripts/download_msd.py
    ```
 
-   Статьи сохраняются в `data/knowledge/real/`. В репозитории уже лежат семь
-   статей MSD Vet Manual: отравление человеческими анальгетиками (включая
-   парацетамол), острый геморрагический диарейный синдром, токсичность
-   шоколада, блохи, клещи у кошек и собак, вакцинация.
+   Статьи сохраняются в `data/knowledge/real/`. В репозитории уже лежат
+   **17 статей** MSD Vet Manual: отравления (парацетамол, ксилит, виноград,
+   антифриз, шоколад), парвовирус, чумка, эпилепсия, панкреатит, дирофиляриоз,
+   лейкоз кошек, блохи, клещи, вакцинация и CPR.
 3. Постройте индекс:
 
 ```powershell
@@ -621,6 +676,44 @@ python scripts/ingest_knowledge.py --dry-run
 
 Если база не создана, пуста или RAG-зависимости не установлены, API
 продолжает работать как раньше — без справочного контекста.
+
+### Гибридный поиск: BM25 + векторы (T-141)
+
+С v1.7.0 поиск по базе знаний по умолчанию гибридный: векторный top-10 и
+BM25 top-10 сливаются через Reciprocal Rank Fusion (`k=60`) и из них
+выбираются `top_k=3` чанка. BM25 вытаскивает точные названия препаратов,
+дозировки и редкие термины, которые эмбеддинги «размывают».
+
+Важная деталь: статьи MSD Vet Manual **англоязычные**, а вопросы русские,
+поэтому лексический канал использует русско-английский глоссарий
+(`app/rag_hybrid.py`, `RU_EN_TERMS`): «ксилитом» → `xylitol`,
+«фенобарбитала» → `phenobarbital`. Без глоссария BM25 находит 0 из 17
+контрольных статей; с ним — 17 из 17 (подробнее в
+[RAG_EVAL.md](docs/development/reports/RAG_EVAL.md) §8).
+
+```bash
+# режим и параметры (дефолты подходят для прода)
+VET_API_RAG_MODE=hybrid          # vector — только эмбеддинги, как до T-141
+VET_API_RAG_CANDIDATES=10        # кандидатов от каждого канала до RRF
+VET_API_RAG_BM25_WEIGHT=1.0      # вес BM25; если hybrid просел — 0.5/0.3
+```
+
+Проверить индекс и сравнить режимы без генерации ответов:
+
+```bash
+# офлайн, только BM25 по локальному корпусу (без ChromaDB)
+python scripts/evaluate_hybrid_rag.py --mode bm25
+
+# на сервере, отдельным контейнером (не рядом с загруженной 8B-моделью)
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  --entrypoint python api scripts/evaluate_hybrid_rag.py --mode both \
+  --output /app/data/rag_hybrid_eval_results.json
+```
+
+BM25 строится при старте API по чанкам ChromaDB. После
+`scripts/ingest_knowledge.py` перезапустите API — иначе индекс будет старым;
+новые чанки получают `title` в metadata только после повторного ingest
+(`--rebuild` не обязателен, `upsert` обновляет метаданные существующих).
 
 ## 🛡️ Router & Triage: экстренные случаи и prompt injection
 

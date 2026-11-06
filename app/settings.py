@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,6 +72,24 @@ class AppSettings(BaseSettings):
         description="Модель эмбеддингов sentence-transformers",
     )
     rag_top_k: int = Field(default=3, ge=1, le=10, description="Сколько чанков извлекать")
+    rag_mode: Literal["vector", "hybrid"] = Field(
+        default="hybrid",
+        description=(
+            "T-141: vector — только эмбеддинги, hybrid — BM25 + векторы через RRF"
+        ),
+    )
+    rag_candidates: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="T-141: сколько кандидатов берёт каждый канал до слияния RRF",
+    )
+    rag_bm25_weight: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=10.0,
+        description="T-141: вес BM25-ранжирования в RRF (вектор всегда 1.0)",
+    )
     database_url: str = Field(
         default=DEFAULT_DATABASE_URL,
         min_length=1,

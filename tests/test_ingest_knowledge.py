@@ -13,6 +13,7 @@ from scripts.ingest_knowledge import (
     _existing_ids_count,
     build_chunks,
     chunk_text,
+    document_title,
     ingest_chunks,
     load_documents,
     main,
@@ -197,6 +198,51 @@ def test_build_chunks_includes_relative_path_in_id() -> None:
 
     assert chunks[0].id == "real-article-0001"
     assert chunks[0].source == "real/article.txt"
+
+
+def test_document_title_prefers_title_line() -> None:
+    """T-141: заголовок из MSD-файла уходит в metadata и BM25."""
+    text = (
+        "Source: https://www.msdvetmanual.com/toxicology\n"
+        "Title: Ethylene Glycol Toxicosis in Animals\n"
+        "Downloaded: 2026-11-04\n\n"
+        "All animals are susceptible..."
+    )
+
+    assert document_title(text) == "Ethylene Glycol Toxicosis in Animals"
+
+
+def test_document_title_falls_back_to_first_content_line() -> None:
+    assert (
+        document_title("\n\nПарацетамол опасен для кошек.\nЕщё текст")
+        == "Парацетамол опасен для кошек."
+    )
+    assert document_title("\n\n", fallback="article") == "article"
+
+
+def test_build_chunks_keeps_document_title() -> None:
+    chunks = build_chunks([("real/article.txt", "Title: Test\nBody text")])
+
+    assert chunks[0].title == "Test"
+
+
+def test_ingest_chunks_writes_title_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    upserts, _deleted, _collection = _install_fake_rag(monkeypatch)
+    chunks = build_chunks([("real/article.txt", "Title: Xylitol\nXylitol text")])
+
+    ingest_chunks(
+        chunks,
+        chroma_dir=tmp_path,
+        collection_name="msd_vet_manual",
+        model_name="fake-model",
+    )
+
+    assert upserts[0]["metadatas"] == [
+        {"source": "real/article.txt", "title": "Xylitol"}
+    ]
 
 
 def test_dry_run_reads_documents_without_chroma(tmp_path: Path) -> None:

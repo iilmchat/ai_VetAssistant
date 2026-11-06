@@ -63,7 +63,9 @@ fi
 export VETASSISTANT_VERSION="${version}"
 
 echo "[restart_prod] $(date -Is) версия ${version}, compose ${COMPOSE_FILE}"
-docker compose -f "${COMPOSE_FILE}" up -d --no-build
+# T-145: --remove-orphans удаляет контейнеры прошлых релизов, которые держат
+# имя (например, 60577ee94155_vetassistant-api) и мешают пересозданию.
+docker compose -f "${COMPOSE_FILE}" up -d --no-build --remove-orphans
 
 echo "[restart_prod] Контейнеры:"
 docker compose -f "${COMPOSE_FILE}" ps --format 'table {{.Service}}\t{{.Image}}\t{{.Status}}'

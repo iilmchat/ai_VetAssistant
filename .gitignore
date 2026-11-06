@@ -53,6 +53,7 @@ data/chroma_db/
 
 # --- Кэши инструментов ---
 .pytest_cache/
+pytest-of-*/
 .ruff_cache/
 .mypy_cache/
 .coverage
