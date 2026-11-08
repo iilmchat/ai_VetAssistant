@@ -1,12 +1,14 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.7.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.7.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.7.0** (2026-11-08)
+**Статус:** ✅ **Production Ready — v1.7.1** (2026-11-08)
+**Патч v1.7.1:** прямой запуск скриптов оценки RAG (`python scripts/...`
+и `python -m scripts....`) — T-147
 **Релиз:** hybrid RAG: BM25 + векторы через RRF, 100 % Hit@3 на серверном
 замере и русско-английский глоссарий (T-141); GPU-диспетчер с fallback на CPU
 и hotfix H-1…H-5 из v1.6.1

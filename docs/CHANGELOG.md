@@ -4,6 +4,31 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.7.1] — 2026-11-08
+
+Патч прямого запуска скриптов оценки RAG (T-147).
+
+### Исправлено
+
+- **T-147 — `ModuleNotFoundError` при прямом запуске скриптов.** Запуск
+  `python scripts/evaluate_hybrid_rag.py` и `python scripts/evaluate_rag.py`
+  падал внутри контейнера: при прямой форме в `sys.path[0]` попадал только
+  каталог `scripts/`, а импорт `from scripts.evaluate_rag import ...` требовал
+  корень репозитория. Оба скрипта теперь сами добавляют корень репозитория в
+  `sys.path`, поэтому работают и `python scripts/...`, и
+  `python -m scripts....` — из `/srv/vetassistant` и из `/app` в контейнере.
+
+### Изменено
+
+- `DEPLOYMENT.md` §6.7: описаны обе формы запуска скриптов.
+- `TODO.md`: T-147 закрыт; добавлен план Фазы 7 (v1.8.0).
+
+### Проверено
+
+- `pytest`: 753 теста зелёные; `ruff check .` и `mypy app` — чисто.
+- `--dry-run` проходит обоими способами для `evaluate_hybrid_rag.py` и
+  `evaluate_rag.py`.
+
 ## [1.7.0] — 2026-11-08
 
 Hybrid Search в RAG (T-141): качество поиска по базе знаний без новой
