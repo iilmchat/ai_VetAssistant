@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from collections.abc import AsyncIterator, Callable, Generator, Iterable
 from contextlib import suppress
 from typing import Any, Protocol, cast
@@ -19,6 +20,7 @@ import httpx
 from loguru import logger
 from starlette.concurrency import run_in_threadpool
 
+from app.inference_usage import StreamUsageTracker
 from app.settings import AppSettings
 
 #: Глобальный лок CPU-инференса: llama-cpp-python не потокобезопасен.
@@ -161,9 +163,33 @@ class CpuLlamaBackend:
         return cast(dict[str, Any], result)
 
     async def stream_chat_completion(self, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
-        async for chunk in _iterate_locked_stream(self._get_model(), **kwargs):
+        """Стрим CPU-модели с подсчётом токенов (T-138).
+
+        ``llama-cpp-python`` не отдаёт ``usage`` в стриме, поэтому после
+        последнего чанка добавляется синтетический usage-чанк. Токены считает
+        :class:`StreamUsageTracker`: ``n_tokens`` модели и её tokenizer.
+        """
+        model = self._get_model()
+        tracker = StreamUsageTracker(model, kwargs.get("messages"))
+        last_chunk: dict[str, Any] | None = None
+
+        async for chunk in _iterate_locked_stream(model, **kwargs):
             if isinstance(chunk, dict):
-                yield cast(dict[str, Any], chunk)
+                typed_chunk = cast(dict[str, Any], chunk)
+                tracker.observe(typed_chunk)
+                last_chunk = typed_chunk
+                yield typed_chunk
+
+        usage = tracker.finalize()
+        base = last_chunk or {}
+        yield {
+            "id": base.get("id", "chatcmpl-usage"),
+            "object": "chat.completion.chunk",
+            "created": base.get("created", int(time.time())),
+            "model": base.get("model", kwargs.get("model") or ""),
+            "choices": [],
+            "usage": usage.as_dict(),
+        }
 
     async def aclose(self) -> None:
         """Освобождать нечего: модель живёт до остановки процесса."""
@@ -245,6 +271,8 @@ class GpuHttpBackend:
             async for line in response.aiter_lines():
                 chunk = _parse_sse_line(line)
                 if chunk is not None:
+                    # T-138: usage из последнего чанка LM Studio сохраняется
+                    # как есть; API вынесет его в финальный usage-чанк.
                     yield chunk
 
     async def aclose(self) -> None:

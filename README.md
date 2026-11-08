@@ -1,17 +1,21 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.8.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.8.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.8.0** (2026-11-08)
-**Релиз v1.8.0:** управление пользователями — мгновенная блокировка,
-каскадное удаление, аудит `admin_actions` и вкладка «Пользователи» (T-140)
-**Предыдущий релиз:** hybrid RAG: BM25 + векторы через RRF, 100 % Hit@3 на
-серверном замере и русско-английский глоссарий (T-141); GPU-диспетчер с
-fallback на CPU и hotfix H-1…H-5 из v1.6.1
+**Статус:** ✅ **Production Ready — v1.8.1** (2026-11-09)
+**Патч v1.8.1:** usage в SSE-стриме — токены CPU по `n_tokens`/tokenizer,
+`usage` LM Studio пробрасывается; метрики и админка учитывают стриминговые
+запросы (T-138)
+**Предыдущий релиз:** v1.8.0 — управление пользователями: мгновенная
+блокировка, каскадное удаление, аудит `admin_actions` и вкладка
+«Пользователи» (T-140)
+**Ранее:** hybrid RAG: BM25 + векторы через RRF, 100 % Hit@3 на серверном
+замере и русско-английский глоссарий (T-141); GPU-диспетчер с fallback на CPU
+и hotfix H-1…H-5 из v1.6.1
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
 - **Hybrid RAG (T-141):** BM25 + эмбеддинги через Reciprocal Rank Fusion; на реальном индексе **17/17 (100 %)** против **12/17 (70.6 %)** у vector-only, препаратные вопросы — rank 1; RU→EN глоссарий закрывает разрыв между русским вопросом и английской статьёй MSD
@@ -24,7 +28,7 @@ fallback на CPU и hotfix H-1…H-5 из v1.6.1
 - **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
-- **Метрики:** Prometheus `GET /metrics` + Grafana — HTTP-запросы, латентность LLM, токены, TTFT и RAG
+- **Метрики:** Prometheus `GET /metrics` + Grafana — HTTP-запросы, латентность LLM, токены (включая стриминг с v1.8.1), TTFT и RAG
 - **Админ-панель:** заявки на доступ, approve с одноразовым паролем и reject с причиной; вкладка «Аналитика» — запросы, токены, RAG hit rate и топ пользователей; вкладка «Пользователи» — поиск, блокировка/разблокировка с причиной и удаление с подтверждением email
 - **Управление пользователями (T-140):** `is_active` и аудит `admin_actions`; блокировка сразу закрывает доступ по JWT и вход (403), удаление каскадное, защита от блокировки себя и последнего админа
 - **CI/CD:** GitHub Actions на self-hosted runner VPS — линтеры, тесты, Docker-сборка, деплой и GitHub Releases по тегам
@@ -86,6 +90,25 @@ hit из ChromaDB.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
 
+## 📊 v1.8.1 — usage в стриминге
+
+**Патч:** 2026-11-09. SSE-ответы теперь заканчиваются чанком
+`{"usage": {"prompt_tokens": X, "completion_tokens": Y, "total_tokens": Z}}`.
+Метрики и админская аналитика учитывают токены стриминговых запросов.
+
+### Что изменилось (T-138)
+
+- **CPU:** `StreamUsageTracker` считает prompt по `Llama.n_tokens` после
+  префилла, completion — по `Llama.tokenize`; если модель не отдаёт
+  `n_tokens`/tokenizer, используется лексический fallback.
+- **GPU (LM Studio):** `usage` из последнего SSE-чанка пробрасывается в
+  финальный usage-чанк API.
+- **Tools:** usage добавлен в финальный stop-чанк agentic loop.
+- **Метрики:** `vet_llm_prompt_tokens_total`,
+  `vet_llm_completion_tokens_total`, `vet_llm_completion_tokens_per_second`
+  и `vet_llm_user_tokens_total` теперь видят стриминг.
+- Сверка на 20 промптах и проверка панелей Grafana — после релиза.
+
 ## 👥 v1.8.0 — Управление пользователями
 
 **Релиз:** 2026-11-08. В админ-панели появилась вкладка «Пользователи»:
@@ -104,7 +127,7 @@ hit из ChromaDB.
   `access_requests.reviewed_by/approved_user_id` обнуляются, аудит
   сохраняется.
 - Нельзя заблокировать/удалить себя и последнего активного администратора.
-- T-138 (usage в стриме) в релиз не входит — следующая задача.
+- T-138 (usage в стриме) реализована патчем v1.8.1.
 
 ## 🚀 v1.7.0 — Hybrid RAG: 100 % Hit@3
 

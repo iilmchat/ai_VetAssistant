@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.8.0
+# VETASSISTANT_VERSION=1.8.1
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.8.0
+gh workflow run deploy.yml --ref main -f version=1.8.1
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -1104,8 +1104,8 @@ docker compose -f docker-compose.edge.yml exec api python -c \
 | `http_requests_total{handler,method,status}` | counter | Запросы к API по эндпоинту и коду ответа |
 | `http_request_duration_seconds` | histogram | Латентность HTTP-запросов |
 | `vet_llm_generation_requests_total{mode,status}` | counter | Вызовы модели: `chat`/`stream`, `success`/`empty`/`error` |
-| `vet_llm_prompt_tokens_total` | counter | Токены промпта, обработанные моделью |
-| `vet_llm_completion_tokens_total` | counter | Сгенерированные токены |
+| `vet_llm_prompt_tokens_total` | counter | Токены промпта, обработанные моделью (включая стриминг с v1.8.1) |
+| `vet_llm_completion_tokens_total` | counter | Сгенерированные токены (включая стриминг с v1.8.1) |
 | `vet_llm_generation_seconds{mode}` | histogram | Полное время генерации |
 | `vet_llm_time_to_first_token_seconds{mode}` | histogram | Время до первого токена SSE |
 | `vet_llm_completion_tokens_per_second` | histogram | Скорость генерации, токенов/с |
@@ -1116,9 +1116,11 @@ docker compose -f docker-compose.edge.yml exec api python -c \
 
 `llama-cpp-python` не поддерживает флаг `--metrics` и не отдаёт тайминги
 llama.cpp server, поэтому `vet_llm_*` считаются в API по `usage` и времени
-вызова. В стриминговых ответах `usage` недоступен: для них точны латентность
-и TTFT, а счётчики токенов растут только если провайдер прислал `usage` в
-чанке. Нестриминговые запросы и agentic loop дают точные токены.
+вызова. С v1.8.1 usage считается и для стриминговых ответов: CPU — по
+`n_tokens` и tokenizer модели, GPU (LM Studio) — из последнего SSE-чанка.
+Счётчики токенов, скорость генерации и `vet_llm_user_tokens_total` растут для
+стриминговых запросов; нестриминговые запросы и agentic loop по-прежнему
+используют `usage` модели.
 
 Пример scrape-конфига Prometheus (Prometheus подключён к сети `edge`):
 

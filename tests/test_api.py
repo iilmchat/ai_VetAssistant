@@ -38,6 +38,7 @@ from app.main import (
     limiter,
     strip_think_tags,
 )
+from app.metrics import snapshot
 from app.router import EMERGENCY_SYSTEM_INSTRUCTION, BackendRouter
 from app.settings import DEFAULT_MODEL_ID, get_app_settings
 from app.tools import BOOK_APPOINTMENT_TOOL, SET_REMINDER_TOOL
@@ -846,6 +847,60 @@ def test_streaming_returns_sse_chunks(client: TestClient) -> None:
     assert content == "Обратитесь к ветеринару."
 
 
+def test_streaming_response_contains_usage(client: TestClient) -> None:
+    """T-138: в конце SSE-потока есть ненулевой usage."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Кот не ест."}],
+            "stream": True,
+        },
+    )
+
+    assert response.status_code == 200
+    lines = [
+        line.removeprefix("data: ")
+        for line in response.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert lines[-1] == "[DONE]"
+    chunks = [json.loads(line) for line in lines[:-1]]
+
+    usage_chunks = [
+        chunk
+        for chunk in chunks
+        if isinstance(chunk.get("usage"), dict)
+    ]
+    assert usage_chunks, "в стриме нет usage-чанка"
+    usage = usage_chunks[-1]["usage"]
+    assert usage["prompt_tokens"] > 0
+    assert usage["completion_tokens"] > 0
+    assert usage["total_tokens"] == (
+        usage["prompt_tokens"] + usage["completion_tokens"]
+    )
+    # Usage приходит последним data-чанком и не дублируется.
+    assert chunks[-1]["usage"] == usage
+    assert chunks[-1]["choices"] == []
+    assert len(usage_chunks) == 1
+
+
+def test_streaming_usage_is_recorded_in_metrics(client: TestClient) -> None:
+    """T-138: токены стрима попадают в vet_llm_* метрики."""
+    before = snapshot()
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Кот не ест."}],
+            "stream": True,
+        },
+    )
+    after = snapshot()
+
+    assert response.status_code == 200
+    assert after.prompt_tokens > before.prompt_tokens
+    assert after.completion_tokens > before.completion_tokens
+
+
 def test_date_context_is_deterministic() -> None:
     assert _date_context(datetime(2026, 11, 6, 23, 59)) == (
         "Сегодня: 2026-11-06. Завтра: 2026-11-07."
@@ -1347,6 +1402,12 @@ def test_streaming_agent_loop_returns_final_text_and_tool_badge(
     assert first_delta["tool_calls"][0]["id"] == "call_stream"
     assert first_delta["tool_calls"][0]["function"]["name"] == "set_reminder"
     assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
+    # T-138: usage есть и в stream-ответе с tools.
+    assert chunks[-1]["usage"] == {
+        "prompt_tokens": 20,
+        "completion_tokens": 10,
+        "total_tokens": 30,
+    }
     assert len(client.get("/v1/reminders").json()) == 1
 
 

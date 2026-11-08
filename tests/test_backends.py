@@ -11,7 +11,7 @@ import httpx
 import pytest
 from prometheus_client import generate_latest
 
-from app.backends import GpuHttpBackend
+from app.backends import CpuLlamaBackend, GpuHttpBackend
 from app.metrics import record_backend_request, record_backend_ttft
 from app.router import GPU_FAILURE_THRESHOLD, BackendRouter
 from app.settings import AppSettings
@@ -187,6 +187,74 @@ async def test_gpu_stream_parses_sse_chunks() -> None:
         "При",
         "вет",
     ]
+
+
+async def test_gpu_stream_passes_usage_from_last_chunk() -> None:
+    """T-138: если LM Studio прислал usage, бэкенд отдаёт его без потерь."""
+    body = (
+        'data: {"choices":[{"index":0,"delta":{"content":"Ответ"}}]}\n\n'
+        'data: {"choices":[],"usage":'
+        '{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14}}\n\n'
+        "data: [DONE]\n\n"
+    )
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=body))
+
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        backend = GpuHttpBackend(_settings(), client=http_client)
+        chunks = [
+            chunk
+            async for chunk in backend.stream_chat_completion(
+                messages=[{"role": "user", "content": "Вопрос"}],
+            )
+        ]
+
+    assert chunks[-1]["usage"] == {
+        "prompt_tokens": 10,
+        "completion_tokens": 4,
+        "total_tokens": 14,
+    }
+
+
+async def test_cpu_stream_reports_usage_from_n_tokens() -> None:
+    """T-138: CPU-стрим считает prompt/completion по n_tokens и tokenizer."""
+
+    class TokenModel:
+        def __init__(self) -> None:
+            self.n_tokens = 0
+
+        def tokenize(self, text: str | bytes, add_bos: bool = False) -> list[str]:
+            if isinstance(text, bytes):
+                text = text.decode("utf-8")
+            return text.split()
+
+        def create_chat_completion(self, **kwargs: Any) -> Any:
+            def stream() -> Any:
+                # Префилл prompt: 12 токенов, затем два сгенерированных.
+                self.n_tokens = 12
+                for text in ("Один ", "два"):
+                    self.n_tokens += len(text.split())
+                    yield {
+                        "choices": [
+                            {"index": 0, "delta": {"content": text}}
+                        ]
+                    }
+
+            return stream()
+
+    backend = CpuLlamaBackend(model=TokenModel())
+    chunks = [
+        chunk
+        async for chunk in backend.stream_chat_completion(
+            messages=[{"role": "user", "content": "Вопрос"}],
+        )
+    ]
+
+    assert chunks[-1]["choices"] == []
+    assert chunks[-1]["usage"] == {
+        "prompt_tokens": 12,
+        "completion_tokens": 2,
+        "total_tokens": 14,
+    }
 
 
 async def test_router_prefers_gpu_after_successful_probe() -> None:

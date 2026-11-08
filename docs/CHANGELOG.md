@@ -4,6 +4,40 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.8.1] — 2026-11-09
+
+Точный `usage` в стриминге (T-138): токены CPU-модели считаются в API,
+`usage` GPU-бэкенда пробрасывается, SSE заканчивается usage-чанком.
+
+### Добавлено
+
+- **T-138 — usage в потоковых ответах.** `app/inference_usage.py`:
+  `StreamUsageTracker` считает prompt по `Llama.n_tokens` после префилла,
+  completion — по `Llama.tokenize` сгенерированного текста; при отсутствии
+  `n_tokens`/tokenizer используется лексический fallback. Для GPU-бэкенда
+  (LM Studio) `usage` из последнего SSE-чанка имеет приоритет и передаётся
+  дальше.
+- **Финальный usage-чанк.** SSE-поток заканчивается чанком
+  `{"usage": {"prompt_tokens": X, "completion_tokens": Y, "total_tokens": Z}}`
+  с пустым `choices`; в ветке с инструментами usage добавлен в финальный
+  stop-чанк.
+- **Тесты.** API-тест проверяет ненулевой usage в конце стрима; отдельный
+  тест — рост `vet_llm_prompt_tokens_total` / `completion_tokens_total`;
+  тест CPU-бэкенда — расчёт по `n_tokens` и tokenizer.
+
+### Изменено
+
+- Версия `1.8.1` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README.
+- `README.md`: раздел v1.8.1 и статус; `DEPLOYMENT.md`: примеры версии.
+- `TODO.md`: T-138.1–T-138.2 закрыты; сверка на 20 промптах и проверка
+  Grafana остаются после релиза.
+
+### Проверено
+
+- `pytest`: 769 тестов; `ruff check .` и `mypy app` — чисто.
+- Frontend: `npm test` — 74 теста (изменений в UI не было).
+
 ## [1.8.0] — 2026-11-08
 
 Управление пользователями в админ-панели (T-140): блокировка действует

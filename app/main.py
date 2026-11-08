@@ -57,6 +57,7 @@ from app.database import (
     list_reminders,
     update_user_password,
 )
+from app.inference_usage import TokenUsage
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
 from app.metrics import (
     record_generation,
@@ -294,7 +295,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.8.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.8.1", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -880,6 +881,46 @@ def _sse_chunk(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _chunk_has_output(chunk: Any) -> bool:
+    """Есть ли в чанке реальный текст или tool_calls (для TTFT)."""
+    if not isinstance(chunk, dict):
+        return True
+    choices = chunk.get("choices")
+    if not isinstance(choices, list):
+        return False
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        delta = choice.get("delta")
+        if not isinstance(delta, dict):
+            continue
+        content = delta.get("content")
+        if isinstance(content, str) and content:
+            return True
+        if delta.get("tool_calls"):
+            return True
+    return False
+
+
+def _usage_chunk(
+    last_payload: dict[str, Any] | None,
+    model_name: str,
+    usage_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Собрать финальный SSE-чанк с точным usage (T-138)."""
+    parsed = TokenUsage.from_mapping(usage_payload)
+    usage = parsed.as_dict() if parsed is not None else dict(usage_payload)
+    base = last_payload or {}
+    return {
+        "id": base.get("id", f"chatcmpl-{uuid.uuid4().hex}"),
+        "object": "chat.completion.chunk",
+        "created": base.get("created", int(time.time())),
+        "model": model_name,
+        "choices": [],
+        "usage": usage,
+    }
+
+
 async def _stream_with_tools(
     backend: BackendRouter,
     messages: Sequence[dict[str, Any]],
@@ -934,6 +975,12 @@ async def _stream_with_tools(
                 "created": response.created,
                 "model": model_name,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                # T-138: usage в финальном чанке стрима (в т.ч. с tools).
+                "usage": TokenUsage(
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
+                ).as_dict(),
             }
         )
     except Exception as exc:
@@ -973,6 +1020,7 @@ async def _stream(
     ttft_s: float | None = None
     prompt_tokens = 0
     completion_tokens = 0
+    usage_payload: dict[str, Any] | None = None
     think_filters: dict[int, ThinkTagFilter] = {}
     last_payload: dict[str, Any] | None = None
 
@@ -982,27 +1030,47 @@ async def _stream(
             stream=True,
             **_generation_kwargs(request),
         ):
-            if ttft_s is None:
-                ttft_s = time.perf_counter() - started
+            chunk_usage: dict[str, Any] | None = None
             if isinstance(chunk, dict):
-                # llama-cpp-python не отдаёт usage в стриме; если чанк с
-                # usage всё же пришёл, учитываем точные токены.
-                usage_payload = chunk.get("usage") or {}
-                if usage_payload:
-                    prompt_tokens = int(usage_payload.get("prompt_tokens", 0))
-                    completion_tokens = int(usage_payload.get("completion_tokens", 0))
+                raw_usage = chunk.get("usage")
+                if isinstance(raw_usage, dict) and raw_usage:
+                    chunk_usage = raw_usage
+                    parsed_usage = TokenUsage.from_mapping(raw_usage)
+                    if parsed_usage is not None:
+                        prompt_tokens = parsed_usage.prompt_tokens
+                        completion_tokens = parsed_usage.completion_tokens
+                        usage_payload = raw_usage
+                    # usage уходит отдельным финальным чанком, чтобы клиент
+                    # получал его и при finish_reason, и без него.
+                    chunk = {
+                        key: value
+                        for key, value in chunk.items()
+                        if key != "usage"
+                    }
+
+                if ttft_s is None and _chunk_has_output(chunk):
+                    ttft_s = time.perf_counter() - started
                 stream_payload = {
                     **_clean_stream_chunk(chunk, think_filters),
                     "model": model_name,
                 }
-                last_payload = stream_payload
+                if stream_payload.get("choices"):
+                    last_payload = stream_payload
+                if chunk_usage is not None and not stream_payload.get("choices"):
+                    continue
             else:
+                if ttft_s is None:
+                    ttft_s = time.perf_counter() - started
                 stream_payload = chunk
             yield f"data: {json.dumps(stream_payload, ensure_ascii=False)}\n\n"
 
         # H-4: хвост, задержанный фильтром (например, «<thi»), отдаём в конце.
         for tail_payload in _flush_think_filters(think_filters, last_payload, model_name):
             yield _sse_chunk(tail_payload)
+
+        # T-138: usage — последним data-чанком, после хвоста think-фильтра.
+        if usage_payload is not None:
+            yield _sse_chunk(_usage_chunk(last_payload, model_name, usage_payload))
     except Exception as exc:
         record_generation(
             "stream",
