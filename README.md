@@ -1,17 +1,18 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.6.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.7.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.6.1** (2026-11-06)
-**Релиз:** hotfix: потокобезопасная генерация (H-1), очистка `<think>` (H-4),
-актуальная дата в промпте (H-3), понятная ошибка повторного `/link` (H-2),
-уведомления только о записи к врачу (H-5); GPU-диспетчер с fallback на CPU (T-144)
+**Статус:** ✅ **Production Ready — v1.7.0** (2026-11-08)
+**Релиз:** hybrid RAG: BM25 + векторы через RRF, 100 % Hit@3 на серверном
+замере и русско-английский глоссарий (T-141); GPU-диспетчер с fallback на CPU
+и hotfix H-1…H-5 из v1.6.1
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
+- **Hybrid RAG (T-141):** BM25 + эмбеддинги через Reciprocal Rank Fusion; на реальном индексе **17/17 (100 %)** против **12/17 (70.6 %)** у vector-only, препаратные вопросы — rank 1; RU→EN глоссарий закрывает разрыв между русским вопросом и английской статьёй MSD
 - **GPU-бэкенд (T-144):** LM Studio через обратный SSH-туннель, probe и circuit breaker, автоматический fallback на CPU; `/health` показывает активный бэкенд
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; привязка к веб-аккаунту по одноразовому коду (`/link`), уведомления в чат и доступ в production — только по allowlist Telegram ID
@@ -81,6 +82,40 @@ hit из ChromaDB.
   `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
+
+## 🚀 v1.7.0 — Hybrid RAG: 100 % Hit@3
+
+**Релиз:** 2026-11-08. Поиск по базе знаний стал гибридным: BM25 и векторы
+сливаются через Reciprocal Rank Fusion. На реальном индексе ChromaDB гибрид
+находит нужную статью в top-3 в **17/17 случаях** против **12/17** у
+vector-only; препаратные вопросы — с первого чанка.
+
+### Что изменилось (T-141)
+
+- `app/rag_hybrid.py`: Okapi BM25 (`k1=1.5`, `b=0.75`) без новых зависимостей,
+  RRF `k=60`, заголовок чанка с весом 2.
+- `ChromaKnowledgeBase`: режимы `hybrid`/`vector`, кандидаты по 10 на канал,
+  fallback на vector при сбое BM25.
+- Русско-английский глоссарий (~110 основ): «ксилитом» → `xylitol`,
+  «фомепизол» → `fomepizole`, «фенобарбитал» → `phenobarbital`; русские
+  токены при наличии перевода весят 0.25, чтобы английские статьи MSD
+  выигрывали у русских демо-файлов.
+- `scripts/ingest_knowledge.py` пишет `title` в metadata; повторный `upsert`
+  обновляет существующие чанки без `--rebuild`.
+- `scripts/evaluate_hybrid_rag.py` меряет сам поиск: Hit@k, MRR и p95.
+
+### Серверный замер (реальный индекс, 17 вопросов)
+
+| Режим | Hit@3 | Hit rate | MRR | p95 |
+|---|---:|---:|---:|---:|
+| vector | 12/17 | 70.6 % | 0.676 | 54.5 мс |
+| **hybrid** | **17/17** | **100 %** | **0.912** | **140.3 мс** |
+
+Прирост p95 — +85.8 мс, в пределах бюджета +100 мс. По итогам замера
+утверждён `VET_API_RAG_BM25_WEIGHT=1.0`; откат — `VET_API_RAG_MODE=vector`.
+
+> Если запускаете новые скрипты на образе до v1.7.0, используйте
+> монтирование репозитория из `DEPLOYMENT.md` §6.7.
 
 ## 🚀 v1.6.1 — GPU-бэкенд, стабильность и 20× ускорение
 
@@ -688,8 +723,9 @@ BM25 top-10 сливаются через Reciprocal Rank Fusion (`k=60`) и и�
 поэтому лексический канал использует русско-английский глоссарий
 (`app/rag_hybrid.py`, `RU_EN_TERMS`): «ксилитом» → `xylitol`,
 «фенобарбитала» → `phenobarbital`. Без глоссария BM25 находит 0 из 17
-контрольных статей; с ним — 17 из 17 (подробнее в
-[RAG_EVAL.md](docs/development/reports/RAG_EVAL.md) §8).
+контрольных статей; с ним — 17 из 17. На реальном индексе гибрид даёт
+**17/17 (100 %) Hit@3** против **12/17 (70.6 %)** у vector-only (MRR 0.912,
+p95 140.3 мс); подробнее — [RAG_EVAL.md](docs/development/reports/RAG_EVAL.md) §8.
 
 ```bash
 # режим и параметры (дефолты подходят для прода)

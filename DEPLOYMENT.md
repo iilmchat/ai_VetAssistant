@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.6.1
+# VETASSISTANT_VERSION=1.7.0
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.6.1
+gh workflow run deploy.yml --ref main -f version=1.7.0
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -555,6 +555,49 @@ docker ps -a --filter name=vetassistant --format 'table {{.Names}}\t{{.Image}}\t
 | `docker compose` падает на переменных | `.env` в `/srv/vetassistant` (JWT, PostgreSQL, Telegram) |
 | В `docker ps` тег `latest` | `VETASSISTANT_VERSION` в `.env`; запускать `scripts/restart_prod.sh` |
 | В `docker ps` старый тег образа | `VETASSISTANT_VERSION` в логе шага, тег `v*` и `git pull` на сервере |
+
+### 6.7. Запуск новых скриптов до релиза
+
+Образ, собранный из тега, содержит только те скрипты, которые были в Git на
+момент сборки. Если скрипт добавлен после релиза (например,
+`scripts/evaluate_hybrid_rag.py` в v1.6.1), внутри контейнера его нет, и
+`docker compose exec api python scripts/...` упадёт с `No such file or
+directory`.
+
+Чтобы прогнать новый скрипт старым образом, смонтируйте рабочую копию
+репозитория и запустите Python с ней в `PYTHONPATH`:
+
+```bash
+cd /srv/vetassistant
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  -v /srv/vetassistant:/repo -w /repo -e PYTHONPATH=/repo \
+  --entrypoint python api scripts/имя_скрипта.py
+```
+
+Что здесь важно:
+
+- `--entrypoint python` обходит entrypoint образа (иначе запустится API);
+- `-w /repo` и `PYTHONPATH=/repo` — импорты `app.*` и `scripts.*` берутся из
+  рабочей копии, а не из `/app` внутри образа;
+- `--no-deps` не поднимает БД и не трогает запущенный стек;
+- `run --rm` создаёт одноразовый контейнер и удаляет его после выхода;
+- доступны только зависимости, уже установленные в образе; новые пакеты
+  требуют пересборки.
+
+Пример для замера RAG на образе v1.6.1:
+
+```bash
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  -v /srv/vetassistant:/repo -w /repo -e PYTHONPATH=/repo \
+  --entrypoint python api scripts/evaluate_hybrid_rag.py --mode both \
+  --output /app/data/rag_hybrid_eval_results.json
+```
+
+`/app/data` — это смонтированный `./data` из compose, поэтому JSON останется
+на хосте в `/srv/vetassistant/data/`. После релиза v1.7.0, в образ которого
+скрипт уже входит, монтирование не нужно: достаточно
+`docker compose ... run --rm --no-deps --entrypoint python api
+scripts/evaluate_hybrid_rag.py`.
 
 ## 7. Ручной деплой (если не используете скрипт)
 
@@ -714,6 +757,10 @@ docker compose -f docker-compose.edge.yml run --rm --no-deps \
   --entrypoint python api scripts/evaluate_hybrid_rag.py --mode both \
   --output /app/data/rag_hybrid_eval_results.json
 ```
+
+Если образ ещё не содержит скрипта (v1.6.1 и раньше), используйте вариант с
+монтированием репозитория из §6.7. Контрольный замер на v1.7.0:
+vector — 12/17 (70.6 %), hybrid — **17/17 (100 %)**, p95 54.5 → 140.3 мс.
 
 Отчёт печатается в stdout и сохраняется в JSON; hit rate считается по
 попаданию ожидаемой статьи в `top_k`. Если hybrid ухудшил hit rate —
