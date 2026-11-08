@@ -74,6 +74,15 @@ Hybrid Search в RAG (T-141): качество поиска по базе зна
 +85.8 мс, в пределах бюджета +100 мс. По итогам замера утверждён
 `VET_API_RAG_BM25_WEIGHT=1.0`; полный откат — `VET_API_RAG_MODE=vector`.
 
+### Исправлено
+
+- **T-146 — зависание CI на `setup-python`.** Шаг `actions/setup-python@v5`
+  с `cache: pip` синхронизировал кэш с GitHub Cache Service и в российских
+  сетях зависал на 18+ минут, блокируя релиз. Параметры `cache: pip` и
+  `cache-dependency-path` убраны: на self-hosted раннере pip-кэш хранится
+  локально и переживает прогоны. Job `lint-and-test` ограничен
+  `timeout-minutes: 20`, чтобы зависший job убивался автоматически.
+
 ### Изменено
 
 - `scripts/ingest_knowledge.py`: metadata чанка теперь `{source, title}`.

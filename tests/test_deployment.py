@@ -387,6 +387,23 @@ def test_ci_skips_pull_requests_from_forks() -> None:
         assert job["if"] == expected
 
 
+def test_ci_has_no_pip_cache_and_job_timeout() -> None:
+    """T-146: setup-python без cache: pip, lint-job с жёстким лимитом."""
+    workflow = _yaml(".github/workflows/ci.yml")
+    job = workflow["jobs"]["lint-and-test"]
+
+    assert job["timeout-minutes"] == 20
+    setup = next(
+        step
+        for step in job["steps"]
+        if step.get("uses") == "actions/setup-python@v5"
+    )
+    config = setup.get("with") or {}
+    assert config["python-version"] == "3.12"
+    assert "cache" not in config
+    assert "cache-dependency-path" not in config
+
+
 def test_setup_deploy_user_script_is_safe_and_idempotent() -> None:
     script = _read("scripts/setup_deploy_user.sh")
 

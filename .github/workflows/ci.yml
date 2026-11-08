@@ -21,7 +21,8 @@ jobs:
     # не выполняем код из форков, только push в main и PR этого репозитория.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, vps]
-    timeout-minutes: 60
+    # T-146: жёсткий лимит, чтобы зависший job не держал раннер.
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,8 +31,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
+          # T-146: без `cache: pip` — на self-hosted раннере setup-python
+          # зависает на синхронизации кэша с GitHub Cache Service (18+ минут).
+          # pip-кэш и так хранится локально и переживает прогоны.
 
       - name: Install system dependencies
         if: runner.environment == 'github-hosted'
