@@ -599,6 +599,21 @@ docker compose -f docker-compose.edge.yml run --rm --no-deps \
 `docker compose ... run --rm --no-deps --entrypoint python api
 scripts/evaluate_hybrid_rag.py`.
 
+#### Форма запуска скриптов (T-147)
+
+С v1.7.1 `scripts/evaluate_rag.py` и `scripts/evaluate_hybrid_rag.py` сами
+добавляют корень репозитория в `sys.path`, поэтому работают оба варианта —
+и из `/srv/vetassistant`, и из `/app` внутри контейнера:
+
+```bash
+python scripts/evaluate_hybrid_rag.py --mode both
+python -m scripts.evaluate_hybrid_rag --mode both
+```
+
+Второй вариант (`-m`) удобен, когда скрипт запускается из другой директории:
+Python сам находит пакет `scripts`, а не зависит от того, что попало в
+`sys.path[0]`. Оба варианта поддерживают и `evaluate_rag.py`.
+
 ## 7. Ручной деплой (если не используете скрипт)
 
 ```bash

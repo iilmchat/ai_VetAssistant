@@ -19,6 +19,8 @@
     # офлайн: BM25 с глоссарием и без, на локальном корпусе
     python scripts/evaluate_hybrid_rag.py --mode bm25
     python scripts/evaluate_hybrid_rag.py --mode bm25 --no-expand
+    # то же через модуль (T-147): работает из любой директории
+    python -m scripts.evaluate_hybrid_rag --mode bm25
 
     # на сервере, внутри контейнера api: до/после на реальном индексе
     docker compose -f docker-compose.edge.yml exec api \\
@@ -33,6 +35,7 @@ import argparse
 import contextlib
 import json
 import math
+import os
 import sys
 import time
 from dataclasses import asdict, dataclass, field
@@ -41,6 +44,11 @@ from pathlib import Path
 from typing import Any
 
 from loguru import logger
+
+# T-147: при `python scripts/evaluate_hybrid_rag.py` в sys.path попадает
+# только scripts/, поэтому `import app` и `import scripts` падают. Добавляем
+# корень репозитория — скрипт работает и напрямую, и через `python -m`.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.rag_hybrid import RU_EN_TERMS, BM25Index
 from scripts.evaluate_rag import QUESTIONS as BASE_QUESTIONS

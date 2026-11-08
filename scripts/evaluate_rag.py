@@ -28,6 +28,9 @@
 
     # посмотреть вопросы без сетевых запросов
     python scripts/evaluate_rag.py --dry-run
+
+Оба варианта запуска работают (T-147): ``python scripts/evaluate_rag.py`` и
+``python -m scripts.evaluate_rag``.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ import argparse
 import contextlib
 import getpass
 import json
+import os
 import re
 import sys
 import time
@@ -46,6 +50,10 @@ from typing import Any
 
 import requests
 from loguru import logger
+
+# T-147: скрипт должен одинаково работать как `python scripts/evaluate_rag.py`,
+# так и `python -m scripts.evaluate_rag`, не завися от текущей директории.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 DEFAULT_API_URL = "https://app.ai-pets.ru/api"
 DEFAULT_TIMEOUT = 30.0
