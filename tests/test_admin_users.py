@@ -320,6 +320,52 @@ def test_block_rejects_existing_jwt_and_records_audit(
     assert client.get("/v1/auth/me").status_code == 200
 
 
+def test_blocked_user_cannot_login(
+    admin_api: tuple[TestClient, str, int],
+) -> None:
+    """T-140.3: login не выдаёт токен заблокированному пользователю."""
+    client, database_url, _admin_id = admin_api
+    owner_id = asyncio.run(
+        _create_user(database_url, "owner@example.com", "owner-pass-1")
+    )
+
+    blocked = client.post(
+        f"/v1/admin/users/{owner_id}/block",
+        json={"reason": "нарушение правил"},
+    )
+    assert blocked.status_code == 200
+
+    login = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "owner-pass-1"},
+    )
+    assert login.status_code == 403
+    assert (
+        login.json()["detail"]
+        == "Аккаунт заблокирован. Обратитесь к администратору"
+    )
+
+    # Неверный пароль по-прежнему 401: статус чужого аккаунта не раскрывается.
+    wrong_password = client.post(
+        "/v1/auth/login",
+        json={"email": "owner@example.com", "password": "wrong-pass-1"},
+    )
+    assert wrong_password.status_code == 401
+
+    unblocked = client.post(
+        f"/v1/admin/users/{owner_id}/unblock",
+        json={"reason": "разобрались"},
+    )
+    assert unblocked.status_code == 200
+    assert (
+        client.post(
+            "/v1/auth/login",
+            json={"email": "owner@example.com", "password": "owner-pass-1"},
+        ).status_code
+        == 200
+    )
+
+
 def test_block_requires_non_blank_reason(
     admin_api: tuple[TestClient, str, int],
 ) -> None:

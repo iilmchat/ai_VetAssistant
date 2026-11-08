@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   approveAdminAccessRequest,
+  blockAdminUser,
   buildChatPayload,
   changePassword,
   createTelegramLinkCode,
+  deleteAdminUser,
   fetchAdminAccessRequests,
   fetchAdminMetrics,
+  fetchAdminUsers,
   fetchTelegramLink,
   normalizeBaseUrl,
   parseSSEEvent,
@@ -331,6 +334,100 @@ describe('admin API', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       'http://127.0.0.1:8000/v1/admin/metrics?window=24h',
     )
+  })
+
+  it('fetchAdminUsers передаёт поиск, статус и пагинацию', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 7,
+              email: 'owner@example.com',
+              is_admin: false,
+              is_active: true,
+              must_change_password: false,
+              telegram_id: null,
+              created_at: '2026-11-08T10:00:00Z',
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 40,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchAdminUsers({
+      query: 'own',
+      status: 'active',
+      limit: 20,
+      offset: 40,
+    })
+
+    expect(result.total).toBe(1)
+    expect(result.items[0]?.email).toBe('owner@example.com')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/admin/users?query=own&status=active&limit=20&offset=40',
+    )
+  })
+
+  it('blockAdminUser отправляет причину', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          email: 'owner@example.com',
+          is_admin: false,
+          is_active: false,
+          must_change_password: false,
+          telegram_id: null,
+          created_at: '2026-11-08T10:00:00Z',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await blockAdminUser(7, 'спам')
+
+    expect(result.is_active).toBe(false)
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/admin/users/7/block')
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({ reason: 'спам' })
+  })
+
+  it('deleteAdminUser отправляет email и причину', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          email: 'owner@example.com',
+          is_admin: false,
+          is_active: true,
+          must_change_password: false,
+          telegram_id: null,
+          created_at: '2026-11-08T10:00:00Z',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await deleteAdminUser(7, 'owner@example.com', 'по запросу')
+
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/admin/users/7')
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('DELETE')
+    expect(JSON.parse(String(init.body))).toEqual({
+      confirm_email: 'owner@example.com',
+      reason: 'по запросу',
+    })
   })
 })
 

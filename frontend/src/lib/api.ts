@@ -2,6 +2,9 @@ import type {
   AdminAccessRequest,
   AdminMetrics,
   AdminMetricsWindow,
+  AdminUser,
+  AdminUserList,
+  AdminUserStatus,
   Appointment,
   ChatSettings,
   Reminder,
@@ -313,6 +316,90 @@ export function fetchAdminMetrics(
   return requestJson<AdminMetrics>(
     `/v1/admin/metrics?window=${window}`,
     {},
+    baseUrl,
+  )
+}
+
+export interface FetchAdminUsersOptions {
+  query?: string
+  status?: AdminUserStatus
+  limit?: number
+  offset?: number
+}
+
+export function fetchAdminUsers(
+  options: FetchAdminUsersOptions = {},
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminUserList> {
+  const params = new URLSearchParams()
+  const query = options.query?.trim()
+  if (query) {
+    params.set('query', query)
+  }
+  params.set('status', options.status ?? 'all')
+  params.set('limit', String(options.limit ?? 20))
+  params.set('offset', String(options.offset ?? 0))
+
+  return requestJson<AdminUserList>(
+    `/v1/admin/users?${params.toString()}`,
+    {},
+    baseUrl,
+  )
+}
+
+export function blockAdminUser(
+  userId: number,
+  reason: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminUser> {
+  return requestJson<AdminUser>(
+    `/v1/admin/users/${userId}/block`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+    baseUrl,
+  )
+}
+
+export function unblockAdminUser(
+  userId: number,
+  reason: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminUser> {
+  return requestJson<AdminUser>(
+    `/v1/admin/users/${userId}/unblock`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+    baseUrl,
+  )
+}
+
+export function deleteAdminUser(
+  userId: number,
+  confirmEmail: string,
+  reason?: string,
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminUser> {
+  const body: { confirm_email: string; reason?: string } = {
+    confirm_email: confirmEmail,
+  }
+  const trimmedReason = reason?.trim()
+  if (trimmedReason) {
+    body.reason = trimmedReason
+  }
+
+  return requestJson<AdminUser>(
+    `/v1/admin/users/${userId}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
     baseUrl,
   )
 }

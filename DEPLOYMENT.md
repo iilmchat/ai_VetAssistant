@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.7.0
+# VETASSISTANT_VERSION=1.8.0
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.7.0
+gh workflow run deploy.yml --ref main -f version=1.8.0
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -964,6 +964,61 @@ UPDATE users SET telegram_id = NULL;
 DROP TABLE IF EXISTS telegram_link_codes;
 DROP INDEX IF EXISTS ix_users_telegram_id;
 ALTER TABLE users DROP COLUMN IF EXISTS telegram_id;
+COMMIT;
+```
+
+### Миграция управления пользователями (T-140)
+
+Версия 1.8.0 добавляет `users.is_active` и таблицу `admin_actions` (аудит
+блокировок, разблокировок и удалений). Новый API докатывает схему при старте
+(`create_all` + `ALTER TABLE`), но на прод рекомендуется выполнить SQL **до
+деплоя образа**:
+
+```bash
+cd /srv/vetassistant
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < scripts/migrations/2026-11-08_user_management.sql
+```
+
+Скрипт идемпотентен: колонка и таблица создаются с `IF NOT EXISTS`, повторный
+запуск не меняет данные. Проверка:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d users"'
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d admin_actions"'
+```
+
+Ожидается `is_active | boolean | not null | true`, шесть колонок
+`admin_actions` и индексы `ix_admin_actions_admin_id`,
+`ix_admin_actions_target_user_id`.
+
+**Что меняется для пользователей.**
+
+- Блокировка (`POST /v1/admin/users/{id}/block`) сразу закрывает доступ:
+  действующий JWT получает 403, `POST /v1/auth/login` — 403 «Аккаунт
+  заблокирован. Обратитесь к администратору».
+- Разблокировка возвращает доступ; старый JWT снова работает, если не истёк.
+- Удаление (`DELETE /v1/admin/users/{id}`) требует подтверждения по email,
+  удаляет `appointments`/`reminders`/`telegram_link_codes` и обнуляет
+  `access_requests.reviewed_by/approved_user_id`; запись `delete` в
+  `admin_actions` сохраняется с id удалённого пользователя.
+- Нельзя заблокировать или удалить себя и последнего активного
+  администратора; повторные block/unblock идемпотентны.
+- В админ-панели появилась вкладка «Пользователи»: поиск по email, фильтр
+  `all/active/blocked`, пагинация, block/unblock с причиной и удаление с
+  подтверждением email.
+
+**Откат.** Предыдущий образ совместим с новой схемой: он не знает о
+`is_active` и `admin_actions`. Полное удаление схемы — только после откачки
+кода:
+
+```sql
+BEGIN;
+DROP TABLE IF EXISTS admin_actions;
+ALTER TABLE users DROP COLUMN IF EXISTS is_active;
 COMMIT;
 ```
 

@@ -1,17 +1,17 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.7.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.8.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.7.1** (2026-11-08)
-**Патч v1.7.1:** прямой запуск скриптов оценки RAG (`python scripts/...`
-и `python -m scripts....`) — T-147
-**Релиз:** hybrid RAG: BM25 + векторы через RRF, 100 % Hit@3 на серверном
-замере и русско-английский глоссарий (T-141); GPU-диспетчер с fallback на CPU
-и hotfix H-1…H-5 из v1.6.1
+**Статус:** ✅ **Production Ready — v1.8.0** (2026-11-08)
+**Релиз v1.8.0:** управление пользователями — мгновенная блокировка,
+каскадное удаление, аудит `admin_actions` и вкладка «Пользователи» (T-140)
+**Предыдущий релиз:** hybrid RAG: BM25 + векторы через RRF, 100 % Hit@3 на
+серверном замере и русско-английский глоссарий (T-141); GPU-диспетчер с
+fallback на CPU и hotfix H-1…H-5 из v1.6.1
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
 
 - **Hybrid RAG (T-141):** BM25 + эмбеддинги через Reciprocal Rank Fusion; на реальном индексе **17/17 (100 %)** против **12/17 (70.6 %)** у vector-only, препаратные вопросы — rank 1; RU→EN глоссарий закрывает разрыв между русским вопросом и английской статьёй MSD
@@ -25,7 +25,8 @@
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
 - **Метрики:** Prometheus `GET /metrics` + Grafana — HTTP-запросы, латентность LLM, токены, TTFT и RAG
-- **Админ-панель:** заявки на доступ, approve с одноразовым паролем и reject с причиной; вкладка «Аналитика» — запросы, токены, RAG hit rate и топ пользователей
+- **Админ-панель:** заявки на доступ, approve с одноразовым паролем и reject с причиной; вкладка «Аналитика» — запросы, токены, RAG hit rate и топ пользователей; вкладка «Пользователи» — поиск, блокировка/разблокировка с причиной и удаление с подтверждением email
+- **Управление пользователями (T-140):** `is_active` и аудит `admin_actions`; блокировка сразу закрывает доступ по JWT и вход (403), удаление каскадное, защита от блокировки себя и последнего админа
 - **CI/CD:** GitHub Actions на self-hosted runner VPS — линтеры, тесты, Docker-сборка, деплой и GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
 - **Целевой инференс:** llama.cpp / `llama-cpp-python` (GGUF Q4_K_M, CPU, 8–16 ГБ RAM)
@@ -84,6 +85,26 @@ hit из ChromaDB.
   `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
+
+## 👥 v1.8.0 — Управление пользователями
+
+**Релиз:** 2026-11-08. В админ-панели появилась вкладка «Пользователи»:
+поиск по email, фильтр active/blocked, пагинация, блокировка и
+разблокировка с причиной, удаление с подтверждением email.
+
+### Что изменилось (T-140)
+
+- `users.is_active` и таблица `admin_actions`; миграция
+  `scripts/migrations/2026-11-08_user_management.sql`.
+- API: `GET /v1/admin/users`, `POST /v1/admin/users/{id}/block|unblock`,
+  `DELETE /v1/admin/users/{id}`.
+- Блокировка действует мгновенно: `get_current_user` и `POST /v1/auth/login`
+  возвращают 403; старый JWT перестаёт работать.
+- Удаление каскадное: `appointments`, `reminders`, `telegram_link_codes`;
+  `access_requests.reviewed_by/approved_user_id` обнуляются, аудит
+  сохраняется.
+- Нельзя заблокировать/удалить себя и последнего активного администратора.
+- T-138 (usage в стриме) в релиз не входит — следующая задача.
 
 ## 🚀 v1.7.0 — Hybrid RAG: 100 % Hit@3
 

@@ -294,7 +294,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.7.1", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.8.0", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -401,6 +401,15 @@ async def login(
         # привязан к веб-аккаунту, токен должен принадлежать владельцу —
         # иначе записи и напоминания из бота останутся в отдельном аккаунте.
         user = await resolve_bot_login_user(session, user)
+
+    # T-140.3: заблокированный пользователь не получает даже новый токен.
+    # Проверка после пароля: неверный пароль остаётся 401 и не раскрывает
+    # статус чужого аккаунта.
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Аккаунт заблокирован. Обратитесь к администратору",
+        )
 
     logger.info("Auth: вход пользователя {}", user.id)
     return _auth_response(user, settings)

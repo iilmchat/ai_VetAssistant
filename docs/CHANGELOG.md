@@ -4,6 +4,69 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.8.0] — 2026-11-08
+
+Управление пользователями в админ-панели (T-140): блокировка действует
+мгновенно, удаление аккаунта каскадное, все действия пишутся в аудит.
+
+### Добавлено
+
+- **T-140.1 — схема и миграция.** `users.is_active BOOLEAN NOT NULL
+  DEFAULT TRUE`, таблица `admin_actions` (`admin_id`, `target_user_id`,
+  `action`, `reason`, `created_at`, CHECK `block/unblock/delete`).
+  Идемпотентная миграция в `Database.create_tables()` и SQL для прода
+  `scripts/migrations/2026-11-08_user_management.sql`.
+- **T-140.2 — API модерации.** `GET /v1/admin/users` — поиск по email,
+  фильтр `all/active/blocked`, пагинация, без `hashed_password`;
+  `POST /v1/admin/users/{id}/block` и `/unblock` — с причиной и записью в
+  `admin_actions`; `DELETE /v1/admin/users/{id}` — подтверждение по email,
+  каскад `appointments`/`reminders`/`telegram_link_codes`, обнуление
+  `access_requests.reviewed_by/approved_user_id`.
+- **T-140.3 — блокировка JWT и входа.** `get_current_user` возвращает 403
+  заблокированному, `POST /v1/auth/login` — 403 «Аккаунт заблокирован.
+  Обратитесь к администратору»; неверный пароль остаётся 401.
+- **T-140.4 — UI.** Третья вкладка «Пользователи» в `AdminDashboard`:
+  поиск, фильтр, пагинация, статусы, block/unblock с причиной, удаление с
+  подтверждением email.
+- **Защита.** Нельзя заблокировать/удалить себя и последнего активного
+  администратора; повторные block/unblock идемпотентны; журнал не хранит
+  пароли и токены.
+
+### Изменено
+
+- Версия `1.8.0` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README.
+- `DEPLOYMENT.md` §8: миграция T-140, проверка и откат.
+- `TODO.md`: T-140 и подзадачи закрыты; T-138 перенесена на следующий релиз.
+
+### Эксплуатация
+
+- Перед деплоем v1.8.0 применить SQL к прод-БД:
+
+  ```bash
+  cd /srv/vetassistant
+  docker compose -f docker-compose.edge.yml exec -T db \
+    sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+    < scripts/migrations/2026-11-08_user_management.sql
+  ```
+
+- Новый API докатывает схему при старте (`create_all` + `ALTER TABLE`), но
+  SQL даёт управляемый деплой и заранее подготовленную схему.
+- Откат схемы — только после откачки API на предыдущую версию:
+  `DROP TABLE admin_actions`, затем `DROP COLUMN users.is_active`.
+
+### Проверено
+
+- `pytest`: 765 тестов; `ruff check .` и `mypy app` — чисто.
+- Frontend: `npm run lint`, `npm test` (74 теста), `npm run build` — зелёные.
+- CI v1.8.0 — прогон на релизном коммите: Lint & Test, Frontend, Docker
+  Build.
+
+### Примечание
+
+- T-138 (точные токены и `usage` в стриминге) в этот релиз не входит и
+  остаётся следующей задачей.
+
 ## [1.7.1] — 2026-11-08
 
 Патч прямого запуска скриптов оценки RAG (T-147).

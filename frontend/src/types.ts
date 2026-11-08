@@ -96,6 +96,25 @@ export interface AdminAccessRequest {
   rejection_reason: string | null
 }
 
+export type AdminUserStatus = 'all' | 'active' | 'blocked'
+
+export interface AdminUser {
+  id: number
+  email: string
+  is_admin: boolean
+  is_active: boolean
+  must_change_password: boolean
+  telegram_id: number | null
+  created_at: string
+}
+
+export interface AdminUserList {
+  items: AdminUser[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export type AdminMetricsSource = 'prometheus' | 'in_process'
 
 export type AdminMetricsWindow = '24h' | '7d'

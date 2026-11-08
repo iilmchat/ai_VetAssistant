@@ -10,6 +10,7 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
+  Users,
   X,
 } from 'lucide-react'
 import type { AccessRequestStatus, AdminAccessRequest } from '../types'
@@ -18,8 +19,10 @@ import {
   fetchAdminAccessRequests,
   rejectAdminAccessRequest,
 } from '../lib/api'
+import { formatDateTime } from '../lib/format'
 import { errorMessage } from '../lib/utils'
 import { AdminAnalytics } from './AdminAnalytics'
+import { AdminUsers } from './AdminUsers'
 
 interface AdminDashboardProps {
   onClose: () => void
@@ -27,10 +30,11 @@ interface AdminDashboardProps {
 
 type Filter = AccessRequestStatus | 'all'
 
-type AdminTab = 'requests' | 'analytics'
+type AdminTab = 'requests' | 'users' | 'analytics'
 
 const TABS: { value: AdminTab; label: string; icon: typeof ClipboardList }[] = [
   { value: 'requests', label: 'Заявки', icon: ClipboardList },
+  { value: 'users', label: 'Пользователи', icon: Users },
   { value: 'analytics', label: 'Аналитика', icon: Activity },
 ]
 
@@ -40,20 +44,6 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'rejected', label: 'Отклонены' },
   { value: 'all', label: 'Все' },
 ]
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 function statusBadge(status: AccessRequestStatus) {
   if (status === 'approved') {
@@ -197,7 +187,9 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             <p className="truncate text-[11px] text-zinc-500">
               {tab === 'analytics'
                 ? 'Использование модели и RAG'
-                : 'Заявки на доступ к сервису'}
+                : tab === 'users'
+                  ? 'Блокировка и удаление аккаунтов'
+                  : 'Заявки на доступ к сервису'}
             </p>
           </div>
           {tab === 'requests' && (
@@ -243,6 +235,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
         {tab === 'analytics' ? (
           <AdminAnalytics />
+        ) : tab === 'users' ? (
+          <AdminUsers />
         ) : (
           <>
             <div className="mb-4 flex flex-wrap gap-1.5">
@@ -305,7 +299,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                           <span className="line-clamp-3">{item.reason}</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
-                          {formatDate(item.created_at)}
+                          {formatDateTime(item.created_at)}
                         </td>
                         <td className="px-4 py-3">
                           <span
