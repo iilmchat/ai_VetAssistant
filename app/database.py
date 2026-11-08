@@ -1,4 +1,4 @@
-"""Async SQLAlchemy-хранилище VetAssistant (T-033, T-039).
+"""Async SQLAlchemy-хранилище VetAssistant (T-033, T-039, T-140.1).
 
 В Docker используется PostgreSQL 16 + asyncpg; локально и в тестах — async
 SQLite через aiosqlite. Таблицы создаются в lifespan FastAPI через
@@ -8,6 +8,8 @@ SQLite через aiosqlite. Таблицы создаются в lifespan FastA
 ``reminders`` ссылаются на ``users.id``. Для уже существующих баз
 ``create_tables`` добавляет недостающую колонку ``user_id`` без потери
 старых строк (они остаются невидимыми до привязки к пользователю).
+С T-140.1 у пользователей есть ``is_active``, а действия администраторов
+пишутся в ``admin_actions``.
 """
 
 from __future__ import annotations
@@ -24,9 +26,12 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
+    delete,
+    func,
     inspect,
     select,
     text,
+    update,
 )
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import (
@@ -36,6 +41,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.settings import DEFAULT_DATABASE_URL
 
@@ -67,12 +73,50 @@ class User(Base):
         default=False,
         nullable=False,
     )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
     telegram_id: Mapped[int | None] = mapped_column(
         BigInteger,
         unique=True,
         index=True,
         nullable=True,
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
+class AdminAction(Base):
+    """Аудит действий администратора над пользователями (T-140.1).
+
+    ``admin_id`` — внешний ключ с ``ON DELETE SET NULL``: запись аудита
+    переживает удаление администратора. ``target_user_id`` намеренно объявлен
+    без внешнего ключа, чтобы действие ``delete`` не теряло идентификатор
+    удалённого пользователя; это исторический журнал, а не живая ссылка.
+    """
+
+    __tablename__ = "admin_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('block', 'unblock', 'delete')",
+            name="ck_admin_actions_action",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    admin_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    target_user_id: Mapped[int] = mapped_column(index=True, nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -286,6 +330,30 @@ def _migrate_telegram_link(connection: Connection) -> None:
     )
 
 
+def _migrate_user_management(connection: Connection) -> None:
+    """Добавить ``users.is_active`` в базы, созданные до T-140.1.
+
+    Таблицу ``admin_actions`` создаёт ``Base.metadata.create_all``. Для старой
+    таблицы ``users`` нужен отдельный ``ALTER TABLE``: ``create_all`` не меняет
+    существующие таблицы. Существующие пользователи остаются активными.
+    """
+    inspector = inspect(connection)
+    if "users" not in set(inspector.get_table_names()):
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("users")}
+    if "is_active" in columns:
+        return
+
+    default = "TRUE" if connection.dialect.name == "postgresql" else "1"
+    connection.execute(
+        text(
+            f"ALTER TABLE users ADD COLUMN is_active BOOLEAN "
+            f"NOT NULL DEFAULT {default}"
+        )
+    )
+
+
 class Database:
     """Async-движок и фабрика сессий SQLAlchemy."""
 
@@ -298,12 +366,13 @@ class Database:
         )
 
     async def create_tables(self) -> None:
-        """Создать таблицы и мягко мигрировать схему до T-039/T-120/T-134."""
+        """Создать таблицы и мягко мигрировать схему до T-140.1."""
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(_migrate_legacy_tables)
             await connection.run_sync(_migrate_admin_panel)
             await connection.run_sync(_migrate_telegram_link)
+            await connection.run_sync(_migrate_user_management)
 
     def session(self) -> AsyncSession:
         """Открыть новую сессию (используйте ``async with``)."""
@@ -526,3 +595,100 @@ async def list_reminders(
         .order_by(Reminder.id)
     )
     return list(result.scalars().all())
+
+
+# --- Управление пользователями (T-140.2) -------------------------------------
+
+
+async def list_users(
+    session: AsyncSession,
+    *,
+    query: str | None = None,
+    is_active: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[User], int]:
+    """Вернуть страницу пользователей и общее число по фильтру (T-140.2)."""
+    filters: list[ColumnElement[bool]] = []
+    if query:
+        filters.append(User.email.icontains(query, autoescape=True))
+    if is_active is not None:
+        filters.append(User.is_active.is_(is_active))
+
+    total_result = await session.execute(
+        select(func.count()).select_from(User).where(*filters)
+    )
+    total = int(total_result.scalar_one())
+    result = await session.execute(
+        select(User)
+        .where(*filters)
+        .order_by(User.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), total
+
+
+async def count_active_admins(session: AsyncSession) -> int:
+    """Сколько администраторов могут войти прямо сейчас (T-140.2)."""
+    result = await session.execute(
+        select(func.count())
+        .select_from(User)
+        .where(User.is_admin.is_(True), User.is_active.is_(True))
+    )
+    return int(result.scalar_one())
+
+
+def record_admin_action(
+    session: AsyncSession,
+    *,
+    admin_id: int,
+    target_user_id: int,
+    action: str,
+    reason: str | None = None,
+) -> AdminAction:
+    """Добавить запись аудита в текущую транзакцию (commit — у вызывающего)."""
+    entry = AdminAction(
+        admin_id=admin_id,
+        target_user_id=target_user_id,
+        action=action,
+        reason=reason,
+    )
+    session.add(entry)
+    return entry
+
+
+async def delete_user_account(session: AsyncSession, user_id: int) -> bool:
+    """Удалить пользователя и связанные данные (T-140.2).
+
+    Каскад выполняется явно, чтобы поведение не зависело от ``PRAGMA
+    foreign_keys`` в SQLite. Коммит остаётся за вызывающим: запись аудита и
+    удаление должны попасть в одну транзакцию.
+    """
+    user = await get_user_by_id(session, user_id)
+    if user is None:
+        return False
+
+    await session.execute(delete(Appointment).where(Appointment.user_id == user_id))
+    await session.execute(delete(Reminder).where(Reminder.user_id == user_id))
+    await session.execute(
+        delete(TelegramLinkCode).where(TelegramLinkCode.user_id == user_id)
+    )
+    await session.execute(
+        update(AccessRequest)
+        .where(AccessRequest.reviewed_by == user_id)
+        .values(reviewed_by=None)
+    )
+    await session.execute(
+        update(AccessRequest)
+        .where(AccessRequest.approved_user_id == user_id)
+        .values(approved_user_id=None)
+    )
+    # Запись аудита переживает удаление администратора.
+    await session.execute(
+        update(AdminAction)
+        .where(AdminAction.admin_id == user_id)
+        .values(admin_id=None)
+    )
+    await session.delete(user)
+    return True

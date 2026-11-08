@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.database import (
+    AdminAction,
     Database,
     TelegramLinkCode,
     User,
@@ -296,3 +297,102 @@ def test_telegram_migration_sql_matches_models() -> None:
     assert "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id" in script
     assert "CREATE UNIQUE INDEX IF NOT EXISTS ix_telegram_link_codes_code_hash" in script
     assert "ON DELETE CASCADE" in script
+
+
+async def test_create_tables_migrates_user_management(tmp_path: Path) -> None:
+    """Старая база получает users.is_active и admin_actions (T-140.1)."""
+    path = tmp_path / "legacy_admin.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE users ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "email VARCHAR(320) NOT NULL, "
+            "hashed_password VARCHAR(255) NOT NULL, "
+            "created_at DATETIME NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO users (email, hashed_password, created_at) "
+            "VALUES ('old@example.com', 'hash', '2026-01-01 00:00:00')"
+        )
+
+    database = Database(f"sqlite+aiosqlite:///{path.as_posix()}")
+    try:
+        await database.create_tables()
+        # Повторный запуск не должен падать или дублировать колонку.
+        await database.create_tables()
+
+        async with database.engine.connect() as connection:
+            user_columns = await connection.execute(text("PRAGMA table_info(users)"))
+            user_column_names = {row[1] for row in user_columns}
+            action_columns = await connection.execute(
+                text("PRAGMA table_info(admin_actions)")
+            )
+            action_column_names = {row[1] for row in action_columns}
+
+        assert "is_active" in user_column_names
+        assert action_column_names == {
+            "id",
+            "admin_id",
+            "target_user_id",
+            "action",
+            "reason",
+            "created_at",
+        }
+
+        async with database.session() as session:
+            user = await get_user_by_email(session, "old@example.com")
+            assert user is not None
+            assert user.is_active is True
+            session.add(
+                AdminAction(
+                    admin_id=user.id,
+                    target_user_id=user.id,
+                    action="block",
+                    reason="тест",
+                )
+            )
+            await session.commit()
+
+        async with database.session() as session:
+            session.add(
+                AdminAction(
+                    admin_id=1,
+                    target_user_id=1,
+                    action="unknown",
+                )
+            )
+            with pytest.raises(IntegrityError):
+                await session.commit()
+            await session.rollback()
+    finally:
+        await database.dispose()
+
+
+def test_user_management_migration_sql_matches_models() -> None:
+    """Сырой SQL управления пользователями не расходится с ORM-моделью."""
+    script_path = (
+        PROJECT_ROOT
+        / "scripts"
+        / "migrations"
+        / "2026-11-08_user_management.sql"
+    )
+    script = script_path.read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE" in script
+
+    marker = "CREATE TABLE IF NOT EXISTS admin_actions ("
+    assert marker in script
+    table_block = script.split(marker, 1)[1].split(");", 1)[0]
+    columns: set[str] = set()
+    for line in table_block.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("CONSTRAINT", "CHECK")):
+            continue
+        columns.add(stripped.split()[0].rstrip(","))
+
+    assert columns == {column.name for column in AdminAction.__table__.columns}
+    assert "ON DELETE SET NULL" in table_block
+    assert "target_user_id  INTEGER NOT NULL" in table_block
+    assert "CHECK (action IN ('block', 'unblock', 'delete'))" in table_block
+    assert "CREATE INDEX IF NOT EXISTS ix_admin_actions_admin_id" in script
+    assert "CREATE INDEX IF NOT EXISTS ix_admin_actions_target_user_id" in script

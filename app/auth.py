@@ -212,6 +212,12 @@ async def get_current_user(
             detail=UNAUTHORIZED_DETAIL,
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # T-140.2: блокировка действует сразу, без отзыва уже выданного JWT.
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Учётная запись заблокирована",
+        )
     return user
 
 

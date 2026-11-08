@@ -22,12 +22,17 @@ from app.auth import UserRead, get_current_admin, hash_password
 from app.database import (
     Database,
     User,
+    count_active_admins,
     create_user,
+    delete_user_account,
     get_access_request_by_id,
     get_database,
     get_user_by_email,
+    get_user_by_id,
     get_users_by_ids,
     list_access_requests,
+    list_users,
+    record_admin_action,
 )
 from app.metrics import PROCESS_STARTED_AT, MetricsSnapshot, snapshot
 from app.settings import get_app_settings
@@ -35,6 +40,7 @@ from app.settings import get_app_settings
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
 StatusCode = Literal["pending", "approved", "rejected", "all"]
+UserStatus = Literal["all", "active", "blocked"]
 MetricsWindow = Literal["24h", "7d"]
 
 #: Параметры выборки по окну: (длина окна, шаг точки на графике).
@@ -74,6 +80,46 @@ class RejectAccessRequestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str = Field(min_length=1, max_length=500)
+
+
+class AdminUserRead(BaseModel):
+    """Пользователь в админ-списке: без хэша пароля и токенов (T-140.2)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    is_admin: bool
+    is_active: bool
+    must_change_password: bool
+    telegram_id: int | None = None
+    created_at: datetime
+
+
+class AdminUserListRead(BaseModel):
+    """Страница списка пользователей."""
+
+    items: list[AdminUserRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class ModerationRequest(BaseModel):
+    """Причина блокировки или разблокировки."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class DeleteUserRequest(BaseModel):
+    """Подтверждение удаления: email должен совпасть с аккаунтом."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirm_email: str = Field(min_length=1, max_length=320)
+    reason: str | None = Field(default=None, max_length=500)
 
 
 @router.get("/access-requests", response_model=list[AccessRequestRead])
@@ -172,6 +218,204 @@ async def reject_access_request(
         await session.refresh(access_request)
 
     return AccessRequestRead.model_validate(access_request)
+
+
+# --- Управление пользователями (T-140.2) -------------------------------------
+
+
+def _normalized_reason(raw: str) -> str:
+    """Причина модерации не может быть пустой строкой."""
+    reason = raw.strip()
+    if not reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите причину",
+        )
+    return reason
+
+
+@router.get("/users", response_model=AdminUserListRead)
+async def get_users(
+    _current_admin: Annotated[User, Depends(get_current_admin)],
+    database: Annotated[Database, Depends(get_database)],
+    query: Annotated[str | None, Query(max_length=320)] = None,
+    status_filter: Annotated[UserStatus, Query(alias="status")] = "all",
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminUserListRead:
+    """Список пользователей с поиском по email и пагинацией (T-140.2)."""
+    normalized_query = query.strip() if query else None
+    if status_filter == "active":
+        is_active: bool | None = True
+    elif status_filter == "blocked":
+        is_active = False
+    else:
+        is_active = None
+
+    async with database.session() as session:
+        users, total = await list_users(
+            session,
+            query=normalized_query or None,
+            is_active=is_active,
+            limit=limit,
+            offset=offset,
+        )
+    return AdminUserListRead(
+        items=[AdminUserRead.model_validate(user) for user in users],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post("/users/{user_id}/block", response_model=AdminUserRead)
+async def block_user(
+    user_id: int,
+    payload: ModerationRequest,
+    current_admin: Annotated[User, Depends(get_current_admin)],
+    database: Annotated[Database, Depends(get_database)],
+) -> AdminUserRead:
+    """Заблокировать пользователя: его действующий JWT сразу получает 403."""
+    reason = _normalized_reason(payload.reason)
+
+    async with database.session() as session:
+        target = await get_user_by_id(session, user_id)
+        if target is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Пользователь не найден",
+            )
+        if target.id == current_admin.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя заблокировать собственную учётную запись",
+            )
+        if (
+            target.is_admin
+            and target.is_active
+            and await count_active_admins(session) <= 1
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Нельзя заблокировать последнего активного администратора",
+            )
+        if not target.is_active:
+            return AdminUserRead.model_validate(target)
+
+        target.is_active = False
+        record_admin_action(
+            session,
+            admin_id=current_admin.id,
+            target_user_id=target.id,
+            action="block",
+            reason=reason,
+        )
+        await session.commit()
+        await session.refresh(target)
+
+    logger.info(
+        "Admin: {} заблокировал пользователя {} (причина: {})",
+        current_admin.id,
+        user_id,
+        reason,
+    )
+    return AdminUserRead.model_validate(target)
+
+
+@router.post("/users/{user_id}/unblock", response_model=AdminUserRead)
+async def unblock_user(
+    user_id: int,
+    payload: ModerationRequest,
+    current_admin: Annotated[User, Depends(get_current_admin)],
+    database: Annotated[Database, Depends(get_database)],
+) -> AdminUserRead:
+    """Разблокировать пользователя и вернуть ему доступ."""
+    reason = _normalized_reason(payload.reason)
+
+    async with database.session() as session:
+        target = await get_user_by_id(session, user_id)
+        if target is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Пользователь не найден",
+            )
+        if target.is_active:
+            return AdminUserRead.model_validate(target)
+
+        target.is_active = True
+        record_admin_action(
+            session,
+            admin_id=current_admin.id,
+            target_user_id=target.id,
+            action="unblock",
+            reason=reason,
+        )
+        await session.commit()
+        await session.refresh(target)
+
+    logger.info(
+        "Admin: {} разблокировал пользователя {} (причина: {})",
+        current_admin.id,
+        user_id,
+        reason,
+    )
+    return AdminUserRead.model_validate(target)
+
+
+@router.delete("/users/{user_id}", response_model=AdminUserRead)
+async def delete_user(
+    user_id: int,
+    payload: DeleteUserRequest,
+    current_admin: Annotated[User, Depends(get_current_admin)],
+    database: Annotated[Database, Depends(get_database)],
+) -> AdminUserRead:
+    """Удалить аккаунт после подтверждения по email (T-140.2)."""
+    async with database.session() as session:
+        target = await get_user_by_id(session, user_id)
+        if target is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Пользователь не найден",
+            )
+        if target.id == current_admin.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя удалить собственную учётную запись",
+            )
+        if (
+            target.is_admin
+            and target.is_active
+            and await count_active_admins(session) <= 1
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Нельзя удалить последнего активного администратора",
+            )
+        if payload.confirm_email.strip().lower() != target.email.strip().lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email подтверждения не совпадает",
+            )
+
+        reason = payload.reason.strip() if payload.reason else None
+        deleted = AdminUserRead.model_validate(target)
+        record_admin_action(
+            session,
+            admin_id=current_admin.id,
+            target_user_id=target.id,
+            action="delete",
+            reason=reason,
+        )
+        await delete_user_account(session, target.id)
+        await session.commit()
+
+    logger.info(
+        "Admin: {} удалил пользователя {} (причина: {})",
+        current_admin.id,
+        user_id,
+        reason or "не указана",
+    )
+    return deleted
 
 
 # --- Аналитика использования (T-135) -----------------------------------------
