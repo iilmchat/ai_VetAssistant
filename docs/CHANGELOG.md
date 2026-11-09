@@ -4,6 +4,33 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.8.2] — 2026-11-09
+
+Патч GPU-стрима: `usage` снова приходит от LM Studio (T-138.5).
+
+### Исправлено
+
+- **T-138.5 — `usage` в GPU-стриме.** `GpuHttpBackend.stream_chat_completion`
+  не передавал в LM Studio `stream_options: {"include_usage": true}`, поэтому
+  OpenAI-совместимый сервер (как и сам OpenAI) не присылал `usage` в SSE.
+  Теперь параметр добавляется в payload через `setdefault` перед запросом;
+  явное значение от вызывающего кода сохраняется. `usage` последнего чанка
+  снова попадает в финальный SSE-чанк API, метрики `vet_llm_*` и админскую
+  аналитику. CPU-путь не менялся.
+- **Тест.** Проверка, что стриминговый запрос GPU-бэкенда содержит
+  `stream_options.include_usage`.
+
+### Изменено
+
+- Версия `1.8.2` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README.
+- `README.md`: раздел v1.8.2 и статус; `DEPLOYMENT.md`: примеры версии.
+- `TODO.md`: T-138.5 закрыта.
+
+### Проверено
+
+- `pytest`: 770 тестов; `ruff check .` и `mypy app` — чисто.
+
 ## [1.8.1] — 2026-11-09
 
 Точный `usage` в стриминге (T-138): токены CPU-модели считаются в API,

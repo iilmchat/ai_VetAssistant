@@ -189,6 +189,26 @@ async def test_gpu_stream_parses_sse_chunks() -> None:
     ]
 
 
+async def test_gpu_stream_requests_usage_in_stream_options() -> None:
+    """T-138.5: без include_usage LM Studio не отдаёт usage в стриме."""
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(200, content="data: [DONE]\n\n")
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        backend = GpuHttpBackend(_settings(), client=http_client)
+        async for _chunk in backend.stream_chat_completion(
+            messages=[{"role": "user", "content": "Вопрос"}],
+        ):
+            pass
+
+    assert captured["payload"]["stream"] is True
+    assert captured["payload"]["stream_options"] == {"include_usage": True}
+
+
 async def test_gpu_stream_passes_usage_from_last_chunk() -> None:
     """T-138: если LM Studio прислал usage, бэкенд отдаёт его без потерь."""
     body = (
