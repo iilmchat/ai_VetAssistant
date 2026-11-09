@@ -43,11 +43,16 @@ router = APIRouter(prefix="/v1/admin", tags=["admin"])
 StatusCode = Literal["pending", "approved", "rejected", "all"]
 UserStatus = Literal["all", "active", "blocked"]
 MetricsWindow = Literal["24h", "7d"]
+ActivityWindow = Literal["7d", "30d"]
 
 #: Параметры выборки по окну: (длина окна, шаг точки на графике).
 WINDOW_SECONDS: dict[str, int] = {"24h": 24 * 3600, "7d": 7 * 24 * 3600}
 WINDOW_STEP: dict[str, tuple[int, str]] = {"24h": (3600, "1h"), "7d": (6 * 3600, "6h")}
 TOP_USERS_LIMIT = 5
+
+#: Окна активности пользователей (T-151): число суток в окне и шаг точки.
+ACTIVITY_DAYS: dict[str, int] = {"7d": 7, "30d": 30}
+ACTIVITY_STEP_SECONDS = 24 * 3600
 
 
 class AccessRequestRead(BaseModel):
@@ -480,6 +485,31 @@ class AdminMetricsRead(BaseModel):
     top_users: list[TopUserRead]
 
 
+class ActivityPoint(BaseModel):
+    """Активность за одни сутки: уникальные пользователи и вызовы модели."""
+
+    date: str
+    active_users: int
+    requests: float
+
+
+class AdminActivityRead(BaseModel):
+    """Ответ ``GET /v1/admin/activity`` (T-151).
+
+    ``source="unavailable"`` и пустой ``series`` — graceful fallback, когда
+    Prometheus не задан или недоступен: UI показывает «нет истории» вместо
+    падения.
+    """
+
+    source: Literal["prometheus", "unavailable"]
+    degraded: bool
+    window: ActivityWindow
+    generated_at: datetime
+    series: list[ActivityPoint]
+    dau: int
+    wau: int
+
+
 def _error_rate(errors: float, requests: float) -> float:
     """Доля ошибок генерации (0..1)."""
     return errors / requests if requests > 0 else 0.0
@@ -742,6 +772,90 @@ async def _prometheus_metrics(
     )
 
 
+def _empty_activity(
+    window: ActivityWindow,
+    *,
+    degraded: bool,
+) -> AdminActivityRead:
+    """Graceful fallback: пустая история активности без ошибок (T-151)."""
+    return AdminActivityRead(
+        source="unavailable",
+        degraded=degraded,
+        window=window,
+        generated_at=datetime.now(UTC),
+        series=[],
+        dau=0,
+        wau=0,
+    )
+
+
+async def _prometheus_activity(
+    base_url: str,
+    timeout_s: float,
+    window: ActivityWindow,
+) -> AdminActivityRead:
+    """Собрать DAU по дням и WAU из ``vet_llm_user_requests_total`` (T-151).
+
+    DAU за сутки — число уникальных ``user_id`` с приростом счётчика за
+    ``[1d]``; WAU — за ``[7d]``. Ряд строится по точкам раз в сутки, так что
+    каждый столбик соответствует одному дню.
+    """
+    days = ACTIVITY_DAYS[window]
+    step = ACTIVITY_STEP_SECONDS
+    end = time.time()
+    start = end - (days - 1) * step
+
+    dau_expr = (
+        "count(sum by (user_id) (increase(vet_llm_user_requests_total[1d])) > 0)"
+    )
+    requests_expr = "sum(increase(vet_llm_user_requests_total[1d]))"
+    wau_expr = (
+        "count(sum by (user_id) (increase(vet_llm_user_requests_total[7d])) > 0)"
+    )
+
+    async with httpx.AsyncClient(timeout=timeout_s) as client:
+        dau_series, requests_series, dau_now, wau_now = await asyncio.gather(
+            _prom_query(
+                client,
+                base_url,
+                dau_expr,
+                start=start,
+                end=end,
+                step=step,
+            ),
+            _prom_query(
+                client,
+                base_url,
+                requests_expr,
+                start=start,
+                end=end,
+                step=step,
+            ),
+            _prom_query(client, base_url, dau_expr),
+            _prom_query(client, base_url, wau_expr),
+        )
+
+    dau_values = _range_values(dau_series)
+    request_values = _range_values(requests_series)
+    series = [
+        ActivityPoint(
+            date=datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d"),
+            active_users=round(dau_values.get(ts, 0.0)),
+            requests=round(request_values.get(ts, 0.0), 3),
+        )
+        for ts in sorted(set(dau_values) | set(request_values))
+    ]
+    return AdminActivityRead(
+        source="prometheus",
+        degraded=False,
+        window=window,
+        generated_at=datetime.now(UTC),
+        series=series,
+        dau=round(_instant_sum(dau_now)),
+        wau=round(_instant_sum(wau_now)),
+    )
+
+
 def _in_process_totals(state: MetricsSnapshot) -> MetricsTotals:
     """Перевести снимок registry в модель ответа."""
     return MetricsTotals(
@@ -828,3 +942,29 @@ async def get_admin_feedback_stats(
         positive_ratio=stats.positive_ratio,
     )
 
+
+@router.get("/activity", response_model=AdminActivityRead)
+async def get_admin_activity(
+    _current_admin: Annotated[User, Depends(get_current_admin)],
+    window: Annotated[ActivityWindow, Query()] = "7d",
+) -> AdminActivityRead:
+    """DAU по дням и WAU для админ-панели (T-151).
+
+    Данные берутся из Prometheus (``vet_llm_user_requests_total``): DAU —
+    уникальные пользователи с вызовами модели за сутки, WAU — за 7 дней.
+    Если Prometheus не задан или недоступен, отдаётся пустая история
+    (``source="unavailable"``), чтобы UI не падал.
+    """
+    settings = get_app_settings()
+    base_url = settings.prometheus_url.strip().rstrip("/")
+    if not base_url:
+        return _empty_activity(window, degraded=False)
+    try:
+        return await _prometheus_activity(
+            base_url,
+            settings.prometheus_timeout_s,
+            window,
+        )
+    except Exception as exc:
+        logger.warning("Админ-активность: Prometheus недоступен ({}): {}", base_url, exc)
+        return _empty_activity(window, degraded=True)

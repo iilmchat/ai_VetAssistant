@@ -1,5 +1,7 @@
 import type {
   AdminAccessRequest,
+  AdminActivity,
+  AdminActivityWindow,
   AdminMetrics,
   AdminMetricsWindow,
   AdminUser,
@@ -323,6 +325,18 @@ export function fetchAdminMetrics(
 ): Promise<AdminMetrics> {
   return requestJson<AdminMetrics>(
     `/v1/admin/metrics?window=${window}`,
+    {},
+    baseUrl,
+  )
+}
+
+/** Активность пользователей (DAU/WAU и ряд по дням) для админ-панели. */
+export function fetchAdminActivity(
+  window: AdminActivityWindow = '7d',
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminActivity> {
+  return requestJson<AdminActivity>(
+    `/v1/admin/activity?window=${window}`,
     {},
     baseUrl,
   )

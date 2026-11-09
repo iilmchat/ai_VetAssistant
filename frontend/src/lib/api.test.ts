@@ -7,6 +7,7 @@ import {
   createTelegramLinkCode,
   deleteAdminUser,
   fetchAdminAccessRequests,
+  fetchAdminActivity,
   fetchAdminMetrics,
   fetchAdminUsers,
   fetchFeedbackStats,
@@ -593,6 +594,79 @@ describe('feedback API', () => {
     const init = call?.[1] as RequestInit
     expect(new Headers(init.headers).get('Authorization')).toBe(
       'Bearer jwt-token',
+    )
+  })
+})
+
+describe('admin activity API', () => {
+  it('fetchAdminActivity передаёт window=7d, Bearer и разбирает series', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          source: 'prometheus',
+          degraded: false,
+          window: '7d',
+          generated_at: '2026-11-09T12:00:00+00:00',
+          series: [
+            { date: '2026-11-03', active_users: 4, requests: 12 },
+            { date: '2026-11-04', active_users: 3, requests: 7.5 },
+          ],
+          dau: 3,
+          wau: 9,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const result = await fetchAdminActivity()
+
+    expect(result.source).toBe('prometheus')
+    expect(result.window).toBe('7d')
+    expect(result.dau).toBe(3)
+    expect(result.wau).toBe(9)
+    expect(result.series).toHaveLength(2)
+    expect(result.series[0]).toEqual({
+      date: '2026-11-03',
+      active_users: 4,
+      requests: 12,
+    })
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/admin/activity?window=7d',
+    )
+    const init = call?.[1] as RequestInit
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer jwt-token',
+    )
+  })
+
+  it('fetchAdminActivity передаёт window=30d и терпит fallback', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          source: 'unavailable',
+          degraded: true,
+          window: '30d',
+          generated_at: '2026-11-09T12:00:00+00:00',
+          series: [],
+          dau: 0,
+          wau: 0,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchAdminActivity('30d')
+
+    expect(result.source).toBe('unavailable')
+    expect(result.series).toEqual([])
+    expect(result.dau).toBe(0)
+    expect(result.wau).toBe(0)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/admin/activity?window=30d',
     )
   })
 })

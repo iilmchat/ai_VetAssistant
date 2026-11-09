@@ -6,8 +6,18 @@ import {
   RefreshCw,
   Server,
 } from 'lucide-react'
-import type { AdminMetrics, AdminMetricsWindow, FeedbackStats } from '../types'
-import { fetchAdminMetrics, fetchFeedbackStats } from '../lib/api'
+import type {
+  AdminActivity,
+  AdminActivityWindow,
+  AdminMetrics,
+  AdminMetricsWindow,
+  FeedbackStats,
+} from '../types'
+import {
+  fetchAdminActivity,
+  fetchAdminMetrics,
+  fetchFeedbackStats,
+} from '../lib/api'
 import { formatMetricValue, formatPercent, ragHitRate } from '../lib/metrics'
 import { errorMessage } from '../lib/utils'
 import { Sparkline } from './charts/Sparkline'
@@ -15,6 +25,11 @@ import { Sparkline } from './charts/Sparkline'
 const WINDOWS: { value: AdminMetricsWindow; label: string }[] = [
   { value: '24h', label: '24 часа' },
   { value: '7d', label: '7 дней' },
+]
+
+const ACTIVITY_WINDOWS: { value: AdminActivityWindow; label: string }[] = [
+  { value: '7d', label: '7 дней' },
+  { value: '30d', label: '30 дней' },
 ]
 
 const REFRESH_INTERVAL_MS = 60_000
@@ -43,6 +58,12 @@ export function AdminAnalytics() {
   const [window, setWindow] = useState<AdminMetricsWindow>('24h')
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null)
+  // Активность пользователей живёт отдельно от метрик: своё окно, своё
+  // состояние загрузки/ошибки, чтобы сбой одного запроса не ломал другой блок.
+  const [activityWindow, setActivityWindow] = useState<AdminActivityWindow>('7d')
+  const [activity, setActivity] = useState<AdminActivity | null>(null)
+  const [activityLoading, setActivityLoading] = useState(true)
+  const [activityError, setActivityError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -62,6 +83,18 @@ export function AdminAnalytics() {
     setFeedbackStats(await statsPromise)
   }, [window])
 
+  const loadActivity = useCallback(async () => {
+    setActivityLoading(true)
+    setActivityError(null)
+    try {
+      setActivity(await fetchAdminActivity(activityWindow))
+    } catch (requestError) {
+      setActivityError(errorMessage(requestError))
+    } finally {
+      setActivityLoading(false)
+    }
+  }, [activityWindow])
+
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
     void load()
@@ -73,10 +106,30 @@ export function AdminAnalytics() {
     }
   }, [load])
 
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
+    void loadActivity()
+    const timer = globalThis.setInterval(() => {
+      void loadActivity()
+    }, REFRESH_INTERVAL_MS)
+    return () => {
+      globalThis.clearInterval(timer)
+    }
+  }, [loadActivity])
+
   const totals = metrics?.totals
   const hitRate = totals ? ragHitRate(totals) : 0
   const requestsSeries = metrics?.series.map((point) => point.requests) ?? []
   const tokensSeries = metrics?.series.map((point) => point.tokens) ?? []
+
+  // Данные активности показываем только при живом источнике и непустом ряде.
+  const activityStats =
+    activity && activity.source === 'prometheus' && activity.series.length > 0
+      ? activity
+      : null
+  const activityRequestsTotal =
+    activityStats?.series.reduce((sum, point) => sum + point.requests, 0) ?? 0
+  const refreshing = loading || activityLoading
 
   return (
     <div>
@@ -100,11 +153,14 @@ export function AdminAnalytics() {
 
         <button
           type="button"
-          onClick={() => void load()}
-          disabled={loading}
+          onClick={() => {
+            void load()
+            void loadActivity()
+          }}
+          disabled={refreshing}
           className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           Обновить
         </button>
       </div>
@@ -211,6 +267,80 @@ export function AdminAnalytics() {
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                Активность пользователей
+              </p>
+              <div className="ml-auto flex rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
+                {ACTIVITY_WINDOWS.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setActivityWindow(item.value)}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      activityWindow === item.value
+                        ? 'bg-emerald-500 text-emerald-950'
+                        : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {activityError && (
+              <div
+                role="alert"
+                className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[11.5px] text-rose-300"
+              >
+                {activityError}
+              </div>
+            )}
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <KpiCard
+                label="DAU"
+                value={activityStats ? formatMetricValue(activityStats.dau) : '—'}
+                hint="уникальные пользователи за 24 часа"
+              />
+              <KpiCard
+                label="WAU"
+                value={activityStats ? formatMetricValue(activityStats.wau) : '—'}
+                hint="уникальные пользователи за 7 дней"
+              />
+            </div>
+
+            {activityStats ? (
+              <div className="mt-3">
+                <div className="mb-1 flex flex-wrap items-baseline gap-2">
+                  <p className="text-[11px] text-zinc-500">
+                    Активные пользователи по дням
+                  </p>
+                  <span className="ml-auto text-[10.5px] text-zinc-600">
+                    запросов за период: {formatMetricValue(activityRequestsTotal)}
+                  </span>
+                </div>
+                <Sparkline
+                  values={activityStats.series.map(
+                    (point) => point.active_users,
+                  )}
+                  label="Активные пользователи по дням"
+                />
+              </div>
+            ) : activityLoading ? (
+              <div className="mt-3 flex items-center justify-center gap-2 py-6 text-[12px] text-zinc-500">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Загружаю активность…
+              </div>
+            ) : (
+              <p className="mt-3 py-6 text-center text-[12px] text-zinc-600">
+                История активности недоступна без Prometheus.
+              </p>
+            )}
           </div>
 
           <div className="mt-3 overflow-x-auto rounded-2xl border border-white/[0.07]">

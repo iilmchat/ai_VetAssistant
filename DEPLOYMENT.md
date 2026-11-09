@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.9.0
+# VETASSISTANT_VERSION=1.10.0
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.9.0
+gh workflow run deploy.yml --ref main -f version=1.10.0
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -1067,6 +1067,43 @@ BEGIN;
 DROP TABLE IF EXISTS feedback;
 COMMIT;
 ```
+
+### Экспорт оценок для DPO/SFT (T-150)
+
+Оценки выгружаются скриптом `scripts/export_feedback.py` в JSONL: только
+`message_id`, `rating`, `created_at` — текстов диалогов в БД нет (152-ФЗ).
+Запуск в контейнере API (БД доступна из контейнера):
+
+```bash
+cd /srv/vetassistant
+docker compose -f docker-compose.edge.yml exec -T api \
+  python scripts/export_feedback.py --output /tmp/feedback.jsonl
+docker compose -f docker-compose.edge.yml cp \
+  api:/tmp/feedback.jsonl ./feedback.jsonl
+```
+
+Локально — так же, с `--database-url` (по умолчанию `VET_API_DATABASE_URL`):
+
+```bash
+python scripts/export_feedback.py --since 2026-11-01 --rating -1 \
+  --output data/feedback_negative.jsonl
+```
+
+- `--since/--until` — `YYYY-MM-DD` (весь день) или ISO-datetime (UTC);
+  `--until` датой включает день целиком.
+- `--rating 1|-1`, `--limit N`, `--output FILE`; без `--output` — stdout
+  (только JSONL, служебные сообщения идут в stderr).
+- `--include-user-id` добавляет псевдоним пользователя (HMAC-SHA256).
+  Обязательна соль: `export VET_EXPORT_PSEUDONYM_SALT=<секрет>`; без неё
+  скрипт завершается с кодом 2, чтобы псевдонимы нельзя было обратить.
+
+### Активность пользователей (T-151)
+
+`GET /v1/admin/activity?window=7d|30d` (только админ) отдаёт DAU по дням и
+WAU. Данные берутся из Prometheus по метрике `vet_llm_user_requests_total`;
+если Prometheus не задан или недоступен, API отвечает `200` с
+`"source": "unavailable"` и пустым рядом — админка показывает «История
+активности недоступна», остальная аналитика работает.
 
 ## 9. Проверка после запуска
 

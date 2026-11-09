@@ -165,3 +165,23 @@ export interface FeedbackStats {
   negative: number
   positive_ratio: number
 }
+
+export type AdminActivityWindow = '7d' | '30d'
+
+export type AdminActivitySource = 'prometheus' | 'unavailable'
+
+export interface AdminActivityPoint {
+  date: string
+  active_users: number
+  requests: number
+}
+
+export interface AdminActivity {
+  source: AdminActivitySource
+  degraded: boolean
+  window: AdminActivityWindow
+  generated_at: string
+  series: AdminActivityPoint[]
+  dau: number
+  wau: number
+}

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vetassistant"
-version = "1.9.0"
+version = "1.10.0"
 description = "Русскоязычный ветеринарный ИИ-ассистент: пайплайн данных, обучение и оценка"
 readme = "README.md"
 requires-python = ">=3.11"
