@@ -17,7 +17,7 @@ export function Markdown({ content }: MarkdownProps) {
             </a>
           ),
           table: ({ children }) => (
-            <div className="my-3 overflow-x-auto rounded-lg border border-white/10">
+            <div className="my-3 overflow-x-auto rounded-lg border border-line">
               <table>{children}</table>
             </div>
           ),

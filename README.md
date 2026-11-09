@@ -1,15 +1,17 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.11.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.12.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.11.0** (2026-11-09)
-**Релиз v1.11.0:** английская локализация интерфейса и переключатель RU/EN
-с сохранением выбора, даты через `Intl.DateTimeFormat` (T-153)
-**Предыдущий релиз:** v1.10.0 — экспорт оценок в JSONL для DPO/SFT и
+**Статус:** ✅ **Production Ready — v1.12.0** (2026-11-09)
+**Релиз v1.12.0:** светлая тема Light / Dark / System, горячие клавиши
+Ctrl/Cmd+K, Ctrl+Enter и Esc, мобильный drawer и индикатор отправки (T-154)
+**Предыдущий релиз:** v1.11.0 — английская локализация интерфейса и
+переключатель RU/EN с сохранением выбора (T-153)
+**Ранее:** v1.10.0 — экспорт оценок в JSONL для DPO/SFT и
 активность пользователей в админке — DAU/WAU с графиком по дням (T-150, T-151)
 **Ранее:** v1.9.0 — обратная связь по ответам 👍/👎: одна оценка на
 сообщение, KPI «Рейтинг ответов», без текстов диалогов в БД (T-139)
@@ -23,6 +25,7 @@
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; привязка к веб-аккаунту по одноразовому коду (`/link`), уведомления в чат и доступ в production — только по allowlist Telegram ID
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
 - **Локализация (T-153):** RU/EN через `react-i18next`, мгновенное переключение, выбор в `localStorage`, даты через `Intl.DateTimeFormat`
+- **UI/UX (T-154):** светлая / тёмная / системная тема (`vetassistant.theme`), хоткеи Ctrl/Cmd+K, Ctrl+Enter и Esc, мобильный drawer, индикатор отправки
 - **Экспорт:** история диалога скачивается в Markdown одной кнопкой
 - **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
 - **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
@@ -92,6 +95,33 @@ hit из ChromaDB.
   `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
+
+## 🎨 v1.12.0 — светлая тема, хоткеи и мобильная вёрстка
+
+**Релиз:** 2026-11-09. Интерфейс получил светлую тему, горячие клавиши и
+доведённую мобильную вёрстку; админка получила переключатель языка (T-154).
+
+### Что изменилось (T-154)
+
+- **Темы.** Переключатель Light / Dark / System в сайдбаре и на экране входа;
+  выбор хранится в `localStorage` (`vetassistant.theme`), системная тема
+  слушается через `prefers-color-scheme`. По умолчанию — тёмная, чтобы
+  существующие пользователи не получили неожиданную смену после обновления.
+- **CSS-переменные.** Палитра вынесена в семантические токены
+  (`--app-bg`, `--text-primary`, `--border` и т. д.) и Tailwind-утилиты
+  `bg-app` / `text-ink` / `border-line`; светлая тема переключается атрибутом
+  `data-theme="light"` на `<html>`. Обновлены чат, сайдбар, диалоги, Markdown
+  и все три вкладки админки.
+- **Горячие клавиши.** `Ctrl/Cmd+K` — фокус на поле ввода; `Ctrl/Cmd+Enter` —
+  отправка (как и Enter); `Esc` закрывает модальные окна и мобильный drawer.
+- **Мобильная вёрстка.** Сайдбар выезжает drawer'ом до 768 px с кнопкой-
+  гамбургером и затемнением; увеличены touch-цели composer и кнопок оценки,
+  добавлен отступ под `safe-area-inset-bottom`; вкладки админки
+  прокручиваются горизонтально.
+- **Мелочи.** Переключатель RU/EN добавлен в шапку админки; при отправке
+  сообщения рядом с кнопкой «Стоп» показывается spinner.
+- **Тесты.** `theme.test.ts` и `hotkeys.test.ts`; обновлены `i18n.test.ts`
+  (новые ключи тем) и версия в `tests/test_deployment.py`.
 
 ## 🌍 v1.11.0 — английская локализация (i18n)
 

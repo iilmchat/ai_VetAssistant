@@ -8,6 +8,7 @@ import { isAccessRequestMode } from '../lib/access'
 import { errorMessage } from '../lib/utils'
 import { AccessRequestDialog } from './AccessRequestDialog'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeSwitcher } from './ThemeSwitcher'
 
 interface AuthScreenProps {
   onAuthenticated: (session: AuthSession) => void
@@ -58,11 +59,12 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
   }
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#141414] px-4 py-10 text-zinc-100">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-app px-4 py-10 text-ink">
       <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-52 right-[-10rem] h-96 w-96 rounded-full bg-teal-500/[0.07] blur-3xl" />
 
-      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2 sm:right-6 sm:top-6">
+        <ThemeSwitcher />
         <LanguageSwitcher />
       </div>
 
@@ -71,19 +73,19 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-zinc-950 shadow-[0_12px_36px_rgba(16,185,129,0.35)]">
             <PawPrint className="h-7 w-7" strokeWidth={2.4} />
           </div>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-white">
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink-strong">
             VetAssistant
           </h1>
-          <p className="mt-1 text-[13px] text-zinc-500">
+          <p className="mt-1 text-[13px] text-ink-muted">
             {t('auth.tagline')}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#1b1b1b]/95 p-5 shadow-2xl shadow-black/40 backdrop-blur">
+        <div className="rounded-2xl border border-line bg-panel-2/95 p-5 shadow-2xl shadow-black/40 backdrop-blur">
           {notice && (
             <div
               role="status"
-              className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-2.5 text-[12px] leading-5 text-emerald-300"
+              className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-2.5 text-[12px] leading-5 text-accent"
             >
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>{notice}</span>
@@ -91,10 +93,10 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
           )}
 
           <div className="mb-5">
-            <h2 className="text-[15px] font-semibold text-white">
+            <h2 className="text-[15px] font-semibold text-ink-strong">
               {t('auth.login')}
             </h2>
-            <p className="mt-0.5 text-[11.5px] text-zinc-500">
+            <p className="mt-0.5 text-[11.5px] text-ink-muted">
               {t('auth.inviteOnly')}
             </p>
           </div>
@@ -104,11 +106,11 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
             className="space-y-3.5"
           >
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                 {t('auth.email')}
               </span>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 focus-within:border-emerald-500/40">
-                <Mail className="h-4 w-4 shrink-0 text-zinc-500" />
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-field px-3 py-2.5 focus-within:border-emerald-500/40">
+                <Mail className="h-4 w-4 shrink-0 text-ink-muted" />
                 <input
                   type="email"
                   autoComplete="email"
@@ -116,17 +118,17 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
-                  className="w-full bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-600"
+                  className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-ink-faint"
                 />
               </div>
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                 {t('auth.password')}
               </span>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 focus-within:border-emerald-500/40">
-                <Lock className="h-4 w-4 shrink-0 text-zinc-500" />
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-field px-3 py-2.5 focus-within:border-emerald-500/40">
+                <Lock className="h-4 w-4 shrink-0 text-ink-muted" />
                 <input
                   type="password"
                   autoComplete="current-password"
@@ -134,7 +136,7 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder={t('auth.passwordPlaceholder')}
-                  className="w-full bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-600"
+                  className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-ink-faint"
                 />
               </div>
             </label>
@@ -142,7 +144,7 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
             {error && (
               <div
                 role="alert"
-                className="rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2.5 text-[12px] leading-5 text-rose-300"
+                className="rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2.5 text-[12px] leading-5 text-danger"
               >
                 {error}
               </div>
@@ -158,21 +160,21 @@ export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
             </button>
           </form>
 
-          <div className="mt-4 border-t border-white/10 pt-4 text-center">
-            <p className="text-[11.5px] text-zinc-500">
+          <div className="mt-4 border-t border-line pt-4 text-center">
+            <p className="text-[11.5px] text-ink-muted">
               {t('auth.noAccount')}
             </p>
             <button
               type="button"
               onClick={() => setAccessDialogOpen(true)}
-              className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200"
+              className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] font-medium text-accent transition-colors hover:bg-emerald-500/10 hover:text-accent-strong"
             >
               <UserPlus className="h-3.5 w-3.5" />
               {t('auth.requestAccess')}
             </button>
           </div>
 
-          <p className="mt-4 flex items-start gap-2 text-[10.5px] leading-4 text-zinc-600">
+          <p className="mt-4 flex items-start gap-2 text-[10.5px] leading-4 text-ink-faint">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {t('auth.privacy')}
           </p>

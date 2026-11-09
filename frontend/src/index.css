@@ -8,15 +8,135 @@
     "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+/*
+ * Семантические цвета темы (T-154).
+ * Компоненты используют утилиты bg-app / text-ink / border-line и т. п.,
+ * поэтому светлая и тёмная темы переключаются только переменными ниже.
+ */
+@theme inline {
+  --color-app: var(--app-bg);
+  --color-panel: var(--panel-bg);
+  --color-panel-2: var(--panel-bg-2);
+  --color-composer: var(--composer-bg);
+  --color-code: var(--code-bg);
+
+  --color-ink: var(--text-primary);
+  --color-ink-strong: var(--text-strong);
+  --color-ink-soft: var(--text-soft);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-faint: var(--text-faint);
+
+  --color-line: var(--border);
+  --color-line-soft: var(--border-soft);
+  --color-line-strong: var(--border-strong);
+
+  --color-tint: var(--tint);
+  --color-tint-2: var(--tint-2);
+  --color-tint-3: var(--tint-3);
+  --color-hover: var(--hover);
+  --color-hover-strong: var(--hover-strong);
+  --color-field: var(--field);
+  --color-overlay: var(--overlay);
+  --color-track: var(--track);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-icon: var(--accent-icon);
+  --color-warn: var(--warn);
+  --color-warn-strong: var(--warn-strong);
+  --color-warn-icon: var(--warn-icon);
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+  --color-danger-icon: var(--danger-icon);
+  --color-sky-text: var(--sky-text);
+}
+
 :root {
+  /* Тёмная тема — значения по умолчанию (как до v1.12.0). */
+  --app-bg: #212121;
+  --panel-bg: #171717;
+  --panel-bg-2: #1b1b1b;
+  --composer-bg: #2f2f2f;
+  --code-bg: #111111;
+
+  --text-primary: #f4f4f5;
+  --text-strong: #ffffff;
+  --text-soft: #d4d4d8;
+  --text-muted: #a1a1aa;
+  --text-faint: #71717a;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --border-soft: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --tint: rgba(255, 255, 255, 0.025);
+  --tint-2: rgba(255, 255, 255, 0.05);
+  --tint-3: rgba(255, 255, 255, 0.08);
+  --hover: rgba(255, 255, 255, 0.06);
+  --hover-strong: rgba(255, 255, 255, 0.1);
+  --field: rgba(0, 0, 0, 0.25);
+  --overlay: rgba(0, 0, 0, 0.68);
+  --track: #3f3f46;
+
+  --accent: #6ee7b7;
+  --accent-strong: #a7f3d0;
+  --accent-icon: #34d399;
+  --warn: #fcd34d;
+  --warn-strong: #fde68a;
+  --warn-icon: #fbbf24;
+  --danger: #fda4af;
+  --danger-strong: #fecdd3;
+  --danger-icon: #fb7185;
+  --sky-text: #7dd3fc;
+
   color-scheme: dark;
   font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #212121;
-  color: #ececec;
+  background-color: var(--app-bg);
+  color: var(--text-primary);
+}
+
+:root[data-theme="light"] {
+  --app-bg: #f6f6f3;
+  --panel-bg: #ffffff;
+  --panel-bg-2: #ffffff;
+  --composer-bg: #ffffff;
+  --code-bg: #f4f4f5;
+
+  --text-primary: #18181b;
+  --text-strong: #09090b;
+  --text-soft: #3f3f46;
+  --text-muted: #52525b;
+  --text-faint: #71717a;
+
+  --border: rgba(9, 9, 11, 0.12);
+  --border-soft: rgba(9, 9, 11, 0.08);
+  --border-strong: rgba(9, 9, 11, 0.18);
+
+  --tint: rgba(9, 9, 11, 0.025);
+  --tint-2: rgba(9, 9, 11, 0.05);
+  --tint-3: rgba(9, 9, 11, 0.08);
+  --hover: rgba(9, 9, 11, 0.06);
+  --hover-strong: rgba(9, 9, 11, 0.1);
+  --field: rgba(9, 9, 11, 0.04);
+  --overlay: rgba(9, 9, 11, 0.45);
+  --track: #d4d4d8;
+
+  --accent: #047857;
+  --accent-strong: #065f46;
+  --accent-icon: #059669;
+  --warn: #b45309;
+  --warn-strong: #92400e;
+  --warn-icon: #d97706;
+  --danger: #be123c;
+  --danger-strong: #9f1239;
+  --danger-icon: #e11d48;
+  --sky-text: #0369a1;
+
+  color-scheme: light;
 }
 
 html,
@@ -29,7 +149,7 @@ body {
   margin: 0;
   min-width: 320px;
   overflow: hidden;
-  background-color: #212121;
+  background-color: var(--app-bg);
 }
 
 button,
@@ -49,7 +169,7 @@ button {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: var(--track) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -63,18 +183,18 @@ button {
 
 *::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #3f3f46;
+  background: var(--track);
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: var(--text-faint);
 }
 
 /* --- Markdown ------------------------------------------------------------ */
 
 .markdown {
   overflow-wrap: anywhere;
-  color: #e7e7e7;
+  color: var(--text-primary);
   font-size: 15px;
   line-height: 1.75;
 }
@@ -96,7 +216,7 @@ button {
 .markdown h3,
 .markdown h4 {
   margin: 1.35rem 0 0.6rem;
-  color: #ffffff;
+  color: var(--text-strong);
   font-weight: 650;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -138,40 +258,40 @@ button {
 }
 
 .markdown strong {
-  color: #ffffff;
+  color: var(--text-strong);
   font-weight: 650;
 }
 
 .markdown em {
-  color: #d4d4d8;
+  color: var(--text-soft);
 }
 
 .markdown a {
-  color: #6ee7b7;
+  color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: rgba(110, 231, 183, 0.45);
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
   text-underline-offset: 2px;
 }
 
 .markdown a:hover {
-  color: #a7f3d0;
+  color: var(--accent-strong);
 }
 
 .markdown code {
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--tint-3);
   padding: 0.1rem 0.35rem;
-  color: #f4f4f5;
+  color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 0.86em;
 }
 
 .markdown pre {
   margin: 0.85rem 0;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--border);
   border-radius: 0.85rem;
-  background: #111111;
+  background: var(--code-bg);
   padding: 1rem;
   overflow-x: auto;
 }
@@ -186,11 +306,11 @@ button {
 
 .markdown blockquote {
   margin: 0.85rem 0;
-  border-left: 3px solid #34d399;
+  border-left: 3px solid var(--accent-icon);
   border-radius: 0 0.5rem 0.5rem 0;
-  background: rgba(52, 211, 153, 0.06);
+  background: color-mix(in srgb, var(--accent-icon) 8%, transparent);
   padding: 0.55rem 0.85rem;
-  color: #c4c4ca;
+  color: var(--text-soft);
 }
 
 .markdown blockquote p:last-child {
@@ -205,26 +325,26 @@ button {
 
 .markdown th,
 .markdown td {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   padding: 0.45rem 0.6rem;
   text-align: left;
   vertical-align: top;
 }
 
 .markdown th {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+  background: var(--tint-2);
+  color: var(--text-strong);
   font-weight: 600;
 }
 
 .markdown tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--tint);
 }
 
 .markdown hr {
   margin: 1.25rem 0;
   border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
 }
 
 /* --- Animations --------------------------------------------------------- */
@@ -246,7 +366,7 @@ button {
   height: 1.05rem;
   margin-left: 0.15rem;
   border-radius: 0.125rem;
-  background: #34d399;
+  background: var(--accent-icon);
   vertical-align: -0.16rem;
   animation: vet-blink 1s steps(1, end) infinite;
 }
@@ -268,7 +388,7 @@ button {
   width: 0.4rem;
   height: 0.4rem;
   border-radius: 999px;
-  background: #a1a1aa;
+  background: var(--text-muted);
   animation: vet-dot 1.2s ease-in-out infinite;
 }
 

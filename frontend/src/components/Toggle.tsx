@@ -16,11 +16,11 @@ export function Toggle({
   onChange,
 }: ToggleProps) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-      <div className="mt-0.5 text-zinc-400">{icon}</div>
+    <div className="flex items-start gap-3 rounded-xl border border-line-soft bg-tint p-3">
+      <div className="mt-0.5 text-ink-soft">{icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-zinc-200">{label}</p>
-        <p className="mt-0.5 text-[11px] leading-4 text-zinc-500">
+        <p className="text-[13px] font-medium text-ink">{label}</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-ink-muted">
           {description}
         </p>
       </div>
@@ -30,8 +30,8 @@ export function Toggle({
         aria-checked={checked}
         aria-label={label}
         onClick={() => onChange(!checked)}
-        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#171717] ${
-          checked ? 'bg-emerald-500' : 'bg-zinc-700'
+        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-panel ${
+          checked ? 'bg-emerald-500' : 'bg-track'
         }`}
       >
         <span

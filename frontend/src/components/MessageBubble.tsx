@@ -65,10 +65,10 @@ export function MessageBubble({
       >
         {!isUser && (
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-zinc-100">
+            <span className="text-[13px] font-semibold text-ink">
               VetAssistant
             </span>
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-300">
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
               AI
             </span>
           </div>
@@ -100,13 +100,13 @@ export function MessageBubble({
             ) : null}
 
             {message.status === 'stopped' && (
-              <p className="mt-2 text-[11px] text-zinc-500">
+              <p className="mt-2 text-[11px] text-ink-muted">
                 {t('message.stopped')}
               </p>
             )}
 
             {message.error && (
-              <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rose-500/20 bg-rose-500/[0.06] px-3.5 py-3 text-[12px] leading-5 text-rose-300">
+              <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rose-500/20 bg-rose-500/[0.06] px-3.5 py-3 text-[12px] leading-5 text-danger">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{message.error}</span>
               </div>
@@ -125,10 +125,10 @@ export function MessageBubble({
                   aria-pressed={rating === 1}
                   aria-label={t('message.helpful')}
                   title={t('message.helpful')}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 sm:h-8 sm:w-8 ${
                     rating === 1
                       ? 'border-emerald-400 bg-emerald-500 text-emerald-950 hover:bg-emerald-400'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-300'
+                      : 'border-line bg-tint text-ink-muted hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-accent'
                   }`}
                 >
                   <ThumbsUp className="h-4 w-4" strokeWidth={2.2} />
@@ -140,16 +140,16 @@ export function MessageBubble({
                   aria-pressed={rating === -1}
                   aria-label={t('message.notHelpful')}
                   title={t('message.notHelpful')}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 sm:h-8 sm:w-8 ${
                     rating === -1
                       ? 'border-rose-400 bg-rose-500 text-rose-950 hover:bg-rose-400'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300'
+                      : 'border-line bg-tint text-ink-muted hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-danger'
                   }`}
                 >
                   <ThumbsDown className="h-4 w-4" strokeWidth={2.2} />
                 </button>
                 {feedbackPending && (
-                  <span className="ml-0.5 text-[10.5px] text-zinc-500">
+                  <span className="ml-0.5 text-[10.5px] text-ink-muted">
                     {t('message.savingRating')}
                   </span>
                 )}
@@ -160,7 +160,7 @@ export function MessageBubble({
       </div>
 
       {isUser && (
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#2f2f2f] text-zinc-300">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-composer text-ink-soft">
           <UserRound className="h-4 w-4" />
         </div>
       )}

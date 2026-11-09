@@ -17,7 +17,7 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
     <div
       role="group"
       aria-label={t('language.label')}
-      className={`inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.03] p-0.5 ${className ?? ''}`}
+      className={`inline-flex items-center gap-0.5 rounded-lg border border-line bg-tint p-0.5 ${className ?? ''}`}
     >
       {LANGUAGES.map((language) => (
         <button
@@ -29,7 +29,7 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
           className={`rounded-md px-2 py-1 text-[10.5px] font-semibold uppercase tracking-wide transition-colors ${
             active === language
               ? 'bg-emerald-500 text-emerald-950'
-              : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+              : 'text-ink-soft hover:bg-hover hover:text-ink'
           }`}
         >
           {language}

@@ -30,7 +30,7 @@ export function Sparkline({ values, label, className }: SparklineProps) {
         x2={WIDTH}
         y2={HEIGHT - 1}
         strokeWidth="0.4"
-        className="stroke-white/15"
+        className="stroke-line"
       />
       {path && (
         <path
@@ -39,7 +39,7 @@ export function Sparkline({ values, label, className }: SparklineProps) {
           strokeWidth="1.2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="stroke-emerald-400"
+          className="stroke-accent-icon"
         />
       )}
     </svg>

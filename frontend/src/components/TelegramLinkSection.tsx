@@ -147,24 +147,24 @@ export function TelegramLinkSection() {
   return (
     <section aria-labelledby="telegram-link-title" className="space-y-3">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-text">
           <MessageCircle className="h-4 w-4" />
         </div>
         <div className="min-w-0">
           <h3
             id="telegram-link-title"
-            className="text-[13px] font-semibold text-white"
+            className="text-[13px] font-semibold text-ink-strong"
           >
             Telegram
           </h3>
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-ink-muted">
             {t('telegram.subtitle')}
           </p>
         </div>
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 text-[12px] text-zinc-500">
+        <div className="flex items-center gap-2 text-[12px] text-ink-muted">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {t('telegram.checking')}
         </div>
@@ -173,7 +173,7 @@ export function TelegramLinkSection() {
       {error && (
         <div
           role="alert"
-          className="rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2.5 text-[12px] leading-5 text-rose-300"
+          className="rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2.5 text-[12px] leading-5 text-danger"
         >
           {error}
         </div>
@@ -181,18 +181,18 @@ export function TelegramLinkSection() {
 
       {!loading && status?.linked && (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-emerald-300">
+          <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-accent">
             <ShieldCheck className="h-4 w-4" />
             {t('telegram.linked')}
           </p>
-          <p className="mt-1 text-[11.5px] text-zinc-400">
+          <p className="mt-1 text-[11.5px] text-ink-soft">
             {status.email ?? t('telegram.webAccount')}
             {status.telegram_id !== null && (
-              <span className="text-zinc-600"> · ID {status.telegram_id}</span>
+              <span className="text-ink-faint"> · ID {status.telegram_id}</span>
             )}
           </p>
           {linkedAt && (
-            <p className="mt-0.5 text-[10.5px] text-zinc-600">
+            <p className="mt-0.5 text-[10.5px] text-ink-faint">
               {t('telegram.since', { date: linkedAt })}
             </p>
           )}
@@ -202,7 +202,7 @@ export function TelegramLinkSection() {
               <button
                 type="button"
                 onClick={() => void handleUnlink()}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.08] px-3 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/15"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.08] px-3 py-1.5 text-[11.5px] font-medium text-danger transition-colors hover:bg-rose-500/15"
               >
                 <Unlink className="h-3.5 w-3.5" />
                 {t('telegram.unlink')}
@@ -222,7 +222,7 @@ export function TelegramLinkSection() {
                   type="button"
                   onClick={() => setConfirmingUnlink(false)}
                   disabled={unlinking}
-                  className="rounded-lg border border-white/10 px-3 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+                  className="rounded-lg border border-line px-3 py-1.5 text-[11.5px] text-ink-soft transition-colors hover:bg-hover disabled:opacity-50"
                 >
                   {t('telegram.cancel')}
                 </button>
@@ -234,7 +234,7 @@ export function TelegramLinkSection() {
 
       {!loading && status && !status.linked && (
         <div className="space-y-2.5">
-          <p className="text-[12px] leading-5 text-zinc-400">
+          <p className="text-[12px] leading-5 text-ink-soft">
             {t('telegram.description')}
           </p>
 
@@ -255,41 +255,41 @@ export function TelegramLinkSection() {
           )}
 
           {code && (
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+            <div className="rounded-xl border border-line bg-field p-3">
               {remaining > 0 ? (
                 <>
-                  <p className="text-[10.5px] font-medium uppercase tracking-wide text-zinc-500">
+                  <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-muted">
                     {t('telegram.codeLabel')}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
-                    <code className="select-all rounded-lg bg-white/5 px-2.5 py-1.5 font-mono text-[20px] font-semibold tracking-[0.12em] text-white">
+                    <code className="select-all rounded-lg bg-tint-2 px-2.5 py-1.5 font-mono text-[20px] font-semibold tracking-[0.12em] text-ink-strong">
                       {formatTelegramCode(code.code)}
                     </code>
                     <button
                       type="button"
                       onClick={() => void handleCopy()}
                       aria-label={t('telegram.copyCode')}
-                      className="rounded-lg border border-white/10 p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
+                      className="rounded-lg border border-line p-1.5 text-ink-soft transition-colors hover:bg-hover hover:text-ink"
                     >
                       {copied ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        <Check className="h-3.5 w-3.5 text-accent-icon" />
                       ) : (
                         <ClipboardCopy className="h-3.5 w-3.5" />
                       )}
                     </button>
                   </div>
-                  <p className="mt-1.5 text-[11px] text-zinc-500">
+                  <p className="mt-1.5 text-[11px] text-ink-muted">
                     {t('telegram.remaining', {
                       time: formatCountdown(remaining),
                     })}
                   </p>
-                  <p className="mt-2 text-[11.5px] leading-5 text-zinc-400">
+                  <p className="mt-2 text-[11.5px] leading-5 text-ink-soft">
                     {code.instructions}
                   </p>
                 </>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-[12px] text-amber-300">
+                  <p className="text-[12px] text-warn">
                     {t('telegram.expired')}
                   </p>
                   <button

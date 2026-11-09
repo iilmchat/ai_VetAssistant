@@ -24,6 +24,7 @@ import { formatDateTime } from '../lib/format'
 import { errorMessage } from '../lib/utils'
 import { AdminAnalytics } from './AdminAnalytics'
 import { AdminUsers } from './AdminUsers'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 interface AdminDashboardProps {
   onClose: () => void
@@ -48,12 +49,12 @@ const FILTERS: { value: Filter; labelKey: string }[] = [
 
 function statusBadge(status: AccessRequestStatus) {
   if (status === 'approved') {
-    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+    return 'border-emerald-500/25 bg-emerald-500/10 text-accent'
   }
   if (status === 'rejected') {
-    return 'border-rose-500/25 bg-rose-500/10 text-rose-300'
+    return 'border-rose-500/25 bg-rose-500/10 text-danger'
   }
-  return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+  return 'border-amber-500/25 bg-amber-500/10 text-warn'
 }
 
 function statusKey(status: AccessRequestStatus): string {
@@ -161,26 +162,47 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     }
   }
 
+  useEffect(() => {
+    // T-154.2: Esc закрывает модальные окна админки.
+    const hasDialog = Boolean(approveTarget || rejectTarget || issued)
+    if (!hasDialog) {
+      return
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || actionLoading) {
+        return
+      }
+      setApproveTarget(null)
+      setRejectTarget(null)
+      setRejectionReason('')
+      setActionError(null)
+      setIssued(null)
+      setCopied(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [actionLoading, approveTarget, issued, rejectTarget])
+
   return (
-    <div className="min-h-dvh w-full bg-[#212121] text-zinc-100">
-      <header className="sticky top-0 z-10 border-b border-white/[0.07] bg-[#212121]/95 backdrop-blur">
+    <div className="min-h-dvh w-full bg-app text-ink">
+      <header className="sticky top-0 z-10 border-b border-line-soft bg-app/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
           <button
             type="button"
             onClick={onClose}
             aria-label={t('admin.back')}
-            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+            className="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-hover hover:text-ink-strong"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-accent">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[15px] font-semibold text-white">
+            <h1 className="truncate text-[15px] font-semibold text-ink-strong">
               {t('admin.title')}
             </h1>
-            <p className="truncate text-[11px] text-zinc-500">
+            <p className="truncate text-[11px] text-ink-muted">
               {t(`admin.subtitles.${tab}`)}
             </p>
           </div>
@@ -190,19 +212,20 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               onClick={() => void load()}
               disabled={loading}
               aria-label={t('admin.refresh')}
-              className="flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] text-ink-soft transition-colors hover:bg-hover disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">{t('admin.refresh')}</span>
             </button>
           )}
+          <LanguageSwitcher />
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-7">
         <nav
           aria-label={t('admin.sectionsAria')}
-          className="mb-4 flex gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] p-1"
+          className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl border border-line bg-tint p-1"
         >
           {TABS.map((item) => {
             const Icon = item.icon
@@ -212,10 +235,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 type="button"
                 aria-current={tab === item.value ? 'page' : undefined}
                 onClick={() => setTab(item.value)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12.5px] font-medium transition-colors ${
+                className={`flex shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12.5px] font-medium transition-colors sm:flex-1 ${
                   tab === item.value
                     ? 'bg-emerald-500 text-emerald-950'
-                    : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                    : 'text-ink-soft hover:bg-hover hover:text-ink'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -240,7 +263,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                   className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors ${
                     filter === item.value
                       ? 'bg-emerald-500 text-emerald-950'
-                      : 'border border-white/10 text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                      : 'border border-line text-ink-soft hover:bg-hover hover:text-ink'
                   }`}
                 >
                   {t(item.labelKey)}
@@ -251,26 +274,26 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             {error && (
               <div
                 role="alert"
-                className="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3.5 py-3 text-[12.5px] text-rose-300"
+                className="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3.5 py-3 text-[12.5px] text-danger"
               >
                 {error}
               </div>
             )}
 
             {loading ? (
-              <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-line-soft bg-tint py-16 text-sm text-ink-muted">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t('admin.loading')}
               </div>
             ) : requests.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
+              <div className="rounded-2xl border border-dashed border-line py-16 text-center text-[13px] text-ink-muted">
                 {t('admin.empty')}
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
+              <div className="overflow-x-auto rounded-2xl border border-line-soft">
                 <table className="w-full min-w-[720px] border-collapse text-left">
                   <thead>
-                    <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                    <tr className="border-b border-line-soft bg-tint text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
                       <th className="px-4 py-3">{t('admin.table.email')}</th>
                       <th className="px-4 py-3">{t('admin.table.reason')}</th>
                       <th className="px-4 py-3">{t('admin.table.created')}</th>
@@ -284,15 +307,15 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                     {requests.map((item) => (
                       <tr
                         key={item.id}
-                        className="border-b border-white/[0.05] align-top text-[12.5px] last:border-b-0"
+                        className="border-b border-line-soft align-top text-[12.5px] last:border-b-0"
                       >
-                        <td className="px-4 py-3 font-medium text-zinc-200">
+                        <td className="px-4 py-3 font-medium text-ink">
                           {item.email}
                         </td>
-                        <td className="max-w-[260px] px-4 py-3 text-zinc-400">
+                        <td className="max-w-[260px] px-4 py-3 text-ink-soft">
                           <span className="line-clamp-3">{item.reason}</span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
+                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
                           {formatDateTime(item.created_at, i18n.language)}
                         </td>
                         <td className="px-4 py-3">
@@ -302,7 +325,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                             {t(statusKey(item.status))}
                           </span>
                           {item.rejection_reason && (
-                            <p className="mt-1 max-w-[200px] text-[10.5px] leading-4 text-zinc-500">
+                            <p className="mt-1 max-w-[200px] text-[10.5px] leading-4 text-ink-muted">
                               {item.rejection_reason}
                             </p>
                           )}
@@ -316,7 +339,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                                   setApproveTarget(item)
                                   setActionError(null)
                                 }}
-                                className="rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-[11.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25"
+                                className="rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-[11.5px] font-medium text-accent transition-colors hover:bg-emerald-500/25"
                               >
                                 {t('admin.approve')}
                               </button>
@@ -327,13 +350,13 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                                   setRejectionReason('')
                                   setActionError(null)
                                 }}
-                                className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20"
+                                className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] font-medium text-danger transition-colors hover:bg-rose-500/20"
                               >
                                 {t('admin.reject')}
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-zinc-600">—</span>
+                            <span className="text-[11px] text-ink-faint">—</span>
                           )}
                         </td>
                       </tr>
@@ -347,16 +370,16 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       </main>
 
       {approveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[400px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl">
-            <h2 className="text-[15px] font-semibold text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[400px] rounded-2xl border border-line bg-panel-2 p-5 shadow-2xl">
+            <h2 className="text-[15px] font-semibold text-ink-strong">
               {t('admin.approveTitle')}
             </h2>
-            <p className="mt-2 text-[12.5px] leading-5 text-zinc-400">
+            <p className="mt-2 text-[12.5px] leading-5 text-ink-soft">
               {t('admin.approveBody', { email: approveTarget.email })}
             </p>
             {actionError && (
-              <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[12px] text-rose-300">
+              <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[12px] text-danger">
                 {actionError}
               </p>
             )}
@@ -365,7 +388,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 type="button"
                 onClick={closeActionDialogs}
                 disabled={actionLoading}
-                className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+                className="flex-1 rounded-xl border border-line px-4 py-2.5 text-[13px] text-ink-soft hover:bg-hover disabled:opacity-50"
               >
                 {t('admin.cancel')}
               </button>
@@ -388,19 +411,19 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       )}
 
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 backdrop-blur-sm">
           <form
             onSubmit={(event) => void handleReject(event)}
-            className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl"
+            className="w-full max-w-[420px] rounded-2xl border border-line bg-panel-2 p-5 shadow-2xl"
           >
-            <h2 className="text-[15px] font-semibold text-white">
+            <h2 className="text-[15px] font-semibold text-ink-strong">
               {t('admin.rejectTitle')}
             </h2>
-            <p className="mt-1 text-[12px] text-zinc-500">
+            <p className="mt-1 text-[12px] text-ink-muted">
               {rejectTarget.email}
             </p>
             <label className="mt-3 block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                 {t('admin.reasonLabel')}
               </span>
               <textarea
@@ -411,11 +434,11 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 value={rejectionReason}
                 onChange={(event) => setRejectionReason(event.target.value)}
                 placeholder={t('admin.rejectReasonPlaceholder')}
-                className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500/40"
+                className="w-full resize-none rounded-xl border border-line bg-field px-3 py-2.5 text-[13.5px] text-ink outline-none placeholder:text-ink-faint focus:border-emerald-500/40"
               />
             </label>
             {actionError && (
-              <p className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[12px] text-rose-300">
+              <p className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[12px] text-danger">
                 {actionError}
               </p>
             )}
@@ -424,7 +447,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 type="button"
                 onClick={closeActionDialogs}
                 disabled={actionLoading}
-                className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+                className="flex-1 rounded-xl border border-line px-4 py-2.5 text-[13px] text-ink-soft hover:bg-hover disabled:opacity-50"
               >
                 {t('admin.cancel')}
               </button>
@@ -442,17 +465,17 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       )}
 
       {issued && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[440px] rounded-2xl border border-emerald-500/20 bg-[#1b1b1b] p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[440px] rounded-2xl border border-emerald-500/20 bg-panel-2 p-5 shadow-2xl">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-accent">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-semibold text-white">
+                <h2 className="text-[15px] font-semibold text-ink-strong">
                   {t('admin.createdTitle')}
                 </h2>
-                <p className="mt-0.5 text-[11.5px] text-zinc-500">
+                <p className="mt-0.5 text-[11.5px] text-ink-muted">
                   {issued.email}
                 </p>
               </div>
@@ -460,28 +483,28 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 type="button"
                 onClick={() => setIssued(null)}
                 aria-label={t('admin.close')}
-                className="rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+                className="rounded-lg p-1.5 text-ink-muted hover:bg-hover hover:text-ink"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2.5 text-[11.5px] leading-4 text-amber-200">
+            <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2.5 text-[11.5px] leading-4 text-warn-strong">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {t('admin.createdWarning')}
             </div>
 
-            <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
-              <code className="min-w-0 flex-1 break-all font-mono text-[13px] text-emerald-300">
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-field px-3 py-2.5">
+              <code className="min-w-0 flex-1 break-all font-mono text-[13px] text-accent">
                 {issued.password}
               </code>
               <button
                 type="button"
                 onClick={() => void copyPassword()}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-[11.5px] text-zinc-200 hover:bg-white/10"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-tint-2 px-2.5 py-1.5 text-[11.5px] text-ink hover:bg-hover-strong"
               >
                 {copied ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <Check className="h-3.5 w-3.5 text-accent-icon" />
                 ) : (
                   <Copy className="h-3.5 w-3.5" />
                 )}
@@ -490,7 +513,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             </div>
 
             {actionError && (
-              <p className="mt-2 text-[11.5px] text-rose-300">{actionError}</p>
+              <p className="mt-2 text-[11.5px] text-danger">{actionError}</p>
             )}
 
             <button

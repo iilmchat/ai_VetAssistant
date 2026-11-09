@@ -4,6 +4,12 @@
     "ru": "Русский",
     "en": "English"
   },
+  "theme": {
+    "label": "Color theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
   "app": {
     "documentTitle": "VetAssistant — AI veterinarian",
     "description": "VetAssistant — a local AI veterinarian: chat with RAG, appointments and reminders.",
@@ -86,8 +92,9 @@
     "messageAria": "Message",
     "stop": "Stop generation",
     "send": "Send message",
+    "generating": "Generating a response…",
     "disclaimer": "VetAssistant is an AI, not a live veterinarian. In case of emergency symptoms, contact a clinic immediately.",
-    "hint": "Enter — send, Shift+Enter — new line."
+    "hint": "Enter or Ctrl+Enter to send, Shift+Enter for a new line."
   },
   "welcome": {
     "title": "How can I help your pet?",

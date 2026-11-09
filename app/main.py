@@ -317,7 +317,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.11.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.12.0", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.

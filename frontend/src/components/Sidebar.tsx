@@ -26,6 +26,7 @@ import type {
 import { formatAppointmentMoment } from '../lib/format'
 import { MODEL_ID } from '../lib/api'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeSwitcher } from './ThemeSwitcher'
 import { Toggle } from './Toggle'
 
 interface SidebarProps {
@@ -98,12 +99,12 @@ export function Sidebar({
           type="button"
           aria-label={t('sidebar.closeMenu')}
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-overlay backdrop-blur-sm md:hidden"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex h-full w-[320px] max-w-[86vw] shrink-0 flex-col border-r border-white/10 bg-[#171717] transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex h-full w-[320px] max-w-[86vw] shrink-0 flex-col overscroll-contain border-r border-line bg-panel shadow-2xl transition-transform duration-300 ease-out md:static md:z-auto md:translate-x-0 md:shadow-none ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -112,10 +113,10 @@ export function Sidebar({
             <PawPrint className="h-5 w-5" strokeWidth={2.4} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold tracking-tight text-white">
+            <p className="truncate text-[15px] font-semibold tracking-tight text-ink-strong">
               VetAssistant
             </p>
-            <p className="truncate text-[11px] text-zinc-500">
+            <p className="truncate text-[11px] text-ink-muted">
               {t('sidebar.tagline')}
             </p>
           </div>
@@ -123,7 +124,7 @@ export function Sidebar({
             type="button"
             aria-label={t('sidebar.closeMenu')}
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
+            className="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-hover hover:text-ink-strong md:hidden"
           >
             <X className="h-5 w-5" />
           </button>
@@ -133,9 +134,9 @@ export function Sidebar({
           <button
             type="button"
             onClick={onNewChat}
-            className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-left text-[13px] font-medium text-zinc-100 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10"
+            className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-tint-2 px-3.5 py-2.5 text-left text-[13px] font-medium text-ink transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10"
           >
-            <Plus className="h-4 w-4 text-emerald-300" />
+            <Plus className="h-4 w-4 text-accent" />
             {t('sidebar.newChat')}
           </button>
 
@@ -146,9 +147,9 @@ export function Sidebar({
             title={
               canExport ? t('sidebar.exportTitle') : t('sidebar.exportEmpty')
             }
-            className="mt-2 flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-left text-[13px] font-medium text-zinc-300 transition-colors hover:border-emerald-500/25 hover:bg-white/[0.05] hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-white/10 disabled:hover:bg-white/[0.02]"
+            className="mt-2 flex w-full items-center gap-2.5 rounded-xl border border-line bg-tint px-3.5 py-2.5 text-left text-[13px] font-medium text-ink-soft transition-colors hover:border-emerald-500/25 hover:bg-hover hover:text-ink-strong disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-tint"
           >
-            <Download className="h-4 w-4 text-zinc-400" />
+            <Download className="h-4 w-4 text-ink-soft" />
             {t('sidebar.export')}
           </button>
         </div>
@@ -158,9 +159,9 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenAdmin}
-              className="flex w-full items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-3.5 py-2.5 text-left text-[13px] font-medium text-emerald-200 transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/15"
+              className="flex w-full items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-3.5 py-2.5 text-left text-[13px] font-medium text-accent-strong transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/15"
             >
-              <ShieldCheck className="h-4 w-4 text-emerald-300" />
+              <ShieldCheck className="h-4 w-4 text-accent" />
               {t('sidebar.admin')}
             </button>
           </div>
@@ -169,21 +170,21 @@ export function Sidebar({
         <div className="mt-5 flex-1 space-y-6 overflow-y-auto px-3 pb-4">
           <section>
             <div className="mb-2.5 flex items-center gap-2 px-1">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-zinc-500" />
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-ink-muted" />
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
                 {t('sidebar.settings')}
               </h2>
             </div>
 
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <div className="rounded-xl border border-line-soft bg-tint p-3">
               <div className="flex items-center justify-between gap-3">
                 <label
                   htmlFor="temperature"
-                  className="text-[13px] font-medium text-zinc-200"
+                  className="text-[13px] font-medium text-ink"
                 >
                   {t('sidebar.temperature')}
                 </label>
-                <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] text-emerald-300">
+                <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] text-accent">
                   {settings.temperature.toFixed(2)}
                 </span>
               </div>
@@ -199,9 +200,9 @@ export function Sidebar({
                     temperature: Number(event.target.value),
                   })
                 }
-                className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-700 accent-emerald-400"
+                className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-track accent-emerald-400"
               />
-              <div className="mt-2 flex justify-between text-[10px] text-zinc-600">
+              <div className="mt-2 flex justify-between text-[10px] text-ink-faint">
                 <span>{t('sidebar.precise')}</span>
                 <span>{t('sidebar.creative')}</span>
               </div>
@@ -228,8 +229,8 @@ export function Sidebar({
           <section>
             <div className="mb-2.5 flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-3.5 w-3.5 text-zinc-500" />
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                <CalendarDays className="h-3.5 w-3.5 text-ink-muted" />
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
                   {t('sidebar.records')}
                 </h2>
               </div>
@@ -238,7 +239,7 @@ export function Sidebar({
                 onClick={onRefreshRecords}
                 disabled={recordsLoading}
                 aria-label={t('sidebar.refreshRecords')}
-                className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+                className="rounded-md p-1 text-ink-muted transition-colors hover:bg-hover hover:text-ink disabled:opacity-50"
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${recordsLoading ? 'animate-spin' : ''}`}
@@ -247,16 +248,16 @@ export function Sidebar({
             </div>
 
             {recordsLoading && appointments.length === 0 && reminders.length === 0 ? (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] py-6 text-xs text-zinc-500">
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-line-soft bg-tint py-6 text-xs text-ink-muted">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t('sidebar.loadingRecords')}
               </div>
             ) : recordsError ? (
-              <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] p-3 text-xs leading-5 text-rose-300">
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] p-3 text-xs leading-5 text-danger">
                 {recordsError}
               </div>
             ) : appointments.length === 0 && reminders.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-white/10 p-3 text-center text-[11px] leading-5 text-zinc-500">
+              <div className="rounded-xl border border-dashed border-line p-3 text-center text-[11px] leading-5 text-ink-muted">
                 {t('sidebar.noRecords')}
                 <br />
                 {t('sidebar.noRecordsHint')}
@@ -268,14 +269,14 @@ export function Sidebar({
                     key={`appointment-${appointment.id}`}
                     className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.055] p-3"
                   >
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300/80">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent/80">
                       <CalendarDays className="h-3 w-3" />
                       {t('sidebar.appointment')}
                     </div>
-                    <p className="mt-1.5 truncate text-[13px] font-medium text-zinc-100">
+                    <p className="mt-1.5 truncate text-[13px] font-medium text-ink">
                       {appointment.pet_name}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-zinc-400">
+                    <p className="mt-0.5 text-[11px] text-ink-soft">
                       {formatAppointmentMoment(
                         appointment.date,
                         appointment.time,
@@ -290,14 +291,14 @@ export function Sidebar({
                     key={`reminder-${reminder.id}`}
                     className="rounded-xl border border-amber-500/15 bg-amber-500/[0.055] p-3"
                   >
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300/80">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-warn/80">
                       <Bell className="h-3 w-3" />
                       {t('sidebar.reminder')}
                     </div>
-                    <p className="mt-1.5 text-[13px] font-medium leading-5 text-zinc-100">
+                    <p className="mt-1.5 text-[13px] font-medium leading-5 text-ink">
                       {reminder.text}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-zinc-400">
+                    <p className="mt-0.5 text-[11px] text-ink-soft">
                       {reminder.time}
                     </p>
                   </div>
@@ -307,17 +308,18 @@ export function Sidebar({
           </section>
         </div>
 
-        <div className="border-t border-white/10 px-4 py-3.5">
-          <div className="mb-3 flex justify-end">
+        <div className="border-t border-line px-4 py-3.5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <ThemeSwitcher />
             <LanguageSwitcher />
           </div>
-          <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] px-2.5 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+          <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-line-soft bg-tint px-2.5 py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-accent">
               <UserRound className="h-3.5 w-3.5" />
             </div>
             <span
               title={userEmail}
-              className="min-w-0 flex-1 truncate text-[11.5px] text-zinc-300"
+              className="min-w-0 flex-1 truncate text-[11.5px] text-ink-soft"
             >
               {userEmail}
             </span>
@@ -326,7 +328,7 @@ export function Sidebar({
               onClick={onOpenSettings}
               aria-label={t('sidebar.openSettings')}
               title={t('sidebar.openSettings')}
-              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200"
+              className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-hover hover:text-ink"
             >
               <Settings className="h-3.5 w-3.5" />
             </button>
@@ -335,22 +337,22 @@ export function Sidebar({
               onClick={onLogout}
               aria-label={t('sidebar.logout')}
               title={t('sidebar.logout')}
-              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+              className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-rose-500/10 hover:text-danger"
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <div className="flex items-center gap-2 text-[11px] text-ink-muted">
             <span
               className={`h-1.5 w-1.5 rounded-full ${statusColor(apiStatus)}`}
             />
             <span>{t(statusKey(apiStatus))}</span>
-            <span className="ml-auto max-w-[110px] truncate font-mono text-[10px] text-zinc-600">
+            <span className="ml-auto max-w-[110px] truncate font-mono text-[10px] text-ink-faint">
               {MODEL_ID}
             </span>
           </div>
-          <p className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-4 text-zinc-600">
+          <p className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-4 text-ink-faint">
             <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
             {t('sidebar.disclaimer')}
           </p>

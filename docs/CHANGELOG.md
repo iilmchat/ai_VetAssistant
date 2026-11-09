@@ -4,6 +4,45 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.12.0] — 2026-11-09
+
+Светлая тема, горячие клавиши и мобильная вёрстка (T-154).
+
+### Добавлено
+
+- **T-154.1 — темы Light / Dark / System.** Переключатель в сайдбаре и на
+  экране входа; выбор в `localStorage` (`vetassistant.theme`), «System»
+  слушает `prefers-color-scheme`. По умолчанию тёмная тема — как до релиза.
+  Палитра вынесена в CSS-переменные и Tailwind-токены (`bg-app`, `text-ink`,
+  `border-line`, `bg-panel` и т. п.); светлая тема включается атрибутом
+  `data-theme="light"`. Обновлены чат, сайдбар, модалки, Markdown, Telegram-
+  привязка и все экраны админки.
+- **T-154.2 — горячие клавиши.** `Ctrl/Cmd+K` фокусирует поле ввода чата,
+  `Ctrl/Cmd+Enter` отправляет сообщение, `Esc` закрывает модальные окна
+  (настройки, смена пароля, заявка, действия админки) и мобильный drawer.
+  Логика вынесена в `frontend/src/lib/hotkeys.ts`.
+- **T-154.3 — мобильная вёрстка.** Сайдбар — drawer до 768 px с гамбургером,
+  затемнением и закрытием по Esc; увеличены touch-цели composer и кнопок
+  оценки; добавлен `safe-area-inset-bottom`; вкладки админки прокручиваются
+  по горизонтали.
+- **T-154.4 — мелочи.** Переключатель RU/EN в шапке админки; spinner рядом с
+  кнопкой «Стоп» при отправке/генерации ответа.
+- **Тесты.** `frontend/src/lib/theme.test.ts` и `hotkeys.test.ts` — 8 тестов;
+  обновлены `i18n.test.ts` и версия в `tests/test_deployment.py`.
+
+### Изменено
+
+- Версия `1.12.0` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README.
+- `README.md`: раздел v1.12.0 и статус; `TODO.md`: T-154 закрыта;
+  `docs/CHANGELOG.md` — этот раздел.
+
+### Проверено
+
+- Frontend: `npm run lint` — 0 ошибок; `npm test` — 95 тестов;
+  `npm run build` — успешно.
+- Python: `pytest` — 814 тестов; `ruff check .` и `mypy app` — чисто.
+
 ## [1.11.0] — 2026-11-09
 
 Английская локализация интерфейса и переключатель языка (T-153).

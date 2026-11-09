@@ -43,14 +43,14 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, hint }: KpiCardProps) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+    <div className="rounded-2xl border border-line-soft bg-tint px-4 py-3">
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
         {label}
       </p>
-      <p className="mt-1 text-[22px] font-semibold leading-7 text-zinc-100">
+      <p className="mt-1 text-[22px] font-semibold leading-7 text-ink">
         {value}
       </p>
-      <p className="mt-0.5 text-[11px] text-zinc-500">{hint}</p>
+      <p className="mt-0.5 text-[11px] text-ink-muted">{hint}</p>
     </div>
   )
 }
@@ -136,7 +136,7 @@ export function AdminAnalytics() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex rounded-xl border border-white/10 bg-white/[0.02] p-1">
+        <div className="flex rounded-xl border border-line bg-tint p-1">
           {WINDOWS.map((item) => (
             <button
               key={item.value}
@@ -145,7 +145,7 @@ export function AdminAnalytics() {
               className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors ${
                 window === item.value
                   ? 'bg-emerald-500 text-emerald-950'
-                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                  : 'text-ink-soft hover:bg-hover hover:text-ink'
               }`}
             >
               {t(item.labelKey)}
@@ -160,7 +160,7 @@ export function AdminAnalytics() {
             void loadActivity()
           }}
           disabled={refreshing}
-          className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+          className="ml-auto flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] text-ink-soft transition-colors hover:bg-hover disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           {t('analytics.refresh')}
@@ -168,8 +168,8 @@ export function AdminAnalytics() {
       </div>
 
       {metrics && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-2 py-0.5">
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5">
             {metrics.source === 'prometheus' ? (
               <Server className="h-3 w-3" />
             ) : (
@@ -180,12 +180,12 @@ export function AdminAnalytics() {
               : t('analytics.sourceSinceStart')}
           </span>
           {metrics.degraded && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.08] px-2 py-0.5 text-amber-200">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.08] px-2 py-0.5 text-warn-strong">
               <AlertTriangle className="h-3 w-3" />
               {t('analytics.degraded')}
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-2 py-0.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5">
             <Activity className="h-3 w-3" />
             {t('analytics.updatedEveryMinute')}
           </span>
@@ -195,14 +195,14 @@ export function AdminAnalytics() {
       {error && (
         <div
           role="alert"
-          className="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3.5 py-3 text-[12.5px] text-rose-300"
+          className="mb-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3.5 py-3 text-[12.5px] text-danger"
         >
           {error}
         </div>
       )}
 
       {loading && !totals ? (
-        <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-line-soft bg-tint py-16 text-sm text-ink-muted">
           <RefreshCw className="h-4 w-4 animate-spin" />
           {t('analytics.loading')}
         </div>
@@ -260,8 +260,8 @@ export function AdminAnalytics() {
           </div>
 
           <div className="mt-3 grid gap-2 lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+            <div className="rounded-2xl border border-line-soft bg-tint px-4 py-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
                 {t('analytics.requestsByTime')}
               </p>
               {requestsSeries.length > 0 ? (
@@ -270,13 +270,13 @@ export function AdminAnalytics() {
                   label={t('analytics.requestsChartLabel')}
                 />
               ) : (
-                <p className="py-6 text-center text-[12px] text-zinc-600">
+                <p className="py-6 text-center text-[12px] text-ink-faint">
                   {t('analytics.historyUnavailable')}
                 </p>
               )}
             </div>
-            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+            <div className="rounded-2xl border border-line-soft bg-tint px-4 py-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
                 {t('analytics.tokensByTime')}
               </p>
               {tokensSeries.length > 0 ? (
@@ -285,19 +285,19 @@ export function AdminAnalytics() {
                   label={t('analytics.tokensChartLabel')}
                 />
               ) : (
-                <p className="py-6 text-center text-[12px] text-zinc-600">
+                <p className="py-6 text-center text-[12px] text-ink-faint">
                   {t('analytics.historyUnavailable')}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="mt-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+          <div className="mt-3 rounded-2xl border border-line-soft bg-tint px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
                 {t('analytics.activity')}
               </p>
-              <div className="ml-auto flex rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
+              <div className="ml-auto flex rounded-lg border border-line bg-tint p-0.5">
                 {ACTIVITY_WINDOWS.map((item) => (
                   <button
                     key={item.value}
@@ -306,7 +306,7 @@ export function AdminAnalytics() {
                     className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
                       activityWindow === item.value
                         ? 'bg-emerald-500 text-emerald-950'
-                        : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                        : 'text-ink-soft hover:bg-hover hover:text-ink'
                     }`}
                   >
                     {t(item.labelKey)}
@@ -318,7 +318,7 @@ export function AdminAnalytics() {
             {activityError && (
               <div
                 role="alert"
-                className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[11.5px] text-rose-300"
+                className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[11.5px] text-danger"
               >
                 {activityError}
               </div>
@@ -340,10 +340,10 @@ export function AdminAnalytics() {
             {activityStats ? (
               <div className="mt-3">
                 <div className="mb-1 flex flex-wrap items-baseline gap-2">
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="text-[11px] text-ink-muted">
                     {t('analytics.activeByDay')}
                   </p>
-                  <span className="ml-auto text-[10.5px] text-zinc-600">
+                  <span className="ml-auto text-[10.5px] text-ink-faint">
                     {t('analytics.requestsForPeriod', {
                       value: formatMetricValue(activityRequestsTotal),
                     })}
@@ -357,21 +357,21 @@ export function AdminAnalytics() {
                 />
               </div>
             ) : activityLoading ? (
-              <div className="mt-3 flex items-center justify-center gap-2 py-6 text-[12px] text-zinc-500">
+              <div className="mt-3 flex items-center justify-center gap-2 py-6 text-[12px] text-ink-muted">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                 {t('analytics.loadingActivity')}
               </div>
             ) : (
-              <p className="mt-3 py-6 text-center text-[12px] text-zinc-600">
+              <p className="mt-3 py-6 text-center text-[12px] text-ink-faint">
                 {t('analytics.activityUnavailable')}
               </p>
             )}
           </div>
 
-          <div className="mt-3 overflow-x-auto rounded-2xl border border-white/[0.07]">
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-line-soft">
             <table className="w-full min-w-[480px] border-collapse text-left">
               <thead>
-                <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                <tr className="border-b border-line-soft bg-tint text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
                   <th className="px-4 py-3">{t('analytics.user')}</th>
                   <th className="px-4 py-3 text-right">
                     {t('analytics.requestsColumn')}
@@ -386,7 +386,7 @@ export function AdminAnalytics() {
                   <tr>
                     <td
                       colSpan={3}
-                      className="px-4 py-6 text-center text-[12px] text-zinc-600"
+                      className="px-4 py-6 text-center text-[12px] text-ink-faint"
                     >
                       {t('analytics.noUsers')}
                     </td>
@@ -395,13 +395,13 @@ export function AdminAnalytics() {
                   metrics.top_users.map((user) => (
                     <tr
                       key={user.user_id}
-                      className="border-b border-white/[0.05] text-[12.5px] last:border-b-0"
+                      className="border-b border-line-soft text-[12.5px] last:border-b-0"
                     >
-                      <td className="px-4 py-3 text-zinc-200">{user.email}</td>
-                      <td className="px-4 py-3 text-right text-zinc-300">
+                      <td className="px-4 py-3 text-ink">{user.email}</td>
+                      <td className="px-4 py-3 text-right text-ink-soft">
                         {formatMetricValue(user.requests)}
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-300">
+                      <td className="px-4 py-3 text-right text-ink-soft">
                         {formatMetricValue(user.tokens)}
                       </td>
                     </tr>
@@ -412,7 +412,7 @@ export function AdminAnalytics() {
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
+        <div className="rounded-2xl border border-dashed border-line py-16 text-center text-[13px] text-ink-muted">
           {t('analytics.noMetrics')}
         </div>
       )}

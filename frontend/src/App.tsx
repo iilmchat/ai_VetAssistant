@@ -38,6 +38,8 @@ import {
 import type { AuthSession } from './lib/auth'
 import { AVAILABLE_TOOLS, mergeToolCalls } from './lib/tools'
 import { downloadChatExport } from './lib/export'
+import { isFocusComposerHotkey } from './lib/hotkeys'
+import { watchTheme } from './lib/theme'
 import { errorMessage, isAbortError, isRecord, uid } from './lib/utils'
 import { Sidebar } from './components/Sidebar'
 import { MessageBubble } from './components/MessageBubble'
@@ -153,6 +155,7 @@ function App() {
 
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   const shouldStickToBottom = useRef(true)
   const refreshedTokenRef = useRef<string | null>(null)
 
@@ -323,6 +326,33 @@ function App() {
       window.clearInterval(interval)
     }
   }, [])
+
+  useEffect(() => {
+    // Глобальные хоткеи (T-154.2): Ctrl/Cmd+K — фокус на вводе, Esc — drawer.
+    // Модалки (настройки, смена пароля) обрабатывают Esc сами.
+    const stopWatchingTheme = watchTheme()
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isFocusComposerHotkey(event)) {
+        if (settingsOpen || passwordDialogOpen) {
+          return
+        }
+        event.preventDefault()
+        setSidebarOpen(false)
+        composerRef.current?.focus()
+        return
+      }
+      if (event.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      stopWatchingTheme()
+    }
+  }, [passwordDialogOpen, settingsOpen, sidebarOpen])
 
   useEffect(() => {
     if (!session) {
@@ -546,7 +576,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-[#212121] text-zinc-100">
+    <div className="flex h-dvh w-full overflow-hidden bg-app text-ink">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -596,54 +626,54 @@ function App() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#212121]/95 px-3 backdrop-blur sm:px-4 lg:px-6">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line-soft bg-app/95 px-3 backdrop-blur sm:px-4 lg:px-6">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
             aria-label={t('app.openMenu')}
-            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
+            className="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-hover hover:text-ink-strong md:hidden"
           >
             <Menu className="h-5 w-5" />
           </button>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="truncate text-[13px] font-semibold tracking-tight text-zinc-100">
+              <h1 className="truncate text-[13px] font-semibold tracking-tight text-ink">
                 {t('app.title')}
               </h1>
-              <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-300 sm:inline">
+              <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent sm:inline">
                 vet
               </span>
             </div>
-            <p className="truncate text-[10.5px] text-zinc-500">
+            <p className="truncate text-[10.5px] text-ink-muted">
               {t('app.subtitle')}
             </p>
           </div>
 
           <div className="ml-auto flex items-center gap-1.5">
             {settings.useRag && (
-              <span className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[9.5px] font-medium text-zinc-400 md:inline-flex">
-                <BookOpen className="h-3 w-3 text-emerald-400/80" />
+              <span className="hidden items-center gap-1 rounded-full border border-line bg-tint px-2 py-1 text-[9.5px] font-medium text-ink-soft md:inline-flex">
+                <BookOpen className="h-3 w-3 text-accent-icon/80" />
                 RAG
               </span>
             )}
             {settings.useTools && (
-              <span className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[9.5px] font-medium text-zinc-400 md:inline-flex">
-                <Wrench className="h-3 w-3 text-amber-400/80" />
+              <span className="hidden items-center gap-1 rounded-full border border-line bg-tint px-2 py-1 text-[9.5px] font-medium text-ink-soft md:inline-flex">
+                <Wrench className="h-3 w-3 text-warn-icon/80" />
                 Tools
               </span>
             )}
 
             <div
               title={apiStatusLabel(apiStatus)}
-              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-zinc-400"
+              className="flex items-center gap-1.5 rounded-full border border-line bg-tint px-2.5 py-1 text-[10px] text-ink-soft"
             >
               {apiStatus === 'checking' ? (
-                <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                <Loader2 className="h-3 w-3 animate-spin text-warn-icon" />
               ) : apiStatus === 'online' ? (
-                <Wifi className="h-3 w-3 text-emerald-400" />
+                <Wifi className="h-3 w-3 text-accent-icon" />
               ) : (
-                <WifiOff className="h-3 w-3 text-rose-400" />
+                <WifiOff className="h-3 w-3 text-danger-icon" />
               )}
               <span className="hidden sm:inline">{apiStatusLabel(apiStatus)}</span>
             </div>
@@ -695,14 +725,14 @@ function App() {
             role="alert"
             className="mx-auto w-full max-w-3xl px-4 pb-1 sm:px-6"
           >
-            <div className="flex w-full items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[11.5px] leading-4 text-rose-300">
+            <div className="flex w-full items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[11.5px] leading-4 text-danger">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 flex-1">{feedbackError}</span>
               <button
                 type="button"
                 onClick={() => setFeedbackError(null)}
                 aria-label={t('app.hideError')}
-                className="shrink-0 rounded p-0.5 text-rose-300/70 transition-colors hover:bg-rose-500/10 hover:text-rose-200"
+                className="shrink-0 rounded p-0.5 text-danger/70 transition-colors hover:bg-rose-500/10 hover:text-danger-strong"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -718,6 +748,7 @@ function App() {
           }}
           onStop={handleStop}
           isStreaming={isStreaming}
+          inputRef={composerRef}
         />
       </div>
     </div>
