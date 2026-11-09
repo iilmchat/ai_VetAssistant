@@ -166,7 +166,8 @@ services:
   bot:
     <<: *app
     container_name: vetassistant-bot
-    restart: "on-failure:3"
+    # Docker must start the bot after a host reboot (FirstVDS maintenance).
+    restart: unless-stopped
     command:
       - python
       - -m
