@@ -56,6 +56,7 @@ from app.database import (
     list_appointments,
     list_reminders,
     update_user_password,
+    upsert_feedback,
 )
 from app.inference_usage import TokenUsage
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
@@ -203,6 +204,27 @@ class ReminderRead(BaseModel):
     time: str
 
 
+class FeedbackCreate(BaseModel):
+    """Оценка ответа ассистента (T-139.2).
+
+    ``message_id`` — непрозрачный идентификатор сообщения на клиенте.
+    Текст ответа не передаётся и не хранится (152-ФЗ).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    message_id: str = Field(min_length=1, max_length=128)
+    rating: Literal[1, -1]
+
+
+class FeedbackRead(BaseModel):
+    """Подтверждение сохранённой оценки."""
+
+    message: str
+    message_id: str
+    rating: Literal[1, -1]
+
+
 @lru_cache(maxsize=1)
 def _load_model() -> ChatModel:
     """Загрузить GGUF один раз на процесс."""
@@ -295,7 +317,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.8.1", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.10.0", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -467,6 +489,46 @@ async def change_password(
 
     logger.info("Auth: пользователь {} сменил пароль", current_user.id)
     return ChangePasswordResponse(message="Пароль изменён")
+
+
+@app.post("/v1/feedback", response_model=FeedbackRead)
+async def submit_feedback(
+    payload: FeedbackCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    database: Annotated[Database, Depends(get_database)],
+) -> FeedbackRead:
+    """Сохранить оценку ответа: 👍 (1) или 👎 (-1) (T-139.2).
+
+    Одна оценка на сообщение: повторный запрос перезаписывает предыдущую
+    (upsert). Идентификатор нормализуется по краям; текст сообщения в БД
+    не попадает.
+    """
+    message_id = payload.message_id.strip()
+    if not message_id:
+        raise HTTPException(
+            status_code=422,
+            detail="message_id не может быть пустым",
+        )
+
+    async with database.session() as session:
+        await upsert_feedback(
+            session,
+            user_id=current_user.id,
+            message_id=message_id,
+            rating=payload.rating,
+        )
+
+    logger.info(
+        "Feedback: пользователь {} оценил сообщение {} как {}",
+        current_user.id,
+        message_id,
+        payload.rating,
+    )
+    return FeedbackRead(
+        message="Спасибо за оценку",
+        message_id=message_id,
+        rating=payload.rating,
+    )
 
 
 def _date_context(now: datetime | None = None) -> str:

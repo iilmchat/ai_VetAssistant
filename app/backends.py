@@ -258,9 +258,14 @@ class GpuHttpBackend:
         return cast(dict[str, Any], data)
 
     async def stream_chat_completion(self, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
-        """POST ``/chat/completions`` со ``stream=true`` и разбор SSE."""
+        """POST ``/chat/completions`` со ``stream=true`` и разбор SSE.
+
+        T-138.5: запрашиваем ``stream_options.include_usage`` — без него
+        LM Studio (как и OpenAI) не присылает ``usage`` в стриме.
+        """
         payload = {**kwargs, "stream": True}
         payload.setdefault("model", self._settings.gpu_backend_model)
+
         # T-138: просим LM Studio прислать финальный usage-чанк. Без
         # OpenAI-совместимого stream_options.include_usage токены стрима не
         # попадают ни в SSE-ответ, ни в метрики (проверено 2026-11-09).

@@ -1,4 +1,4 @@
-"""Async SQLAlchemy-хранилище VetAssistant (T-033, T-039, T-140.1).
+"""Async SQLAlchemy-хранилище VetAssistant (T-033, T-039, T-140.1, T-139.1).
 
 В Docker используется PostgreSQL 16 + asyncpg; локально и в тестах — async
 SQLite через aiosqlite. Таблицы создаются в lifespan FastAPI через
@@ -9,12 +9,14 @@ SQLite через aiosqlite. Таблицы создаются в lifespan FastA
 ``create_tables`` добавляет недостающую колонку ``user_id`` без потери
 старых строк (они остаются невидимыми до привязки к пользователю).
 С T-140.1 у пользователей есть ``is_active``, а действия администраторов
-пишутся в ``admin_actions``.
+пишутся в ``admin_actions``. С T-139.1 оценки ответов лежат в ``feedback``:
+только идентификатор сообщения и оценка, без текстов диалога (152-ФЗ).
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
@@ -24,8 +26,10 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     delete,
     func,
     inspect,
@@ -34,6 +38,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -122,6 +127,61 @@ class AdminAction(Base):
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
+
+
+class Feedback(Base):
+    """Оценка ответа ассистента 👍/👎 (T-139.1).
+
+    Храним минимум: пользователя, идентификатор сообщения, оценку и время.
+    Тексты диалогов в БД не попадают (152-ФЗ) — ``message_id`` это непрозрачный
+    идентификатор сообщения на клиенте, а не его содержимое.
+
+    Один пользователь может оценить сообщение только один раз:
+    ``UNIQUE(user_id, message_id)``. Повторная оценка перезаписывает прежнюю
+    (upsert в :func:`upsert_feedback`), поэтому история оценок не раздувается.
+    """
+
+    __tablename__ = "feedback"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "message_id",
+            name="uq_feedback_user_message",
+        ),
+        CheckConstraint("rating IN (1, -1)", name="ck_feedback_rating"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    message_id: Mapped[str] = mapped_column(
+        String(128),
+        index=True,
+        nullable=False,
+    )
+    rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FeedbackStats:
+    """Сводка оценок для админской аналитики (T-139.2)."""
+
+    total: int
+    positive: int
+    negative: int
+
+    @property
+    def positive_ratio(self) -> float:
+        """Доля положительных оценок: 0.0, если оценок ещё нет."""
+        return self.positive / self.total if self.total else 0.0
 
 
 class AccessRequest(Base):
@@ -674,6 +734,7 @@ async def delete_user_account(session: AsyncSession, user_id: int) -> bool:
     await session.execute(
         delete(TelegramLinkCode).where(TelegramLinkCode.user_id == user_id)
     )
+    await session.execute(delete(Feedback).where(Feedback.user_id == user_id))
     await session.execute(
         update(AccessRequest)
         .where(AccessRequest.reviewed_by == user_id)
@@ -692,3 +753,64 @@ async def delete_user_account(session: AsyncSession, user_id: int) -> bool:
     )
     await session.delete(user)
     return True
+
+
+# --- Обратная связь по ответам (T-139) ---------------------------------------
+
+
+async def upsert_feedback(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    message_id: str,
+    rating: int,
+) -> Feedback:
+    """Поставить или заменить оценку сообщения (T-139.2).
+
+    Одна оценка на пользователя и сообщение: повторный запрос перезаписывает
+    ``rating``, а не добавляет строку. Гонка двух одновременных запросов
+    разрешается через ``IntegrityError`` на уникальном индексе — после откаты
+    оценка заменяется на актуальную.
+    """
+    statement = select(Feedback).where(
+        Feedback.user_id == user_id,
+        Feedback.message_id == message_id,
+    )
+    result = await session.execute(statement)
+    feedback = result.scalar_one_or_none()
+
+    if feedback is None:
+        feedback = Feedback(user_id=user_id, message_id=message_id, rating=rating)
+        session.add(feedback)
+        try:
+            await session.commit()
+        except IntegrityError:
+            # Параллельный запрос успел вставить оценку — обновляем её.
+            await session.rollback()
+            result = await session.execute(statement)
+            feedback = result.scalar_one()
+            feedback.rating = rating
+            await session.commit()
+    else:
+        feedback.rating = rating
+        await session.commit()
+
+    await session.refresh(feedback)
+    return feedback
+
+
+async def get_feedback_stats(session: AsyncSession) -> FeedbackStats:
+    """Посчитать общее число оценок и расклад 👍/👎 (T-139.2)."""
+    total = int(
+        (await session.execute(select(func.count()).select_from(Feedback))).scalar_one()
+    )
+    positive = int(
+        (
+            await session.execute(
+                select(func.count())
+                .select_from(Feedback)
+                .where(Feedback.rating == 1)
+            )
+        ).scalar_one()
+    )
+    return FeedbackStats(total=total, positive=positive, negative=total - positive)

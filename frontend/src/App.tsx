@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  AlertTriangle,
   BookOpen,
   Loader2,
   Menu,
   Wrench,
   Wifi,
   WifiOff,
+  X,
 } from 'lucide-react'
 import type {
   ApiStatus,
   Appointment,
   ChatSettings,
+  FeedbackRating,
   Reminder,
   ToolCall,
   UiMessage,
@@ -23,6 +26,7 @@ import {
   fetchReminders,
   setAuthToken,
   streamChat,
+  submitFeedback,
 } from './lib/api'
 import {
   clearAuthSession,
@@ -134,6 +138,15 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [authNotice, setAuthNotice] = useState<string | null>(null)
+  // Оценки ответов живут только в памяти: сервер — источник правды,
+  // localStorage для них не используем.
+  const [feedbackRatings, setFeedbackRatings] = useState<
+    Record<string, FeedbackRating>
+  >({})
+  const [feedbackPending, setFeedbackPending] = useState<Record<string, boolean>>(
+    {},
+  )
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -149,6 +162,9 @@ function App() {
     setSession(null)
     setMessages([])
     setInput('')
+    setFeedbackRatings({})
+    setFeedbackPending({})
+    setFeedbackError(null)
     setAppointments([])
     setReminders([])
     setRecordsError(null)
@@ -164,6 +180,9 @@ function App() {
     saveAuthSession(next)
     setSession(next)
     setMessages(loadStoredMessages(next.user.id))
+    setFeedbackRatings({})
+    setFeedbackPending({})
+    setFeedbackError(null)
     setRecordsLoading(true)
     setRecordsError(null)
     setAuthNotice(null)
@@ -465,6 +484,9 @@ function App() {
     abortRef.current?.abort()
     setMessages([])
     setInput('')
+    setFeedbackRatings({})
+    setFeedbackPending({})
+    setFeedbackError(null)
     setSidebarOpen(false)
     if (!session) {
       return
@@ -475,6 +497,33 @@ function App() {
       // Хранилище недоступно — ничего страшного.
     }
   }
+
+  const handleFeedback = useCallback(
+    async (messageId: string, rating: FeedbackRating) => {
+      setFeedbackPending((previous) => ({ ...previous, [messageId]: true }))
+      setFeedbackError(null)
+      try {
+        await submitFeedback(messageId, rating)
+        // Сервер подтвердил оценку — фиксируем её в интерфейсе.
+        setFeedbackRatings((previous) => ({ ...previous, [messageId]: rating }))
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleLogout()
+          return
+        }
+        // Не блокируем чат: показываем небольшую ошибку и оставляем
+        // прежнюю оценку, если она была.
+        setFeedbackError(`Не удалось сохранить оценку: ${errorMessage(error)}`)
+      } finally {
+        setFeedbackPending((previous) => {
+          const next = { ...previous }
+          delete next[messageId]
+          return next
+        })
+      }
+    },
+    [handleLogout],
+  )
 
   function handleExportHistory() {
     if (!session || messages.length === 0) {
@@ -620,13 +669,45 @@ function App() {
             ) : (
               <div className="space-y-7">
                 {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} />
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    rating={feedbackRatings[message.id] ?? null}
+                    feedbackPending={Boolean(feedbackPending[message.id])}
+                    onFeedback={
+                      message.role === 'assistant'
+                        ? (rating) => {
+                            void handleFeedback(message.id, rating)
+                          }
+                        : undefined
+                    }
+                  />
                 ))}
                 <div className="h-1" />
               </div>
             )}
           </div>
         </main>
+
+        {feedbackError && (
+          <div
+            role="alert"
+            className="mx-auto w-full max-w-3xl px-4 pb-1 sm:px-6"
+          >
+            <div className="flex w-full items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[11.5px] leading-4 text-rose-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">{feedbackError}</span>
+              <button
+                type="button"
+                onClick={() => setFeedbackError(null)}
+                aria-label="Скрыть сообщение об ошибке"
+                className="shrink-0 rounded p-0.5 text-rose-300/70 transition-colors hover:bg-rose-500/10 hover:text-rose-200"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <Composer
           value={input}

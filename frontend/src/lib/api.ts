@@ -1,5 +1,7 @@
 import type {
   AdminAccessRequest,
+  AdminActivity,
+  AdminActivityWindow,
   AdminMetrics,
   AdminMetricsWindow,
   AdminUser,
@@ -7,6 +9,8 @@ import type {
   AdminUserStatus,
   Appointment,
   ChatSettings,
+  FeedbackRating,
+  FeedbackStats,
   Reminder,
   Role,
   TelegramLinkCode,
@@ -59,6 +63,12 @@ export interface ChangePasswordResponse {
 
 export interface AccessRequestResponse {
   message: string
+}
+
+export interface FeedbackResponse {
+  message: string
+  message_id: string
+  rating: FeedbackRating
 }
 
 export interface ApproveAccessRequestResponse {
@@ -318,6 +328,42 @@ export function fetchAdminMetrics(
     {},
     baseUrl,
   )
+}
+
+/** Активность пользователей (DAU/WAU и ряд по дням) для админ-панели. */
+export function fetchAdminActivity(
+  window: AdminActivityWindow = '7d',
+  baseUrl: string = API_BASE_URL,
+): Promise<AdminActivity> {
+  return requestJson<AdminActivity>(
+    `/v1/admin/activity?window=${window}`,
+    {},
+    baseUrl,
+  )
+}
+
+/** Поставить или изменить оценку ответа ассистента (upsert на сервере). */
+export function submitFeedback(
+  messageId: string,
+  rating: FeedbackRating,
+  baseUrl: string = API_BASE_URL,
+): Promise<FeedbackResponse> {
+  return requestJson<FeedbackResponse>(
+    '/v1/feedback',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_id: messageId, rating }),
+    },
+    baseUrl,
+  )
+}
+
+/** Сводная статистика оценок ответов для админ-панели. */
+export function fetchFeedbackStats(
+  baseUrl: string = API_BASE_URL,
+): Promise<FeedbackStats> {
+  return requestJson<FeedbackStats>('/v1/admin/feedback/stats', {}, baseUrl)
 }
 
 export interface FetchAdminUsersOptions {
