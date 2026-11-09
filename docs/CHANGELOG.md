@@ -4,6 +4,40 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.11.0] — 2026-11-09
+
+Английская локализация интерфейса и переключатель языка (T-153).
+
+### Добавлено
+
+- **T-153.1 — i18n-слой.** `react-i18next` + `i18next`; словари
+  `frontend/src/locales/ru.json` и `en.json`; `frontend/src/i18n.ts`
+  инициализирует русский язык по умолчанию и английский как fallback.
+  Выбранный язык хранится в `localStorage` (`vetassistant.language`).
+- **T-153.2 — перевод UI.** Все захардкоженные строки вынесены в словари:
+  чат (`App`, `Welcome`, `Composer`, `MessageBubble`, `ToolCallBadge`),
+  авторизация и заявка на доступ, сайдбар, настройки, смена пароля,
+  Telegram-привязка, админ-панель (заявки, пользователи, аналитика).
+  Строки ошибок API и экспорта истории также локализуются.
+- **T-153.3 — переключатель RU/EN.** Кнопки в сайдбаре, на экране входа и в
+  настройках; язык меняется мгновенно без перезагрузки, обновляются
+  `document.documentElement.lang`, заголовок вкладки и meta-description.
+- **T-153.4 — даты и числа через `Intl`.** Даты приёмов, регистрации и
+  привязки Telegram форматируются `Intl.DateTimeFormat` с учётом языка;
+  KPI-числа и проценты в аналитике используют локальные разделители и
+  сокращения («12,3 тыс.» / «12.3K»).
+
+### Изменено
+
+- Версия `1.11.0` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README.
+- `README.md`: раздел v1.11.0 и статус; `TODO.md`: T-153 закрыта.
+
+### Проверено
+
+- Frontend: `npm run lint` (0 ошибок), `npm test`, `npm run build` — успешно.
+- Python: `pytest`, `ruff check .`, `mypy app` — чисто.
+
 ## [1.10.0] — 2026-11-09
 
 Экспорт оценок для DPO/SFT (T-150) и активность пользователей в админке

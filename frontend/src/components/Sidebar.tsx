@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   Bell,
   BookOpen,
@@ -24,6 +25,7 @@ import type {
 } from '../types'
 import { formatAppointmentMoment } from '../lib/format'
 import { MODEL_ID } from '../lib/api'
+import { LanguageSwitcher } from './LanguageSwitcher'
 import { Toggle } from './Toggle'
 
 interface SidebarProps {
@@ -47,14 +49,14 @@ interface SidebarProps {
   onLogout: () => void
 }
 
-function statusLabel(status: ApiStatus): string {
+function statusKey(status: ApiStatus): string {
   if (status === 'online') {
-    return 'API онлайн'
+    return 'app.apiOnline'
   }
   if (status === 'offline') {
-    return 'API недоступен'
+    return 'app.apiOffline'
   }
-  return 'Проверяю API…'
+  return 'sidebar.apiChecking'
 }
 
 function statusColor(status: ApiStatus): string {
@@ -87,12 +89,14 @@ export function Sidebar({
   onOpenSettings,
   onLogout,
 }: SidebarProps) {
+  const { t, i18n } = useTranslation()
+
   return (
     <>
       {open && (
         <button
           type="button"
-          aria-label="Закрыть меню"
+          aria-label={t('sidebar.closeMenu')}
           onClick={onClose}
           className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
         />
@@ -112,12 +116,12 @@ export function Sidebar({
               VetAssistant
             </p>
             <p className="truncate text-[11px] text-zinc-500">
-              ИИ-ветеринар для ваших питомцев
+              {t('sidebar.tagline')}
             </p>
           </div>
           <button
             type="button"
-            aria-label="Закрыть меню"
+            aria-label={t('sidebar.closeMenu')}
             onClick={onClose}
             className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
           >
@@ -132,7 +136,7 @@ export function Sidebar({
             className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-left text-[13px] font-medium text-zinc-100 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10"
           >
             <Plus className="h-4 w-4 text-emerald-300" />
-            Новый чат
+            {t('sidebar.newChat')}
           </button>
 
           <button
@@ -140,14 +144,12 @@ export function Sidebar({
             onClick={onExportHistory}
             disabled={!canExport}
             title={
-              canExport
-                ? 'Скачать историю диалога в Markdown'
-                : 'История пока пуста'
+              canExport ? t('sidebar.exportTitle') : t('sidebar.exportEmpty')
             }
             className="mt-2 flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-left text-[13px] font-medium text-zinc-300 transition-colors hover:border-emerald-500/25 hover:bg-white/[0.05] hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-white/10 disabled:hover:bg-white/[0.02]"
           >
             <Download className="h-4 w-4 text-zinc-400" />
-            Скачать историю
+            {t('sidebar.export')}
           </button>
         </div>
 
@@ -159,7 +161,7 @@ export function Sidebar({
               className="flex w-full items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-3.5 py-2.5 text-left text-[13px] font-medium text-emerald-200 transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/15"
             >
               <ShieldCheck className="h-4 w-4 text-emerald-300" />
-              Администрирование
+              {t('sidebar.admin')}
             </button>
           </div>
         )}
@@ -169,7 +171,7 @@ export function Sidebar({
             <div className="mb-2.5 flex items-center gap-2 px-1">
               <SlidersHorizontal className="h-3.5 w-3.5 text-zinc-500" />
               <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                Настройки
+                {t('sidebar.settings')}
               </h2>
             </div>
 
@@ -179,7 +181,7 @@ export function Sidebar({
                   htmlFor="temperature"
                   className="text-[13px] font-medium text-zinc-200"
                 >
-                  Temperature
+                  {t('sidebar.temperature')}
                 </label>
                 <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] text-emerald-300">
                   {settings.temperature.toFixed(2)}
@@ -200,23 +202,23 @@ export function Sidebar({
                 className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-700 accent-emerald-400"
               />
               <div className="mt-2 flex justify-between text-[10px] text-zinc-600">
-                <span>Точно</span>
-                <span>Творчески</span>
+                <span>{t('sidebar.precise')}</span>
+                <span>{t('sidebar.creative')}</span>
               </div>
             </div>
 
             <div className="mt-2 space-y-2">
               <Toggle
                 icon={<BookOpen className="h-4 w-4" />}
-                label="База знаний (RAG)"
-                description="Фрагменты MSD Vet Manual в контексте"
+                label={t('sidebar.ragLabel')}
+                description={t('sidebar.ragDescription')}
                 checked={settings.useRag}
                 onChange={(useRag) => onSettingsChange({ useRag })}
               />
               <Toggle
                 icon={<Wrench className="h-4 w-4" />}
-                label="Function Calling"
-                description="Запись на приём и напоминания"
+                label={t('sidebar.toolsLabel')}
+                description={t('sidebar.toolsDescription')}
                 checked={settings.useTools}
                 onChange={(useTools) => onSettingsChange({ useTools })}
               />
@@ -228,14 +230,14 @@ export function Sidebar({
               <div className="flex items-center gap-2">
                 <CalendarDays className="h-3.5 w-3.5 text-zinc-500" />
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                  Мои записи
+                  {t('sidebar.records')}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onRefreshRecords}
                 disabled={recordsLoading}
-                aria-label="Обновить записи"
+                aria-label={t('sidebar.refreshRecords')}
                 className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
               >
                 <RefreshCw
@@ -247,7 +249,7 @@ export function Sidebar({
             {recordsLoading && appointments.length === 0 && reminders.length === 0 ? (
               <div className="flex items-center justify-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] py-6 text-xs text-zinc-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Загружаю записи…
+                {t('sidebar.loadingRecords')}
               </div>
             ) : recordsError ? (
               <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] p-3 text-xs leading-5 text-rose-300">
@@ -255,9 +257,9 @@ export function Sidebar({
               </div>
             ) : appointments.length === 0 && reminders.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/10 p-3 text-center text-[11px] leading-5 text-zinc-500">
-                Пока нет записей и напоминаний.
+                {t('sidebar.noRecords')}
                 <br />
-                Включите Function Calling и попросите записать питомца.
+                {t('sidebar.noRecordsHint')}
               </div>
             ) : (
               <div className="space-y-2">
@@ -268,7 +270,7 @@ export function Sidebar({
                   >
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300/80">
                       <CalendarDays className="h-3 w-3" />
-                      Приём
+                      {t('sidebar.appointment')}
                     </div>
                     <p className="mt-1.5 truncate text-[13px] font-medium text-zinc-100">
                       {appointment.pet_name}
@@ -277,6 +279,7 @@ export function Sidebar({
                       {formatAppointmentMoment(
                         appointment.date,
                         appointment.time,
+                        i18n.language,
                       )}
                     </p>
                   </div>
@@ -289,7 +292,7 @@ export function Sidebar({
                   >
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300/80">
                       <Bell className="h-3 w-3" />
-                      Напоминание
+                      {t('sidebar.reminder')}
                     </div>
                     <p className="mt-1.5 text-[13px] font-medium leading-5 text-zinc-100">
                       {reminder.text}
@@ -305,6 +308,9 @@ export function Sidebar({
         </div>
 
         <div className="border-t border-white/10 px-4 py-3.5">
+          <div className="mb-3 flex justify-end">
+            <LanguageSwitcher />
+          </div>
           <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] px-2.5 py-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
               <UserRound className="h-3.5 w-3.5" />
@@ -318,8 +324,8 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenSettings}
-              aria-label="Настройки"
-              title="Настройки"
+              aria-label={t('sidebar.openSettings')}
+              title={t('sidebar.openSettings')}
               className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200"
             >
               <Settings className="h-3.5 w-3.5" />
@@ -327,8 +333,8 @@ export function Sidebar({
             <button
               type="button"
               onClick={onLogout}
-              aria-label="Выйти"
-              title="Выйти"
+              aria-label={t('sidebar.logout')}
+              title={t('sidebar.logout')}
               className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
             >
               <LogOut className="h-3.5 w-3.5" />
@@ -339,14 +345,14 @@ export function Sidebar({
             <span
               className={`h-1.5 w-1.5 rounded-full ${statusColor(apiStatus)}`}
             />
-            <span>{statusLabel(apiStatus)}</span>
+            <span>{t(statusKey(apiStatus))}</span>
             <span className="ml-auto max-w-[110px] truncate font-mono text-[10px] text-zinc-600">
               {MODEL_ID}
             </span>
           </div>
           <p className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-4 text-zinc-600">
             <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
-            Не заменяет осмотр и назначения ветеринарного врача.
+            {t('sidebar.disclaimer')}
           </p>
         </div>
       </aside>

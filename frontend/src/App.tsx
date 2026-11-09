@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   BookOpen,
@@ -108,17 +109,19 @@ function loadStoredMessages(userId: number | null): UiMessage[] {
   }
 }
 
-function apiStatusLabel(status: ApiStatus): string {
-  if (status === 'online') {
-    return 'API онлайн'
-  }
-  if (status === 'offline') {
-    return 'API недоступен'
-  }
-  return 'Подключение…'
-}
-
 function App() {
+  const { t } = useTranslation()
+
+  function apiStatusLabel(status: ApiStatus): string {
+    if (status === 'online') {
+      return t('app.apiOnline')
+    }
+    if (status === 'offline') {
+      return t('app.apiOffline')
+    }
+    return t('app.apiChecking')
+  }
+
   const [session, setSession] = useState<AuthSession | null>(() =>
     loadAuthSession(),
   )
@@ -190,9 +193,9 @@ function App() {
   }, [])
 
   const handlePasswordChanged = useCallback(() => {
-    setAuthNotice('Пароль изменен')
+    setAuthNotice(t('app.passwordChanged'))
     handleLogout()
-  }, [handleLogout])
+  }, [handleLogout, t])
 
   const patchMessage = useCallback(
     (id: string, patch: Partial<UiMessage>) => {
@@ -438,9 +441,7 @@ function App() {
       }
 
       if (!content.trim() && toolCalls.length === 0) {
-        throw new ApiError(
-          'Модель не вернула ответ. Попробуйте переформулировать вопрос.',
-        )
+        throw new ApiError(t('app.emptyResponse'))
       }
 
       patchMessage(assistantId, { content, toolCalls, status: 'done' })
@@ -465,9 +466,7 @@ function App() {
           toolCalls,
           status: 'error',
           error:
-            error instanceof Error
-              ? error.message
-              : 'Не удалось получить ответ ветеринара.',
+            error instanceof Error ? error.message : t('app.responseError'),
         })
       }
     } finally {
@@ -513,7 +512,9 @@ function App() {
         }
         // Не блокируем чат: показываем небольшую ошибку и оставляем
         // прежнюю оценку, если она была.
-        setFeedbackError(`Не удалось сохранить оценку: ${errorMessage(error)}`)
+        setFeedbackError(
+          t('app.feedbackError', { error: errorMessage(error) }),
+        )
       } finally {
         setFeedbackPending((previous) => {
           const next = { ...previous }
@@ -522,7 +523,7 @@ function App() {
         })
       }
     },
-    [handleLogout],
+    [handleLogout, t],
   )
 
   function handleExportHistory() {
@@ -599,7 +600,7 @@ function App() {
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            aria-label="Открыть меню"
+            aria-label={t('app.openMenu')}
             className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
           >
             <Menu className="h-5 w-5" />
@@ -608,14 +609,14 @@ function App() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-[13px] font-semibold tracking-tight text-zinc-100">
-                Консультация
+                {t('app.title')}
               </h1>
               <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-300 sm:inline">
                 vet
               </span>
             </div>
             <p className="truncate text-[10.5px] text-zinc-500">
-              Qwen3-8B Vet · локальный API
+              {t('app.subtitle')}
             </p>
           </div>
 
@@ -700,7 +701,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => setFeedbackError(null)}
-                aria-label="Скрыть сообщение об ошибке"
+                aria-label={t('app.hideError')}
                 className="shrink-0 rounded p-0.5 text-rose-300/70 transition-colors hover:bg-rose-500/10 hover:text-rose-200"
               >
                 <X className="h-3.5 w-3.5" />

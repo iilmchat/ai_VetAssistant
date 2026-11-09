@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowUp, Square } from 'lucide-react'
 
 interface ComposerProps {
@@ -17,6 +18,7 @@ export function Composer({
   onStop,
   isStreaming,
 }: ComposerProps) {
+  const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -60,15 +62,15 @@ export function Composer({
               onKeyDown={handleKeyDown}
               rows={1}
               autoFocus
-              placeholder="Опишите, что беспокоит питомца…"
-              aria-label="Сообщение"
+              placeholder={t('composer.placeholder')}
+              aria-label={t('composer.messageAria')}
               className="max-h-48 min-h-11 flex-1 resize-none bg-transparent py-2.5 pr-2 text-[15px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
             />
             {isStreaming ? (
               <button
                 type="button"
                 onClick={onStop}
-                aria-label="Остановить генерацию"
+                aria-label={t('composer.stop')}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-950 transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
@@ -77,7 +79,7 @@ export function Composer({
               <button
                 type="submit"
                 disabled={!value.trim()}
-                aria-label="Отправить сообщение"
+                aria-label={t('composer.send')}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-950 transition-all hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-500 disabled:hover:scale-100"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
@@ -86,12 +88,8 @@ export function Composer({
           </div>
         </form>
         <p className="mt-2 text-center text-[10.5px] leading-4 text-zinc-600">
-          VetAssistant — ИИ, а не живой ветеринарный врач. При экстренных
-          симптомах сразу обратитесь в клинику.
-          <span className="hidden sm:inline">
-            {' '}
-            Enter — отправить, Shift+Enter — новая строка.
-          </span>
+          {t('composer.disclaimer')}
+          <span className="hidden sm:inline"> {t('composer.hint')}</span>
         </p>
       </div>
     </div>

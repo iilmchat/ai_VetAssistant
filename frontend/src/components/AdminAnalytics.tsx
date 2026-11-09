@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Activity,
   AlertTriangle,
@@ -22,14 +23,14 @@ import { formatMetricValue, formatPercent, ragHitRate } from '../lib/metrics'
 import { errorMessage } from '../lib/utils'
 import { Sparkline } from './charts/Sparkline'
 
-const WINDOWS: { value: AdminMetricsWindow; label: string }[] = [
-  { value: '24h', label: '24 часа' },
-  { value: '7d', label: '7 дней' },
+const WINDOWS: { value: AdminMetricsWindow; labelKey: string }[] = [
+  { value: '24h', labelKey: 'analytics.windows.24h' },
+  { value: '7d', labelKey: 'analytics.windows.7d' },
 ]
 
-const ACTIVITY_WINDOWS: { value: AdminActivityWindow; label: string }[] = [
-  { value: '7d', label: '7 дней' },
-  { value: '30d', label: '30 дней' },
+const ACTIVITY_WINDOWS: { value: AdminActivityWindow; labelKey: string }[] = [
+  { value: '7d', labelKey: 'analytics.windows.7d' },
+  { value: '30d', labelKey: 'analytics.windows.30d' },
 ]
 
 const REFRESH_INTERVAL_MS = 60_000
@@ -55,6 +56,7 @@ function KpiCard({ label, value, hint }: KpiCardProps) {
 }
 
 export function AdminAnalytics() {
+  const { t } = useTranslation()
   const [window, setWindow] = useState<AdminMetricsWindow>('24h')
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null)
@@ -146,7 +148,7 @@ export function AdminAnalytics() {
                   : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
               }`}
             >
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </div>
@@ -161,7 +163,7 @@ export function AdminAnalytics() {
           className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          Обновить
+          {t('analytics.refresh')}
         </button>
       </div>
 
@@ -174,18 +176,18 @@ export function AdminAnalytics() {
               <Database className="h-3 w-3" />
             )}
             {metrics.source === 'prometheus'
-              ? 'Prometheus'
-              : 'с момента запуска API'}
+              ? t('analytics.sourcePrometheus')
+              : t('analytics.sourceSinceStart')}
           </span>
           {metrics.degraded && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.08] px-2 py-0.5 text-amber-200">
               <AlertTriangle className="h-3 w-3" />
-              Prometheus недоступен, показан локальный снимок
+              {t('analytics.degraded')}
             </span>
           )}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-2 py-0.5">
             <Activity className="h-3 w-3" />
-            обновляется раз в минуту
+            {t('analytics.updatedEveryMinute')}
           </span>
         </div>
       )}
@@ -202,33 +204,44 @@ export function AdminAnalytics() {
       {loading && !totals ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
           <RefreshCw className="h-4 w-4 animate-spin" />
-          Загружаю метрики…
+          {t('analytics.loading')}
         </div>
       ) : totals ? (
         <>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <KpiCard
-              label="Запросы к модели"
+              label={t('analytics.requests')}
               value={formatMetricValue(totals.requests)}
-              hint={`ошибок: ${formatMetricValue(totals.generation_errors)}`}
+              hint={t('analytics.requestsHint', {
+                value: formatMetricValue(totals.generation_errors),
+              })}
             />
             <KpiCard
-              label="Токены"
+              label={t('analytics.tokens')}
               value={formatMetricValue(totals.tokens)}
-              hint={`prompt ${formatMetricValue(totals.prompt_tokens)} · completion ${formatMetricValue(totals.completion_tokens)}`}
+              hint={t('analytics.tokensHint', {
+                prompt: formatMetricValue(totals.prompt_tokens),
+                completion: formatMetricValue(totals.completion_tokens),
+              })}
             />
             <KpiCard
-              label="RAG hit rate"
+              label={t('analytics.ragHitRate')}
               value={formatPercent(hitRate)}
-              hint={`поисков: ${formatMetricValue(totals.rag_hits + totals.rag_misses + totals.rag_errors)}`}
+              hint={t('analytics.ragHint', {
+                value: formatMetricValue(
+                  totals.rag_hits + totals.rag_misses + totals.rag_errors,
+                ),
+              })}
             />
             <KpiCard
-              label="Ошибки 5xx"
+              label={t('analytics.errors5xx')}
               value={formatMetricValue(totals.http_errors)}
-              hint={`доля ошибок модели: ${formatPercent(totals.error_rate)}`}
+              hint={t('analytics.errorsHint', {
+                value: formatPercent(totals.error_rate),
+              })}
             />
             <KpiCard
-              label="Рейтинг ответов"
+              label={t('analytics.rating')}
               value={
                 feedbackStats && feedbackStats.total > 0
                   ? formatPercent(feedbackStats.positive_ratio)
@@ -236,8 +249,12 @@ export function AdminAnalytics() {
               }
               hint={
                 feedbackStats
-                  ? `оценок: ${formatMetricValue(feedbackStats.total)} · 👍 ${formatMetricValue(feedbackStats.positive)} · 👎 ${formatMetricValue(feedbackStats.negative)}`
-                  : 'оценки недоступны'
+                  ? t('analytics.ratingHint', {
+                      total: formatMetricValue(feedbackStats.total),
+                      positive: formatMetricValue(feedbackStats.positive),
+                      negative: formatMetricValue(feedbackStats.negative),
+                    })
+                  : t('analytics.ratingsUnavailable')
               }
             />
           </div>
@@ -245,25 +262,31 @@ export function AdminAnalytics() {
           <div className="mt-3 grid gap-2 lg:grid-cols-2">
             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
               <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                Запросы по времени
+                {t('analytics.requestsByTime')}
               </p>
               {requestsSeries.length > 0 ? (
-                <Sparkline values={requestsSeries} label="График запросов к модели" />
+                <Sparkline
+                  values={requestsSeries}
+                  label={t('analytics.requestsChartLabel')}
+                />
               ) : (
                 <p className="py-6 text-center text-[12px] text-zinc-600">
-                  История недоступна без Prometheus.
+                  {t('analytics.historyUnavailable')}
                 </p>
               )}
             </div>
             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
               <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                Токены по времени
+                {t('analytics.tokensByTime')}
               </p>
               {tokensSeries.length > 0 ? (
-                <Sparkline values={tokensSeries} label="График токенов модели" />
+                <Sparkline
+                  values={tokensSeries}
+                  label={t('analytics.tokensChartLabel')}
+                />
               ) : (
                 <p className="py-6 text-center text-[12px] text-zinc-600">
-                  История недоступна без Prometheus.
+                  {t('analytics.historyUnavailable')}
                 </p>
               )}
             </div>
@@ -272,7 +295,7 @@ export function AdminAnalytics() {
           <div className="mt-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                Активность пользователей
+                {t('analytics.activity')}
               </p>
               <div className="ml-auto flex rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
                 {ACTIVITY_WINDOWS.map((item) => (
@@ -286,7 +309,7 @@ export function AdminAnalytics() {
                         : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
                     }`}
                   >
-                    {item.label}
+                    {t(item.labelKey)}
                   </button>
                 ))}
               </div>
@@ -303,14 +326,14 @@ export function AdminAnalytics() {
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <KpiCard
-                label="DAU"
+                label={t('analytics.dau')}
                 value={activityStats ? formatMetricValue(activityStats.dau) : '—'}
-                hint="уникальные пользователи за 24 часа"
+                hint={t('analytics.dauHint')}
               />
               <KpiCard
-                label="WAU"
+                label={t('analytics.wau')}
                 value={activityStats ? formatMetricValue(activityStats.wau) : '—'}
-                hint="уникальные пользователи за 7 дней"
+                hint={t('analytics.wauHint')}
               />
             </div>
 
@@ -318,27 +341,29 @@ export function AdminAnalytics() {
               <div className="mt-3">
                 <div className="mb-1 flex flex-wrap items-baseline gap-2">
                   <p className="text-[11px] text-zinc-500">
-                    Активные пользователи по дням
+                    {t('analytics.activeByDay')}
                   </p>
                   <span className="ml-auto text-[10.5px] text-zinc-600">
-                    запросов за период: {formatMetricValue(activityRequestsTotal)}
+                    {t('analytics.requestsForPeriod', {
+                      value: formatMetricValue(activityRequestsTotal),
+                    })}
                   </span>
                 </div>
                 <Sparkline
                   values={activityStats.series.map(
                     (point) => point.active_users,
                   )}
-                  label="Активные пользователи по дням"
+                  label={t('analytics.activityChartLabel')}
                 />
               </div>
             ) : activityLoading ? (
               <div className="mt-3 flex items-center justify-center gap-2 py-6 text-[12px] text-zinc-500">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Загружаю активность…
+                {t('analytics.loadingActivity')}
               </div>
             ) : (
               <p className="mt-3 py-6 text-center text-[12px] text-zinc-600">
-                История активности недоступна без Prometheus.
+                {t('analytics.activityUnavailable')}
               </p>
             )}
           </div>
@@ -347,9 +372,13 @@ export function AdminAnalytics() {
             <table className="w-full min-w-[480px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                  <th className="px-4 py-3">Пользователь</th>
-                  <th className="px-4 py-3 text-right">Запросы</th>
-                  <th className="px-4 py-3 text-right">Токены</th>
+                  <th className="px-4 py-3">{t('analytics.user')}</th>
+                  <th className="px-4 py-3 text-right">
+                    {t('analytics.requestsColumn')}
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    {t('analytics.tokensColumn')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -359,7 +388,7 @@ export function AdminAnalytics() {
                       colSpan={3}
                       className="px-4 py-6 text-center text-[12px] text-zinc-600"
                     >
-                      Пока нет данных по пользователям.
+                      {t('analytics.noUsers')}
                     </td>
                   </tr>
                 ) : (
@@ -384,7 +413,7 @@ export function AdminAnalytics() {
         </>
       ) : (
         <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
-          Метрик пока нет.
+          {t('analytics.noMetrics')}
         </div>
       )}
     </div>

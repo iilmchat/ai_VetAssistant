@@ -1,15 +1,17 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.10.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.11.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.10.0** (2026-11-09)
-**Релиз v1.10.0:** экспорт оценок в JSONL для DPO/SFT и активность
-пользователей в админке — DAU/WAU с графиком по дням (T-150, T-151)
-**Предыдущий релиз:** v1.9.0 — обратная связь по ответам 👍/👎: одна оценка на
+**Статус:** ✅ **Production Ready — v1.11.0** (2026-11-09)
+**Релиз v1.11.0:** английская локализация интерфейса и переключатель RU/EN
+с сохранением выбора, даты через `Intl.DateTimeFormat` (T-153)
+**Предыдущий релиз:** v1.10.0 — экспорт оценок в JSONL для DPO/SFT и
+активность пользователей в админке — DAU/WAU с графиком по дням (T-150, T-151)
+**Ранее:** v1.9.0 — обратная связь по ответам 👍/👎: одна оценка на
 сообщение, KPI «Рейтинг ответов», без текстов диалогов в БД (T-139)
 **Ранее:** v1.8.2 — GPU-стрим запрашивает `usage` у LM Studio через
 `stream_options.include_usage`; v1.8.1 — usage в SSE-стриме (T-138)
@@ -20,6 +22,7 @@
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; привязка к веб-аккаунту по одноразовому коду (`/link`), уведомления в чат и доступ в production — только по allowlist Telegram ID
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
+- **Локализация (T-153):** RU/EN через `react-i18next`, мгновенное переключение, выбор в `localStorage`, даты через `Intl.DateTimeFormat`
 - **Экспорт:** история диалога скачивается в Markdown одной кнопкой
 - **Auth:** JWT (HS256), bcrypt-пароли и изоляция записей по `user_id` в вебе, Streamlit и Telegram
 - **Production:** Ubuntu VPS, Docker Compose, два домена — лендинг
@@ -89,6 +92,37 @@ hit из ChromaDB.
   `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
+
+## 🌍 v1.11.0 — английская локализация (i18n)
+
+**Релиз:** 2026-11-09. Интерфейс переведён на `react-i18next`: русский язык
+остаётся по умолчанию, английский — резервный и доступен по переключателю
+RU/EN в сайдбаре, на экране входа и в настройках.
+
+### Что изменилось (T-153)
+
+- **Словари.** `frontend/src/locales/ru.json` и `en.json`; все строки UI
+  вынесены из компонентов, включая чат, авторизацию, сайдбар, настройки,
+  Telegram и админ-панель.
+- **Переключатель.** Язык меняется мгновенно без перезагрузки, выбор хранится
+  в `localStorage` (`vetassistant.language`), обновляются
+  `document.documentElement.lang`, заголовок и meta-description.
+- **Даты и числа.** `Intl.DateTimeFormat` для дат приёмов, регистрации и
+  привязки Telegram; `Intl`-совместимое форматирование чисел и процентов в
+  аналитике.
+- **Ошибки.** Сетевые и HTTP-ошибки API локализуются на клиенте по коду
+  статуса; тексты сервера показываются как есть.
+
+### Как добавить новый язык
+
+1. Скопируйте `frontend/src/locales/en.json` в `locales/<код>.json` и
+   переведите значения, сохранив набор ключей.
+2. Добавьте код в `SUPPORTED_LANGUAGES` и `resources` в
+   `frontend/src/i18n.ts`.
+3. Добавьте кнопку языка в `LanguageSwitcher` (подпись можно оставить
+   двухбуквенной).
+4. Прогоните `npm test` — тест `i18n.test.ts` проверит совпадение ключей и
+   отсутствие пустых переводов.
 
 ## 📤 v1.10.0 — экспорт оценок и активность пользователей
 

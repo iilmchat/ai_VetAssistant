@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   BellRing,
   CalendarCheck2,
@@ -6,7 +7,7 @@ import {
 } from 'lucide-react'
 import type { ToolCall } from '../types'
 import { presentToolCall } from '../lib/tools'
-import type { ToolKind, ToolTone } from '../lib/tools'
+import type { ToolKind, ToolTone, Translate } from '../lib/tools'
 
 const toneClasses: Record<ToolTone, string> = {
   success: 'border-emerald-500/25 bg-emerald-500/[0.08]',
@@ -37,7 +38,8 @@ function ToolIcon({ kind }: { kind: ToolKind }) {
 }
 
 export function ToolCallBadge({ call }: { call: ToolCall }) {
-  const presentation = presentToolCall(call)
+  const { t } = useTranslation()
+  const presentation = presentToolCall(call, t as unknown as Translate)
 
   return (
     <div

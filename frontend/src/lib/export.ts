@@ -1,27 +1,52 @@
+import i18n from '../i18n'
 import type { UiMessage } from '../types'
 
 export interface ChatExportOptions {
   email?: string
   exportedAt?: Date
+  /** BCP-47 локаль; по умолчанию — язык интерфейса. */
+  locale?: string
 }
 
-function formatDate(value: string | undefined, fallback: Date): string {
+function resolveLocale(locale?: string): string {
+  if (locale) {
+    return locale
+  }
+  return i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU'
+}
+
+function translate(key: string, options?: Record<string, unknown>): string {
+  return (options ? i18n.t(key, options) : i18n.t(key)) as string
+}
+
+function formatDate(
+  value: string | undefined,
+  fallback: Date,
+  locale?: string,
+): string {
   const date = value ? new Date(value) : fallback
   if (Number.isNaN(date.getTime())) {
-    return 'дата неизвестна'
+    return translate('export.unknownDate')
   }
-  return date.toLocaleString('ru-RU', {
+  return new Intl.DateTimeFormat(resolveLocale(locale), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  })
+  }).format(date)
 }
 
-function messageHeading(message: UiMessage, exportedAt: Date): string {
-  const role = message.role === 'user' ? 'Пользователь' : 'Ассистент'
-  return `### ${role} — ${formatDate(message.createdAt, exportedAt)}`
+function messageHeading(
+  message: UiMessage,
+  exportedAt: Date,
+  locale?: string,
+): string {
+  const role =
+    message.role === 'user'
+      ? translate('export.roleUser')
+      : translate('export.roleAssistant')
+  return `### ${role} — ${formatDate(message.createdAt, exportedAt, locale)}`
 }
 
 /** Собрать Markdown-экспорт истории диалога. */
@@ -30,23 +55,31 @@ export function buildChatMarkdown(
   options: ChatExportOptions = {},
 ): string {
   const exportedAt = options.exportedAt ?? new Date()
-  const lines = ['# История диалога VetAssistant', '']
+  const locale = options.locale
+  const lines = [`# ${translate('export.title')}`, '']
 
   if (options.email) {
-    lines.push(`- Пользователь: ${options.email}`)
+    lines.push(`- ${translate('export.user')}: ${options.email}`)
   }
-  lines.push(`- Экспортировано: ${formatDate(exportedAt.toISOString(), exportedAt)}`)
+  lines.push(
+    `- ${translate('export.exported')}: ${formatDate(exportedAt.toISOString(), exportedAt, locale)}`,
+  )
   lines.push('', '---', '')
 
   if (messages.length === 0) {
-    lines.push('_История пуста._', '')
+    lines.push(`_${translate('export.emptyHistory')}_`, '')
     return lines.join('\n')
   }
 
   for (const message of messages) {
-    lines.push(messageHeading(message, exportedAt), '', message.content.trim() || '_Пустое сообщение_', '')
+    lines.push(
+      messageHeading(message, exportedAt, locale),
+      '',
+      message.content.trim() || `_${translate('export.emptyMessage')}_`,
+      '',
+    )
     if (message.toolCalls.length > 0) {
-      lines.push('**Вызовы инструментов:**', '')
+      lines.push(`**${translate('export.toolCalls')}**`, '')
       for (const call of message.toolCalls) {
         lines.push(`- \`${call.function.name}\` (${call.function.arguments})`)
       }

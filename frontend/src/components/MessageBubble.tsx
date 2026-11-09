@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   PawPrint,
@@ -17,10 +18,11 @@ interface MessageBubbleProps {
 }
 
 function TypingIndicator() {
+  const { t } = useTranslation()
   return (
     <div
       className="flex items-center gap-1.5 py-2"
-      aria-label="Ассистент печатает"
+      aria-label={t('message.typing')}
     >
       <span className="typing-dot" />
       <span className="typing-dot" />
@@ -35,6 +37,7 @@ export function MessageBubble({
   feedbackPending = false,
   onFeedback,
 }: MessageBubbleProps) {
+  const { t } = useTranslation()
   const isUser = message.role === 'user'
   const canRate =
     !isUser &&
@@ -98,7 +101,7 @@ export function MessageBubble({
 
             {message.status === 'stopped' && (
               <p className="mt-2 text-[11px] text-zinc-500">
-                Генерация остановлена.
+                {t('message.stopped')}
               </p>
             )}
 
@@ -112,7 +115,7 @@ export function MessageBubble({
             {canRate && (
               <div
                 role="group"
-                aria-label="Оценка ответа ассистента"
+                aria-label={t('message.feedbackGroup')}
                 className="mt-2.5 flex items-center gap-1.5"
               >
                 <button
@@ -120,8 +123,8 @@ export function MessageBubble({
                   onClick={() => onFeedback?.(1)}
                   disabled={feedbackPending}
                   aria-pressed={rating === 1}
-                  aria-label="Ответ полезен"
-                  title="Ответ полезен"
+                  aria-label={t('message.helpful')}
+                  title={t('message.helpful')}
                   className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 ${
                     rating === 1
                       ? 'border-emerald-400 bg-emerald-500 text-emerald-950 hover:bg-emerald-400'
@@ -135,8 +138,8 @@ export function MessageBubble({
                   onClick={() => onFeedback?.(-1)}
                   disabled={feedbackPending}
                   aria-pressed={rating === -1}
-                  aria-label="Ответ бесполезен"
-                  title="Ответ бесполезен"
+                  aria-label={t('message.notHelpful')}
+                  title={t('message.notHelpful')}
                   className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 ${
                     rating === -1
                       ? 'border-rose-400 bg-rose-500 text-rose-950 hover:bg-rose-400'
@@ -147,7 +150,7 @@ export function MessageBubble({
                 </button>
                 {feedbackPending && (
                   <span className="ml-0.5 text-[10.5px] text-zinc-500">
-                    Сохраняю оценку…
+                    {t('message.savingRating')}
                   </span>
                 )}
               </div>

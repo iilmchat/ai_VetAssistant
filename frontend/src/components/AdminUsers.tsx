@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   Ban,
@@ -23,10 +24,10 @@ import { errorMessage } from '../lib/utils'
 
 const PAGE_SIZE = 20
 
-const STATUS_FILTERS: { value: AdminUserStatus; label: string }[] = [
-  { value: 'all', label: 'Все' },
-  { value: 'active', label: 'Активные' },
-  { value: 'blocked', label: 'Заблокированные' },
+const STATUS_FILTERS: { value: AdminUserStatus; labelKey: string }[] = [
+  { value: 'all', labelKey: 'adminUsers.filters.all' },
+  { value: 'active', labelKey: 'adminUsers.filters.active' },
+  { value: 'blocked', labelKey: 'adminUsers.filters.blocked' },
 ]
 
 function statusBadge(active: boolean): string {
@@ -36,6 +37,7 @@ function statusBadge(active: boolean): string {
 }
 
 export function AdminUsers() {
+  const { t, i18n } = useTranslation()
   const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<AdminUserStatus>('all')
@@ -120,7 +122,7 @@ export function AdminUsers() {
     }
     const trimmed = reason.trim()
     if (!trimmed) {
-      setActionError('Укажите причину блокировки.')
+      setActionError(t('adminUsers.blockReasonRequired'))
       return
     }
 
@@ -131,7 +133,7 @@ export function AdminUsers() {
       await blockAdminUser(blockTarget.id, trimmed)
       closeDialogs()
       await load()
-      setNotice(`Пользователь ${email} заблокирован.`)
+      setNotice(t('adminUsers.notices.blocked', { email }))
     } catch (requestError) {
       setActionError(errorMessage(requestError))
     } finally {
@@ -146,7 +148,7 @@ export function AdminUsers() {
     }
     const trimmed = reason.trim()
     if (!trimmed) {
-      setActionError('Укажите причину разблокировки.')
+      setActionError(t('adminUsers.unblockReasonRequired'))
       return
     }
 
@@ -157,7 +159,7 @@ export function AdminUsers() {
       await unblockAdminUser(unblockTarget.id, trimmed)
       closeDialogs()
       await load()
-      setNotice(`Пользователь ${email} разблокирован.`)
+      setNotice(t('adminUsers.notices.unblocked', { email }))
     } catch (requestError) {
       setActionError(errorMessage(requestError))
     } finally {
@@ -172,7 +174,7 @@ export function AdminUsers() {
     }
     const expectedEmail = deleteTarget.email.trim().toLowerCase()
     if (confirmEmail.trim().toLowerCase() !== expectedEmail) {
-      setActionError('Email не совпадает с email пользователя.')
+      setActionError(t('adminUsers.emailMismatchError'))
       return
     }
 
@@ -189,7 +191,7 @@ export function AdminUsers() {
       } else {
         await load()
       }
-      setNotice(`Пользователь ${email} удалён.`)
+      setNotice(t('adminUsers.notices.deleted', { email }))
     } catch (requestError) {
       setActionError(errorMessage(requestError))
     } finally {
@@ -214,8 +216,8 @@ export function AdminUsers() {
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            aria-label="Поиск пользователей по email"
-            placeholder="Поиск по email"
+            aria-label={t('adminUsers.searchAria')}
+            placeholder={t('adminUsers.searchPlaceholder')}
             className="w-full rounded-xl border border-white/10 bg-white/[0.02] py-2 pl-9 pr-3 text-[12.5px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-emerald-500/40"
           />
         </div>
@@ -236,7 +238,7 @@ export function AdminUsers() {
                   : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
               }`}
             >
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </div>
@@ -248,7 +250,7 @@ export function AdminUsers() {
           className="flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Обновить
+          {t('adminUsers.refresh')}
         </button>
       </div>
 
@@ -269,7 +271,7 @@ export function AdminUsers() {
           <button
             type="button"
             onClick={() => setNotice(null)}
-            aria-label="Скрыть сообщение"
+            aria-label={t('adminUsers.hideNotice')}
             className="rounded p-0.5 text-emerald-400/70 hover:bg-white/5 hover:text-emerald-200"
           >
             <X className="h-3.5 w-3.5" />
@@ -280,11 +282,11 @@ export function AdminUsers() {
       {loading ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Загружаю пользователей…
+          {t('adminUsers.loading')}
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
-          Пользователи не найдены.
+          {t('adminUsers.empty')}
         </div>
       ) : (
         <>
@@ -292,10 +294,18 @@ export function AdminUsers() {
             <table className="w-full min-w-[760px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Регистрация</th>
-                  <th className="px-4 py-3">Статус</th>
-                  <th className="px-4 py-3 text-right">Действия</th>
+                  <th className="px-4 py-3">
+                    {t('adminUsers.table.email')}
+                  </th>
+                  <th className="px-4 py-3">
+                    {t('adminUsers.table.registered')}
+                  </th>
+                  <th className="px-4 py-3">
+                    {t('adminUsers.table.status')}
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    {t('adminUsers.table.actions')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -309,19 +319,21 @@ export function AdminUsers() {
                         <span>{item.email}</span>
                         {item.is_admin && (
                           <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
-                            админ
+                            {t('adminUsers.adminBadge')}
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
-                      {formatDateTime(item.created_at)}
+                      {formatDateTime(item.created_at, i18n.language)}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${statusBadge(item.is_active)}`}
                       >
-                        {item.is_active ? 'Активен' : 'Заблокирован'}
+                        {item.is_active
+                          ? t('adminUsers.active')
+                          : t('adminUsers.blocked')}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -333,7 +345,7 @@ export function AdminUsers() {
                             className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20"
                           >
                             <Ban className="h-3.5 w-3.5" />
-                            Заблокировать
+                            {t('adminUsers.block')}
                           </button>
                         ) : (
                           <button
@@ -342,7 +354,7 @@ export function AdminUsers() {
                             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-[11.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25"
                           >
                             <UserCheck className="h-3.5 w-3.5" />
-                            Разблокировать
+                            {t('adminUsers.unblock')}
                           </button>
                         )}
                         <button
@@ -351,7 +363,7 @@ export function AdminUsers() {
                           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-400 transition-colors hover:bg-white/5 hover:text-rose-300"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                          Удалить
+                          {t('adminUsers.delete')}
                         </button>
                       </div>
                     </td>
@@ -362,7 +374,9 @@ export function AdminUsers() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11.5px] text-zinc-500">Всего: {total}</p>
+            <p className="text-[11.5px] text-zinc-500">
+              {t('adminUsers.total', { total })}
+            </p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -370,10 +384,13 @@ export function AdminUsers() {
                 disabled={page === 0 || loading}
                 className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 hover:bg-white/5 disabled:opacity-40"
               >
-                Назад
+                {t('adminUsers.previous')}
               </button>
               <span className="text-[11.5px] text-zinc-500">
-                Стр. {Math.min(page + 1, totalPages)} из {totalPages}
+                {t('adminUsers.page', {
+                  page: Math.min(page + 1, totalPages),
+                  total: totalPages,
+                })}
               </span>
               <button
                 type="button"
@@ -381,7 +398,7 @@ export function AdminUsers() {
                 disabled={page + 1 >= totalPages || loading}
                 className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 hover:bg-white/5 disabled:opacity-40"
               >
-                Вперёд
+                {t('adminUsers.next')}
               </button>
             </div>
           </div>
@@ -395,18 +412,17 @@ export function AdminUsers() {
             className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl"
           >
             <h2 className="text-[15px] font-semibold text-white">
-              Заблокировать пользователя?
+              {t('adminUsers.blockTitle')}
             </h2>
             <p className="mt-1 text-[12px] text-zinc-500">
               {blockTarget.email}
             </p>
             <p className="mt-2 text-[12px] leading-5 text-zinc-400">
-              Действующий токен перестанет работать сразу, а вход будет
-              отклонён с 403.
+              {t('adminUsers.blockDescription')}
             </p>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Причина
+                {t('adminUsers.reasonLabel')}
               </span>
               <textarea
                 autoFocus
@@ -415,7 +431,7 @@ export function AdminUsers() {
                 maxLength={500}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Почему пользователь заблокирован"
+                placeholder={t('adminUsers.blockReasonPlaceholder')}
                 className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-rose-500/40"
               />
             </label>
@@ -431,7 +447,7 @@ export function AdminUsers() {
                 disabled={actionLoading}
                 className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
               >
-                Отмена
+                {t('adminUsers.cancel')}
               </button>
               <button
                 type="submit"
@@ -443,7 +459,7 @@ export function AdminUsers() {
                 ) : (
                   <Ban className="h-4 w-4" />
                 )}
-                Заблокировать
+                {t('adminUsers.block')}
               </button>
             </div>
           </form>
@@ -457,17 +473,17 @@ export function AdminUsers() {
             className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl"
           >
             <h2 className="text-[15px] font-semibold text-white">
-              Разблокировать пользователя?
+              {t('adminUsers.unblockTitle')}
             </h2>
             <p className="mt-1 text-[12px] text-zinc-500">
               {unblockTarget.email}
             </p>
             <p className="mt-2 text-[12px] leading-5 text-zinc-400">
-              Пользователь снова сможет войти и пользоваться сервисом.
+              {t('adminUsers.unblockDescription')}
             </p>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Причина
+                {t('adminUsers.reasonLabel')}
               </span>
               <textarea
                 autoFocus
@@ -476,7 +492,7 @@ export function AdminUsers() {
                 maxLength={500}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Почему доступ возвращён"
+                placeholder={t('adminUsers.unblockReasonPlaceholder')}
                 className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500/40"
               />
             </label>
@@ -492,7 +508,7 @@ export function AdminUsers() {
                 disabled={actionLoading}
                 className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
               >
-                Отмена
+                {t('adminUsers.cancel')}
               </button>
               <button
                 type="submit"
@@ -504,7 +520,7 @@ export function AdminUsers() {
                 ) : (
                   <UserCheck className="h-4 w-4" />
                 )}
-                Разблокировать
+                {t('adminUsers.unblock')}
               </button>
             </div>
           </form>
@@ -518,19 +534,18 @@ export function AdminUsers() {
             className="w-full max-w-[440px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl"
           >
             <h2 className="text-[15px] font-semibold text-white">
-              Удалить пользователя?
+              {t('adminUsers.deleteTitle')}
             </h2>
             <p className="mt-1 text-[12px] text-zinc-500">
               {deleteTarget.email}
             </p>
             <div className="mt-2 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2.5 text-[11.5px] leading-4 text-rose-200">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Аккаунт, записи, напоминания и коды привязки будут удалены
-              безвозвратно.
+              {t('adminUsers.deleteWarning')}
             </div>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Введите email для подтверждения
+                {t('adminUsers.confirmEmailLabel')}
               </span>
               <input
                 autoFocus
@@ -543,19 +558,19 @@ export function AdminUsers() {
             </label>
             {confirmEmail && !deleteEmailMatches && (
               <p className="mt-1.5 text-[11px] text-rose-300">
-                Email не совпадает.
+                {t('adminUsers.emailMismatch')}
               </p>
             )}
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Причина (необязательно)
+                {t('adminUsers.reasonOptional')}
               </span>
               <textarea
                 rows={2}
                 maxLength={500}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Например, дубликат аккаунта"
+                placeholder={t('adminUsers.reasonOptionalPlaceholder')}
                 className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-rose-500/40"
               />
             </label>
@@ -571,7 +586,7 @@ export function AdminUsers() {
                 disabled={actionLoading}
                 className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
               >
-                Отмена
+                {t('adminUsers.cancel')}
               </button>
               <button
                 type="submit"
@@ -583,7 +598,7 @@ export function AdminUsers() {
                 ) : (
                   <Trash2 className="h-4 w-4" />
                 )}
-                Удалить
+                {t('adminUsers.delete')}
               </button>
             </div>
           </form>

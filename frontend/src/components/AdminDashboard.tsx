@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Activity,
   AlertTriangle,
@@ -32,17 +33,17 @@ type Filter = AccessRequestStatus | 'all'
 
 type AdminTab = 'requests' | 'users' | 'analytics'
 
-const TABS: { value: AdminTab; label: string; icon: typeof ClipboardList }[] = [
-  { value: 'requests', label: 'Заявки', icon: ClipboardList },
-  { value: 'users', label: 'Пользователи', icon: Users },
-  { value: 'analytics', label: 'Аналитика', icon: Activity },
+const TABS: { value: AdminTab; labelKey: string; icon: typeof ClipboardList }[] = [
+  { value: 'requests', labelKey: 'admin.tabs.requests', icon: ClipboardList },
+  { value: 'users', labelKey: 'admin.tabs.users', icon: Users },
+  { value: 'analytics', labelKey: 'admin.tabs.analytics', icon: Activity },
 ]
 
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'pending', label: 'Ожидают' },
-  { value: 'approved', label: 'Одобрены' },
-  { value: 'rejected', label: 'Отклонены' },
-  { value: 'all', label: 'Все' },
+const FILTERS: { value: Filter; labelKey: string }[] = [
+  { value: 'pending', labelKey: 'admin.filters.pending' },
+  { value: 'approved', labelKey: 'admin.filters.approved' },
+  { value: 'rejected', labelKey: 'admin.filters.rejected' },
+  { value: 'all', labelKey: 'admin.filters.all' },
 ]
 
 function statusBadge(status: AccessRequestStatus) {
@@ -55,17 +56,12 @@ function statusBadge(status: AccessRequestStatus) {
   return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
 }
 
-function statusLabel(status: AccessRequestStatus): string {
-  if (status === 'approved') {
-    return 'Одобрена'
-  }
-  if (status === 'rejected') {
-    return 'Отклонена'
-  }
-  return 'Ожидает'
+function statusKey(status: AccessRequestStatus): string {
+  return `admin.status.${status}`
 }
 
 export function AdminDashboard({ onClose }: AdminDashboardProps) {
+  const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<AdminTab>('requests')
   const [filter, setFilter] = useState<Filter>('pending')
   const [requests, setRequests] = useState<AdminAccessRequest[]>([])
@@ -136,7 +132,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       return
     }
     if (!rejectionReason.trim()) {
-      setActionError('Укажите причину отказа.')
+      setActionError(t('admin.reasonRequired'))
       return
     }
     setActionLoading(true)
@@ -161,7 +157,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
-      setActionError('Не удалось скопировать — выделите пароль вручную.')
+      setActionError(t('admin.copyFailed'))
     }
   }
 
@@ -172,7 +168,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="Назад к чату"
+            aria-label={t('admin.back')}
             className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -182,14 +178,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[15px] font-semibold text-white">
-              Администрирование
+              {t('admin.title')}
             </h1>
             <p className="truncate text-[11px] text-zinc-500">
-              {tab === 'analytics'
-                ? 'Использование модели и RAG'
-                : tab === 'users'
-                  ? 'Блокировка и удаление аккаунтов'
-                  : 'Заявки на доступ к сервису'}
+              {t(`admin.subtitles.${tab}`)}
             </p>
           </div>
           {tab === 'requests' && (
@@ -197,11 +189,11 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              aria-label="Обновить"
+              aria-label={t('admin.refresh')}
               className="flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Обновить</span>
+              <span className="hidden sm:inline">{t('admin.refresh')}</span>
             </button>
           )}
         </div>
@@ -209,7 +201,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
       <main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-7">
         <nav
-          aria-label="Разделы админ-панели"
+          aria-label={t('admin.sectionsAria')}
           className="mb-4 flex gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] p-1"
         >
           {TABS.map((item) => {
@@ -227,7 +219,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {item.label}
+                {t(item.labelKey)}
               </button>
             )
           })}
@@ -251,7 +243,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                       : 'border border-white/10 text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
                   }`}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </button>
               ))}
             </div>
@@ -268,22 +260,24 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             {loading ? (
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-sm text-zinc-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Загружаю заявки…
+                {t('admin.loading')}
               </div>
             ) : requests.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-[13px] text-zinc-500">
-                Заявок нет.
+                {t('admin.empty')}
               </div>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
                 <table className="w-full min-w-[720px] border-collapse text-left">
                   <thead>
                     <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                      <th className="px-4 py-3">Email</th>
-                      <th className="px-4 py-3">Причина</th>
-                      <th className="px-4 py-3">Создана</th>
-                      <th className="px-4 py-3">Статус</th>
-                      <th className="px-4 py-3 text-right">Действия</th>
+                      <th className="px-4 py-3">{t('admin.table.email')}</th>
+                      <th className="px-4 py-3">{t('admin.table.reason')}</th>
+                      <th className="px-4 py-3">{t('admin.table.created')}</th>
+                      <th className="px-4 py-3">{t('admin.table.status')}</th>
+                      <th className="px-4 py-3 text-right">
+                        {t('admin.table.actions')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -299,13 +293,13 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                           <span className="line-clamp-3">{item.reason}</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
-                          {formatDateTime(item.created_at)}
+                          {formatDateTime(item.created_at, i18n.language)}
                         </td>
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${statusBadge(item.status)}`}
                           >
-                            {statusLabel(item.status)}
+                            {t(statusKey(item.status))}
                           </span>
                           {item.rejection_reason && (
                             <p className="mt-1 max-w-[200px] text-[10.5px] leading-4 text-zinc-500">
@@ -324,7 +318,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                                 }}
                                 className="rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-[11.5px] font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25"
                               >
-                                Approve
+                                {t('admin.approve')}
                               </button>
                               <button
                                 type="button"
@@ -335,7 +329,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                                 }}
                                 className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20"
                               >
-                                Reject
+                                {t('admin.reject')}
                               </button>
                             </div>
                           ) : (
@@ -356,12 +350,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-[400px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl">
             <h2 className="text-[15px] font-semibold text-white">
-              Одобрить заявку?
+              {t('admin.approveTitle')}
             </h2>
             <p className="mt-2 text-[12.5px] leading-5 text-zinc-400">
-              Для <span className="text-zinc-200">{approveTarget.email}</span>{' '}
-              будет создан аккаунт с временным паролем. Пароль покажется один
-              раз — передайте его пользователю.
+              {t('admin.approveBody', { email: approveTarget.email })}
             </p>
             {actionError && (
               <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/[0.07] px-3 py-2 text-[12px] text-rose-300">
@@ -375,7 +367,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 disabled={actionLoading}
                 className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
               >
-                Отмена
+                {t('admin.cancel')}
               </button>
               <button
                 type="button"
@@ -388,7 +380,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 ) : (
                   <Check className="h-4 w-4" />
                 )}
-                Одобрить
+                {t('admin.approve')}
               </button>
             </div>
           </div>
@@ -402,14 +394,14 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-[#1b1b1b] p-5 shadow-2xl"
           >
             <h2 className="text-[15px] font-semibold text-white">
-              Отклонить заявку
+              {t('admin.rejectTitle')}
             </h2>
             <p className="mt-1 text-[12px] text-zinc-500">
               {rejectTarget.email}
             </p>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Причина
+                {t('admin.reasonLabel')}
               </span>
               <textarea
                 autoFocus
@@ -418,7 +410,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 maxLength={500}
                 value={rejectionReason}
                 onChange={(event) => setRejectionReason(event.target.value)}
-                placeholder="Почему заявка отклонена"
+                placeholder={t('admin.rejectReasonPlaceholder')}
                 className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500/40"
               />
             </label>
@@ -434,7 +426,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 disabled={actionLoading}
                 className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] text-zinc-300 hover:bg-white/5 disabled:opacity-50"
               >
-                Отмена
+                {t('admin.cancel')}
               </button>
               <button
                 type="submit"
@@ -442,7 +434,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-2.5 text-[13px] font-semibold text-rose-950 hover:bg-rose-400 disabled:opacity-60"
               >
                 {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Отклонить
+                {t('admin.reject')}
               </button>
             </div>
           </form>
@@ -458,7 +450,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="text-[15px] font-semibold text-white">
-                  Пользователь создан
+                  {t('admin.createdTitle')}
                 </h2>
                 <p className="mt-0.5 text-[11.5px] text-zinc-500">
                   {issued.email}
@@ -467,7 +459,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               <button
                 type="button"
                 onClick={() => setIssued(null)}
-                aria-label="Закрыть"
+                aria-label={t('admin.close')}
                 className="rounded-lg p-1.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
               >
                 <X className="h-4 w-4" />
@@ -476,7 +468,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2.5 text-[11.5px] leading-4 text-amber-200">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Показывается один раз. Скопируйте пароль и передайте пользователю.
+              {t('admin.createdWarning')}
             </div>
 
             <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
@@ -493,7 +485,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 ) : (
                   <Copy className="h-3.5 w-3.5" />
                 )}
-                {copied ? 'Скопировано' : 'Скопировать'}
+                {copied ? t('admin.copied') : t('admin.copy')}
               </button>
             </div>
 
@@ -509,7 +501,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               }}
               className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-[13px] font-semibold text-emerald-950 hover:bg-emerald-400"
             >
-              Готово
+              {t('admin.done')}
             </button>
           </div>
         </div>

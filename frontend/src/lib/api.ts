@@ -19,8 +19,13 @@ import type {
   ToolCallDelta,
   ToolDefinition,
 } from '../types'
+import i18n from '../i18n'
 import type { AuthSession, AuthUser } from './auth'
 import { isAbortError, isRecord } from './utils'
+
+function translate(key: string, options?: Record<string, unknown>): string {
+  return (options ? i18n.t(key, options) : i18n.t(key)) as string
+}
 
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000'
 const DEFAULT_MODEL_ID = 'qwen3-8b-vet'
@@ -157,15 +162,15 @@ async function extractError(response: Response): Promise<string> {
   }
 
   if (response.status === 401) {
-    return 'Требуется вход в систему. Войдите снова.'
+    return translate('errors.unauthorized')
   }
   if (response.status === 400) {
-    return 'Запрос отклонён системой безопасности.'
+    return translate('errors.badRequest')
   }
   if (response.status === 503) {
-    return 'Модель временно недоступна. Попробуйте позже.'
+    return translate('errors.serviceUnavailable')
   }
-  return `Сервер вернул ошибку ${response.status}. Попробуйте позже.`
+  return translate('errors.httpStatus', { status: response.status })
 }
 
 function withAuth(headers: Headers): Headers {
@@ -191,7 +196,7 @@ async function requestJson<T>(
       throw error
     }
     throw new ApiError(
-      'Не удалось связаться с сервером ветеринара. Проверьте, что API запущен.',
+      translate('errors.network'),
     )
   }
 
@@ -657,7 +662,7 @@ export async function* streamChat(
       throw error
     }
     throw new ApiError(
-      'Не удалось связаться с сервером ветеринара. Проверьте, что API запущен.',
+      translate('errors.network'),
     )
   }
 
@@ -665,7 +670,7 @@ export async function* streamChat(
     throw new ApiError(await extractError(response), response.status)
   }
   if (!response.body) {
-    throw new ApiError('Сервер не вернул поток ответа.')
+    throw new ApiError(translate('errors.noStream'))
   }
 
   const reader = response.body.getReader()

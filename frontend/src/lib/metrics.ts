@@ -1,4 +1,9 @@
+import i18n from '../i18n'
 import type { AdminMetricsTotals } from '../types'
+
+function isEnglish(locale?: string): boolean {
+  return (locale ?? i18n.language ?? 'ru').startsWith('en')
+}
 
 /** Точка в координатах SVG-графика. */
 export interface SparklinePoint {
@@ -6,28 +11,38 @@ export interface SparklinePoint {
   y: number
 }
 
-/** Сгруппировать тысячи пробелами: 1500 -> «1 500». */
-function groupThousands(value: number): string {
+/** Сгруппировать тысячи: 1500 -> «1 500» / «1,500». */
+function groupThousands(value: number, locale?: string): string {
   return Math.round(value)
     .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+    .replace(/\B(?=(\d{3})+(?!\d))/g, isEnglish(locale) ? ',' : ' ')
 }
 
-/** Компактное число для KPI-карточек: 12 345 -> «12,3 тыс.». */
-export function formatMetricValue(value: number): string {
+function decimal(value: number, locale?: string): string {
+  return value.toFixed(1).replace('.', isEnglish(locale) ? '.' : ',')
+}
+
+/** Компактное число для KPI-карточек: 12 345 -> «12,3 тыс.» / «12.3K». */
+export function formatMetricValue(value: number, locale?: string): string {
   if (!Number.isFinite(value) || value <= 0) {
     return '0'
   }
   if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1).replace('.', ',')} млн`
+    return isEnglish(locale)
+      ? `${decimal(value / 1_000_000, locale)}M`
+      : `${decimal(value / 1_000_000, locale)} млн`
   }
   if (value >= 10_000) {
-    return `${(value / 1_000).toFixed(1).replace('.', ',')} тыс.`
+    return isEnglish(locale)
+      ? `${decimal(value / 1_000, locale)}K`
+      : `${decimal(value / 1_000, locale)} тыс.`
   }
   if (value >= 1_000) {
-    return groupThousands(value)
+    return groupThousands(value, locale)
   }
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace('.', ',')
+  return Number.isInteger(value)
+    ? String(value)
+    : decimal(value, locale)
 }
 
 /** Доля RAG-поисков, которые вернули чанки. */
@@ -36,12 +51,12 @@ export function ragHitRate(totals: AdminMetricsTotals): number {
   return total > 0 ? totals.rag_hits / total : 0
 }
 
-/** Проценты с одним знаком: 0.1234 -> «12,3%». */
-export function formatPercent(share: number): string {
+/** Проценты с одним знаком: 0.1234 -> «12,3%» / «12.3%». */
+export function formatPercent(share: number, locale?: string): string {
   if (!Number.isFinite(share)) {
     return '—'
   }
-  return `${(share * 100).toFixed(1).replace('.', ',')}%`
+  return `${decimal(share * 100, locale)}%`
 }
 
 /**

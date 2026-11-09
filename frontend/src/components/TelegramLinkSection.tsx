@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Check,
   ClipboardCopy,
@@ -21,7 +22,7 @@ import {
 import { errorMessage } from '../lib/utils'
 import type { TelegramLinkCode, TelegramLinkStatus } from '../types'
 
-function formatLinkedAt(value: string | null): string | null {
+function formatLinkedAt(value: string | null, locale: string): string | null {
   if (!value) {
     return null
   }
@@ -29,14 +30,15 @@ function formatLinkedAt(value: string | null): string | null {
   if (Number.isNaN(date.getTime())) {
     return null
   }
-  return date.toLocaleDateString('ru-RU', {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  })
+  }).format(date)
 }
 
 export function TelegramLinkSection() {
+  const { t, i18n } = useTranslation()
   const [status, setStatus] = useState<TelegramLinkStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -128,7 +130,7 @@ export function TelegramLinkSection() {
       return
     }
     if (!navigator.clipboard) {
-      setError('Не удалось скопировать код — выделите его вручную.')
+      setError(t('telegram.copyError'))
       return
     }
     try {
@@ -136,11 +138,11 @@ export function TelegramLinkSection() {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
-      setError('Не удалось скопировать код — выделите его вручную.')
+      setError(t('telegram.copyError'))
     }
   }
 
-  const linkedAt = formatLinkedAt(status?.linked_at ?? null)
+  const linkedAt = formatLinkedAt(status?.linked_at ?? null, i18n.language)
 
   return (
     <section aria-labelledby="telegram-link-title" className="space-y-3">
@@ -156,7 +158,7 @@ export function TelegramLinkSection() {
             Telegram
           </h3>
           <p className="text-[11px] text-zinc-500">
-            Записи, напоминания и уведомления в чате
+            {t('telegram.subtitle')}
           </p>
         </div>
       </div>
@@ -164,7 +166,7 @@ export function TelegramLinkSection() {
       {loading && (
         <div className="flex items-center gap-2 text-[12px] text-zinc-500">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Проверяю привязку…
+          {t('telegram.checking')}
         </div>
       )}
 
@@ -181,16 +183,18 @@ export function TelegramLinkSection() {
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
           <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-emerald-300">
             <ShieldCheck className="h-4 w-4" />
-            Telegram привязан
+            {t('telegram.linked')}
           </p>
           <p className="mt-1 text-[11.5px] text-zinc-400">
-            {status.email ?? 'Веб-аккаунт'}
+            {status.email ?? t('telegram.webAccount')}
             {status.telegram_id !== null && (
               <span className="text-zinc-600"> · ID {status.telegram_id}</span>
             )}
           </p>
           {linkedAt && (
-            <p className="mt-0.5 text-[10.5px] text-zinc-600">с {linkedAt}</p>
+            <p className="mt-0.5 text-[10.5px] text-zinc-600">
+              {t('telegram.since', { date: linkedAt })}
+            </p>
           )}
 
           <div className="mt-2.5 flex gap-2">
@@ -201,7 +205,7 @@ export function TelegramLinkSection() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.08] px-3 py-1.5 text-[11.5px] font-medium text-rose-300 transition-colors hover:bg-rose-500/15"
               >
                 <Unlink className="h-3.5 w-3.5" />
-                Отвязать
+                {t('telegram.unlink')}
               </button>
             ) : (
               <>
@@ -212,7 +216,7 @@ export function TelegramLinkSection() {
                   className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500 px-3 py-1.5 text-[11.5px] font-semibold text-rose-950 transition-colors hover:bg-rose-400 disabled:opacity-60"
                 >
                   {unlinking && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Точно отвязать
+                  {t('telegram.confirmUnlink')}
                 </button>
                 <button
                   type="button"
@@ -220,7 +224,7 @@ export function TelegramLinkSection() {
                   disabled={unlinking}
                   className="rounded-lg border border-white/10 px-3 py-1.5 text-[11.5px] text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
                 >
-                  Отмена
+                  {t('telegram.cancel')}
                 </button>
               </>
             )}
@@ -231,8 +235,7 @@ export function TelegramLinkSection() {
       {!loading && status && !status.linked && (
         <div className="space-y-2.5">
           <p className="text-[12px] leading-5 text-zinc-400">
-            Привяжите веб-аккаунт к Telegram — записи и напоминания станут
-            общими, а уведомления придут в чат.
+            {t('telegram.description')}
           </p>
 
           {!code && (
@@ -247,7 +250,7 @@ export function TelegramLinkSection() {
               ) : (
                 <Link2 className="h-4 w-4" />
               )}
-              {creating ? 'Создаю код…' : 'Привязать Telegram'}
+              {creating ? t('telegram.creating') : t('telegram.link')}
             </button>
           )}
 
@@ -256,7 +259,7 @@ export function TelegramLinkSection() {
               {remaining > 0 ? (
                 <>
                   <p className="text-[10.5px] font-medium uppercase tracking-wide text-zinc-500">
-                    Код привязки
+                    {t('telegram.codeLabel')}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
                     <code className="select-all rounded-lg bg-white/5 px-2.5 py-1.5 font-mono text-[20px] font-semibold tracking-[0.12em] text-white">
@@ -265,7 +268,7 @@ export function TelegramLinkSection() {
                     <button
                       type="button"
                       onClick={() => void handleCopy()}
-                      aria-label="Скопировать код"
+                      aria-label={t('telegram.copyCode')}
                       className="rounded-lg border border-white/10 p-1.5 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
                     >
                       {copied ? (
@@ -276,7 +279,9 @@ export function TelegramLinkSection() {
                     </button>
                   </div>
                   <p className="mt-1.5 text-[11px] text-zinc-500">
-                    Осталось {formatCountdown(remaining)}
+                    {t('telegram.remaining', {
+                      time: formatCountdown(remaining),
+                    })}
                   </p>
                   <p className="mt-2 text-[11.5px] leading-5 text-zinc-400">
                     {code.instructions}
@@ -285,7 +290,7 @@ export function TelegramLinkSection() {
               ) : (
                 <div className="space-y-2">
                   <p className="text-[12px] text-amber-300">
-                    Код истёк. Создайте новый — это займёт секунду.
+                    {t('telegram.expired')}
                   </p>
                   <button
                     type="button"
@@ -294,7 +299,7 @@ export function TelegramLinkSection() {
                     className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-3 py-1.5 text-[11.5px] font-semibold text-sky-950 transition-colors hover:bg-sky-400 disabled:opacity-60"
                   >
                     {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Новый код
+                    {t('telegram.newCode')}
                   </button>
                 </div>
               )}

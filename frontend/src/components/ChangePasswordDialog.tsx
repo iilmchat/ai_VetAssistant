@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { KeyRound, Loader2, ShieldCheck, X } from 'lucide-react'
 import { changePassword } from '../lib/api'
 import { errorMessage } from '../lib/utils'
@@ -13,6 +14,7 @@ export function ChangePasswordDialog({
   onClose,
   onPasswordChanged,
 }: ChangePasswordDialogProps) {
+  const { t } = useTranslation()
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -33,19 +35,19 @@ export function ChangePasswordDialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!oldPassword || !newPassword || !confirmPassword) {
-      setError('Заполните все поля.')
+      setError(t('changePassword.fillAll'))
       return
     }
     if (newPassword.length < 8) {
-      setError('Новый пароль должен содержать минимум 8 символов.')
+      setError(t('changePassword.tooShort'))
       return
     }
     if (newPassword !== confirmPassword) {
-      setError('Новые пароли не совпадают.')
+      setError(t('changePassword.mismatch'))
       return
     }
     if (newPassword === oldPassword) {
-      setError('Новый пароль должен отличаться от старого.')
+      setError(t('changePassword.same'))
       return
     }
 
@@ -84,17 +86,17 @@ export function ChangePasswordDialog({
               id="change-password-title"
               className="text-[15px] font-semibold text-white"
             >
-              Смена пароля
+              {t('changePassword.title')}
             </h2>
             <p className="mt-0.5 text-[11.5px] leading-4 text-zinc-500">
-              После сохранения потребуется войти заново.
+              {t('changePassword.subtitle')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            aria-label="Закрыть"
+            aria-label={t('changePassword.close')}
             className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
@@ -107,7 +109,7 @@ export function ChangePasswordDialog({
         >
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-              Старый пароль
+              {t('changePassword.old')}
             </span>
             <input
               type="password"
@@ -117,14 +119,14 @@ export function ChangePasswordDialog({
               disabled={loading}
               value={oldPassword}
               onChange={(event) => setOldPassword(event.target.value)}
-              placeholder="Текущий пароль"
+              placeholder={t('changePassword.oldPlaceholder')}
               className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[14px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-500/40 disabled:opacity-60"
             />
           </label>
 
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-              Новый пароль
+              {t('changePassword.new')}
             </span>
             <input
               type="password"
@@ -134,14 +136,14 @@ export function ChangePasswordDialog({
               disabled={loading}
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Минимум 8 символов"
+              placeholder={t('changePassword.newPlaceholder')}
               className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[14px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-500/40 disabled:opacity-60"
             />
           </label>
 
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-              Повторите новый пароль
+              {t('changePassword.confirm')}
             </span>
             <input
               type="password"
@@ -151,7 +153,7 @@ export function ChangePasswordDialog({
               disabled={loading}
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="Ещё раз"
+              placeholder={t('changePassword.confirmPlaceholder')}
               className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-[14px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-500/40 disabled:opacity-60"
             />
           </label>
@@ -172,7 +174,7 @@ export function ChangePasswordDialog({
               disabled={loading}
               className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] font-medium text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
             >
-              Отмена
+              {t('changePassword.cancel')}
             </button>
             <button
               type="submit"
@@ -180,14 +182,16 @@ export function ChangePasswordDialog({
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[13px] font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? 'Сохраняю…' : 'Сменить пароль'}
+              {loading
+                ? t('changePassword.saving')
+                : t('changePassword.submit')}
             </button>
           </div>
         </form>
 
         <p className="mt-4 flex items-start gap-2 text-[10.5px] leading-4 text-zinc-600">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Пароль хранится только в виде bcrypt-хэша.
+          {t('changePassword.hint')}
         </p>
       </div>
     </div>

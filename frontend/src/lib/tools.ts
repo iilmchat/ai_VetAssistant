@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type {
   ToolCall,
   ToolCallDelta,
@@ -126,6 +127,15 @@ export function mergeToolCalls(
 export type ToolTone = 'success' | 'warning' | 'neutral'
 export type ToolKind = 'calendar' | 'bell' | 'wrench'
 
+/** Минимальный контракт перевода: хватает и `i18n.t`, и `t` из useTranslation. */
+export type Translate = (
+  key: string,
+  options?: Record<string, unknown>,
+) => string
+
+const defaultTranslate: Translate = (key, options) =>
+  (options ? i18n.t(key, options) : i18n.t(key)) as string
+
 export interface ToolPresentation {
   title: string
   details: string
@@ -147,18 +157,24 @@ function stringArg(
   return undefined
 }
 
-export function presentToolCall(call: ToolCall): ToolPresentation {
+export function presentToolCall(
+  call: ToolCall,
+  t: Translate = defaultTranslate,
+): ToolPresentation {
   const args = parseToolArguments(call.function.arguments)
 
   if (call.function.name === 'book_appointment') {
     const petName = stringArg(args, 'pet_name')
     const date = stringArg(args, 'date')
     const time = stringArg(args, 'time')
-    const moment = [date, time].filter(Boolean).join(' в ')
+    const moment =
+      date && time
+        ? t('toolCall.moment', { date, time })
+        : [date, time].filter(Boolean).join(' ')
     const details = [petName, moment].filter(Boolean).join(' · ')
     return {
-      title: 'Запись на приём создана',
-      details: details || 'Питомец записан к ветеринарному врачу',
+      title: t('toolCall.appointmentTitle'),
+      details: details || t('toolCall.appointmentFallback'),
       tone: 'success',
       kind: 'calendar',
     }
@@ -169,16 +185,18 @@ export function presentToolCall(call: ToolCall): ToolPresentation {
     const time = stringArg(args, 'time')
     const details = [text, time].filter(Boolean).join(' · ')
     return {
-      title: 'Напоминание создано',
-      details: details || 'Напоминание сохранено',
+      title: t('toolCall.reminderTitle'),
+      details: details || t('toolCall.reminderFallback'),
       tone: 'warning',
       kind: 'bell',
     }
   }
 
   return {
-    title: `Инструмент: ${call.function.name || 'без имени'}`,
-    details: 'Вызов выполнен',
+    title: t('toolCall.unknownTitle', {
+      name: call.function.name || t('toolCall.noName'),
+    }),
+    details: t('toolCall.unknownDetails'),
     tone: 'neutral',
     kind: 'wrench',
   }

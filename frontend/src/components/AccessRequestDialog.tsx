@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Loader2, Mail, MessageSquare, X } from 'lucide-react'
 import { requestAccess } from '../lib/api'
 import { errorMessage } from '../lib/utils'
@@ -13,6 +14,7 @@ export function AccessRequestDialog({
   initialEmail = '',
   onClose,
 }: AccessRequestDialogProps) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState(initialEmail)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +26,7 @@ export function AccessRequestDialog({
     const normalizedEmail = email.trim()
     const normalizedReason = reason.trim()
     if (!normalizedEmail || !normalizedReason) {
-      setError('Заполните email и причину.')
+      setError(t('accessRequest.fillFields'))
       return
     }
 
@@ -64,18 +66,17 @@ export function AccessRequestDialog({
               id="access-request-title"
               className="text-[15px] font-semibold text-white"
             >
-              Запросить доступ
+              {t('accessRequest.title')}
             </h2>
             <p className="mt-0.5 text-[11.5px] leading-4 text-zinc-500">
-              Сервис работает по приглашениям. Расскажите, кто вы и зачем вам
-              доступ.
+              {t('accessRequest.subtitle')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            aria-label="Закрыть"
+            aria-label={t('accessRequest.close')}
             className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
@@ -89,16 +90,14 @@ export function AccessRequestDialog({
               className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-3 text-[12.5px] leading-5 text-emerald-300"
             >
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Заявка отправлена. Мы свяжемся с вами после одобрения
-              </span>
+              <span>{t('accessRequest.sent')}</span>
             </div>
             <button
               type="button"
               onClick={onClose}
               className="w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-[13px] font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
             >
-              Закрыть
+              {t('accessRequest.close')}
             </button>
           </div>
         ) : (
@@ -108,7 +107,7 @@ export function AccessRequestDialog({
           >
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Email
+                {t('accessRequest.email')}
               </span>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 focus-within:border-emerald-500/40">
                 <Mail className="h-4 w-4 shrink-0 text-zinc-500" />
@@ -128,7 +127,7 @@ export function AccessRequestDialog({
 
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                Причина / кто вы
+                {t('accessRequest.reason')}
               </span>
               <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 focus-within:border-emerald-500/40">
                 <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
@@ -139,7 +138,7 @@ export function AccessRequestDialog({
                   disabled={loading}
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  placeholder="Например: ветеринарный врач, хочу протестировать сервис"
+                  placeholder={t('accessRequest.reasonPlaceholder')}
                   className="w-full resize-none bg-transparent text-[14px] leading-5 text-zinc-100 outline-none placeholder:text-zinc-600 disabled:opacity-60"
                 />
               </div>
@@ -161,7 +160,7 @@ export function AccessRequestDialog({
                 disabled={loading}
                 className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-[13px] font-medium text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
               >
-                Отмена
+                {t('accessRequest.cancel')}
               </button>
               <button
                 type="submit"
@@ -169,7 +168,9 @@ export function AccessRequestDialog({
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-[13px] font-semibold text-emerald-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {loading ? 'Отправляю…' : 'Отправить заявку'}
+                {loading
+                  ? t('accessRequest.sending')
+                  : t('accessRequest.submit')}
               </button>
             </div>
           </form>
