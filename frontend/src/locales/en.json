@@ -10,6 +10,11 @@
     "dark": "Dark",
     "system": "System"
   },
+  "adminLanguage": {
+    "label": "Admin panel language",
+    "independent": "Does not change the chat language",
+    "followGlobal": "Same as chat"
+  },
   "app": {
     "documentTitle": "VetAssistant — AI veterinarian",
     "description": "VetAssistant — a local AI veterinarian: chat with RAG, appointments and reminders.",

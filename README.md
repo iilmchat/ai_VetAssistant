@@ -1,16 +1,17 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.12.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.12.1-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.12.0** (2026-11-09)
-**Релиз v1.12.0:** светлая тема Light / Dark / System, горячие клавиши
-Ctrl/Cmd+K, Ctrl+Enter и Esc, мобильный drawer и индикатор отправки (T-154)
-**Предыдущий релиз:** v1.11.0 — английская локализация интерфейса и
-переключатель RU/EN с сохранением выбора (T-153)
+**Статус:** ✅ **Production Ready — v1.12.1** (2026-11-09)
+**Релиз v1.12.1:** независимый язык админ-панели — переключатель RU/EN
+в админке больше не меняет язык чата (T-154.5)
+**Предыдущий релиз:** v1.12.0 — светлая тема Light / Dark / System, горячие
+клавиши Ctrl/Cmd+K, Ctrl+Enter и Esc, мобильный drawer и индикатор
+отправки (T-154)
 **Ранее:** v1.10.0 — экспорт оценок в JSONL для DPO/SFT и
 активность пользователей в админке — DAU/WAU с графиком по дням (T-150, T-151)
 **Ранее:** v1.9.0 — обратная связь по ответам 👍/👎: одна оценка на
@@ -95,6 +96,28 @@ hit из ChromaDB.
   `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
+
+## 🌐 v1.12.1 — независимый язык админ-панели
+
+**Релиз:** 2026-11-09. Исправление T-154.5: переключатель RU/EN в админке
+больше не меняет язык чата.
+
+### Что изменилось (T-154.5)
+
+- **Отдельный ключ.** Язык админки хранится в `localStorage` под ключом
+  `vetassistant.admin.language` и не пересекается с глобальным
+  `vetassistant.language`.
+- **Отдельный i18n-инстанс.** Админка обёрнута в `AdminI18nProvider` с
+  собственным `i18next`-инстансом (`frontend/src/lib/adminI18n.ts`), поэтому
+  `useTranslation()` внутри админки читает её язык; глобальный `setLanguage`
+  не вызывается.
+- **Fallback.** Если `admin.language` не задан, админка использует глобальный
+  язык интерфейса; кнопка «Как в чате» сбрасывает собственный выбор.
+- **Даты и числа.** Даты в заявках/пользователях и метрики аналитики
+  форматируются по языку админки, а не по глобальному.
+- **Тесты.** В `i18n.test.ts` добавлены 5 тестов: переключение в админке не
+  меняет глобальный язык и его ключ, fallback на глобальный язык, приоритет
+  собственного выбора и игнорирование мусора в хранилище (всего 100 тестов).
 
 ## 🎨 v1.12.0 — светлая тема, хоткеи и мобильная вёрстка
 

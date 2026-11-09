@@ -49,6 +49,7 @@ import { AuthScreen } from './components/AuthScreen'
 import { ChangePasswordDialog } from './components/ChangePasswordDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { AdminDashboard } from './components/AdminDashboard'
+import { AdminI18nProvider } from './components/AdminI18nProvider'
 
 const MAX_CONTEXT_MESSAGES = 20
 const DEFAULT_SETTINGS: ChatSettings = {
@@ -572,7 +573,11 @@ function App() {
   }
 
   if (adminOpen) {
-    return <AdminDashboard onClose={() => setAdminOpen(false)} />
+    return (
+      <AdminI18nProvider>
+        <AdminDashboard onClose={() => setAdminOpen(false)} />
+      </AdminI18nProvider>
+    )
   }
 
   return (

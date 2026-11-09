@@ -10,6 +10,11 @@
     "dark": "Тёмная",
     "system": "Системная"
   },
+  "adminLanguage": {
+    "label": "Язык админ-панели",
+    "independent": "Не влияет на язык чата",
+    "followGlobal": "Как в чате"
+  },
   "app": {
     "documentTitle": "VetAssistant — ИИ-ветеринар",
     "description": "VetAssistant — локальный ИИ-ветеринар: чат с RAG, запись на приём и напоминания.",

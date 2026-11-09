@@ -9,7 +9,7 @@ export const LANGUAGE_STORAGE_KEY = 'vetassistant.language'
 export const SUPPORTED_LANGUAGES = ['ru', 'en'] as const
 export type Language = (typeof SUPPORTED_LANGUAGES)[number]
 
-function isLanguage(value: unknown): value is Language {
+export function isLanguage(value: unknown): value is Language {
   return value === 'ru' || value === 'en'
 }
 

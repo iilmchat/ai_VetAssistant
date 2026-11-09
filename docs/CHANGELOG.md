@@ -4,6 +4,38 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.12.1] — 2026-11-09
+
+Исправление: независимый язык админ-панели (T-154.5).
+
+### Исправлено
+
+- **Переключатель RU/EN в админке больше не меняет язык чата.** Язык
+  админки хранится отдельно — `localStorage` ключ
+  `vetassistant.admin.language`; глобальный ключ `vetassistant.language`
+  не затрагивается.
+- **Отдельный i18n-инстанс.** Добавлены `frontend/src/lib/adminI18n.ts`,
+  `frontend/src/lib/adminI18nContext.ts` и `AdminI18nProvider`: внутри
+  админки `useTranslation()` читает её собственный инстанс, глобальный
+  `setLanguage` не вызывается.
+- **Fallback на глобальный язык.** Если `admin.language` не задан, админка
+  использует язык интерфейса; кнопка «Как в чате» сбрасывает override.
+- **Локальные даты и числа.** `AdminDashboard`/`AdminUsers` форматируют даты,
+  а `AdminAnalytics` — метрики и проценты по языку админки.
+- **Тесты.** `i18n.test.ts` дополнен проверками независимости языков,
+  fallback и устойчивости к неизвестным значениям (100 тестов).
+
+### Изменено
+
+- Версия `1.12.1` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README; обновлён `tests/test_deployment.py`.
+
+### Проверено
+
+- Frontend: `npm run lint` — 0 ошибок; `npm test` — 100 тестов;
+  `npm run build` — успешно.
+- Python: `pytest` — 814 тестов; `ruff check .` и `mypy app` — чисто.
+
 ## [1.12.0] — 2026-11-09
 
 Светлая тема, горячие клавиши и мобильная вёрстка (T-154).

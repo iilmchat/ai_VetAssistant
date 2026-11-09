@@ -19,7 +19,11 @@ import {
   fetchAdminMetrics,
   fetchFeedbackStats,
 } from '../lib/api'
-import { formatMetricValue, formatPercent, ragHitRate } from '../lib/metrics'
+import {
+  formatMetricValue as formatNumber,
+  formatPercent as formatRatio,
+  ragHitRate,
+} from '../lib/metrics'
 import { errorMessage } from '../lib/utils'
 import { Sparkline } from './charts/Sparkline'
 
@@ -56,7 +60,11 @@ function KpiCard({ label, value, hint }: KpiCardProps) {
 }
 
 export function AdminAnalytics() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language
+  // T-154.5: числа и проценты форматируем по языку админки, а не глобальному.
+  const metric = (value: number) => formatNumber(value, locale)
+  const percent = (value: number) => formatRatio(value, locale)
   const [window, setWindow] = useState<AdminMetricsWindow>('24h')
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null)
@@ -211,48 +219,48 @@ export function AdminAnalytics() {
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <KpiCard
               label={t('analytics.requests')}
-              value={formatMetricValue(totals.requests)}
+              value={metric(totals.requests)}
               hint={t('analytics.requestsHint', {
-                value: formatMetricValue(totals.generation_errors),
+                value: metric(totals.generation_errors),
               })}
             />
             <KpiCard
               label={t('analytics.tokens')}
-              value={formatMetricValue(totals.tokens)}
+              value={metric(totals.tokens)}
               hint={t('analytics.tokensHint', {
-                prompt: formatMetricValue(totals.prompt_tokens),
-                completion: formatMetricValue(totals.completion_tokens),
+                prompt: metric(totals.prompt_tokens),
+                completion: metric(totals.completion_tokens),
               })}
             />
             <KpiCard
               label={t('analytics.ragHitRate')}
-              value={formatPercent(hitRate)}
+              value={percent(hitRate)}
               hint={t('analytics.ragHint', {
-                value: formatMetricValue(
+                value: metric(
                   totals.rag_hits + totals.rag_misses + totals.rag_errors,
                 ),
               })}
             />
             <KpiCard
               label={t('analytics.errors5xx')}
-              value={formatMetricValue(totals.http_errors)}
+              value={metric(totals.http_errors)}
               hint={t('analytics.errorsHint', {
-                value: formatPercent(totals.error_rate),
+                value: percent(totals.error_rate),
               })}
             />
             <KpiCard
               label={t('analytics.rating')}
               value={
                 feedbackStats && feedbackStats.total > 0
-                  ? formatPercent(feedbackStats.positive_ratio)
+                  ? percent(feedbackStats.positive_ratio)
                   : '—'
               }
               hint={
                 feedbackStats
                   ? t('analytics.ratingHint', {
-                      total: formatMetricValue(feedbackStats.total),
-                      positive: formatMetricValue(feedbackStats.positive),
-                      negative: formatMetricValue(feedbackStats.negative),
+                      total: metric(feedbackStats.total),
+                      positive: metric(feedbackStats.positive),
+                      negative: metric(feedbackStats.negative),
                     })
                   : t('analytics.ratingsUnavailable')
               }
@@ -327,12 +335,12 @@ export function AdminAnalytics() {
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <KpiCard
                 label={t('analytics.dau')}
-                value={activityStats ? formatMetricValue(activityStats.dau) : '—'}
+                value={activityStats ? metric(activityStats.dau) : '—'}
                 hint={t('analytics.dauHint')}
               />
               <KpiCard
                 label={t('analytics.wau')}
-                value={activityStats ? formatMetricValue(activityStats.wau) : '—'}
+                value={activityStats ? metric(activityStats.wau) : '—'}
                 hint={t('analytics.wauHint')}
               />
             </div>
@@ -345,7 +353,7 @@ export function AdminAnalytics() {
                   </p>
                   <span className="ml-auto text-[10.5px] text-ink-faint">
                     {t('analytics.requestsForPeriod', {
-                      value: formatMetricValue(activityRequestsTotal),
+                      value: metric(activityRequestsTotal),
                     })}
                   </span>
                 </div>
@@ -399,10 +407,10 @@ export function AdminAnalytics() {
                     >
                       <td className="px-4 py-3 text-ink">{user.email}</td>
                       <td className="px-4 py-3 text-right text-ink-soft">
-                        {formatMetricValue(user.requests)}
+                        {metric(user.requests)}
                       </td>
                       <td className="px-4 py-3 text-right text-ink-soft">
-                        {formatMetricValue(user.tokens)}
+                        {metric(user.tokens)}
                       </td>
                     </tr>
                   ))

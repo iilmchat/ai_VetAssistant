@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.12.0
+# VETASSISTANT_VERSION=1.12.1
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.12.0
+gh workflow run deploy.yml --ref main -f version=1.12.1
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку

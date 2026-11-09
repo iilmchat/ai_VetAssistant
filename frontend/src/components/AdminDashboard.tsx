@@ -23,8 +23,8 @@ import {
 import { formatDateTime } from '../lib/format'
 import { errorMessage } from '../lib/utils'
 import { AdminAnalytics } from './AdminAnalytics'
+import { AdminLanguageSwitcher } from './AdminLanguageSwitcher'
 import { AdminUsers } from './AdminUsers'
-import { LanguageSwitcher } from './LanguageSwitcher'
 
 interface AdminDashboardProps {
   onClose: () => void
@@ -184,7 +184,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   }, [actionLoading, approveTarget, issued, rejectTarget])
 
   return (
-    <div className="min-h-dvh w-full bg-app text-ink">
+    <div lang={i18n.language} className="min-h-dvh w-full bg-app text-ink">
       <header className="sticky top-0 z-10 border-b border-line-soft bg-app/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
           <button
@@ -218,7 +218,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               <span className="hidden sm:inline">{t('admin.refresh')}</span>
             </button>
           )}
-          <LanguageSwitcher />
+          <AdminLanguageSwitcher />
         </div>
       </header>
 
