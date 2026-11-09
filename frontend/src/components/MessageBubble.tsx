@@ -1,7 +1,20 @@
-import { AlertTriangle, PawPrint, UserRound } from 'lucide-react'
-import type { UiMessage } from '../types'
+import {
+  AlertTriangle,
+  PawPrint,
+  ThumbsDown,
+  ThumbsUp,
+  UserRound,
+} from 'lucide-react'
+import type { FeedbackRating, UiMessage } from '../types'
 import { Markdown } from './Markdown'
 import { ToolCallBadge } from './ToolCallBadge'
+
+interface MessageBubbleProps {
+  message: UiMessage
+  rating?: FeedbackRating | null
+  feedbackPending?: boolean
+  onFeedback?: (rating: FeedbackRating) => void
+}
 
 function TypingIndicator() {
   return (
@@ -16,8 +29,19 @@ function TypingIndicator() {
   )
 }
 
-export function MessageBubble({ message }: { message: UiMessage }) {
+export function MessageBubble({
+  message,
+  rating = null,
+  feedbackPending = false,
+  onFeedback,
+}: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const canRate =
+    !isUser &&
+    message.status === 'done' &&
+    message.content.trim().length > 0 &&
+    !message.error &&
+    typeof onFeedback === 'function'
 
   return (
     <div
@@ -82,6 +106,50 @@ export function MessageBubble({ message }: { message: UiMessage }) {
               <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rose-500/20 bg-rose-500/[0.06] px-3.5 py-3 text-[12px] leading-5 text-rose-300">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{message.error}</span>
+              </div>
+            )}
+
+            {canRate && (
+              <div
+                role="group"
+                aria-label="Оценка ответа ассистента"
+                className="mt-2.5 flex items-center gap-1.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => onFeedback?.(1)}
+                  disabled={feedbackPending}
+                  aria-pressed={rating === 1}
+                  aria-label="Ответ полезен"
+                  title="Ответ полезен"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                    rating === 1
+                      ? 'border-emerald-400 bg-emerald-500 text-emerald-950 hover:bg-emerald-400'
+                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-300'
+                  }`}
+                >
+                  <ThumbsUp className="h-4 w-4" strokeWidth={2.2} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onFeedback?.(-1)}
+                  disabled={feedbackPending}
+                  aria-pressed={rating === -1}
+                  aria-label="Ответ бесполезен"
+                  title="Ответ бесполезен"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                    rating === -1
+                      ? 'border-rose-400 bg-rose-500 text-rose-950 hover:bg-rose-400'
+                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300'
+                  }`}
+                >
+                  <ThumbsDown className="h-4 w-4" strokeWidth={2.2} />
+                </button>
+                {feedbackPending && (
+                  <span className="ml-0.5 text-[10.5px] text-zinc-500">
+                    Сохраняю оценку…
+                  </span>
+                )}
               </div>
             )}
           </div>

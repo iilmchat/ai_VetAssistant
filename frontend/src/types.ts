@@ -155,3 +155,13 @@ export interface AdminMetrics {
   series: AdminMetricsPoint[]
   top_users: AdminTopUser[]
 }
+
+/** Оценка ответа ассистента: 👍 — 1, 👎 — -1. */
+export type FeedbackRating = 1 | -1
+
+export interface FeedbackStats {
+  total: number
+  positive: number
+  negative: number
+  positive_ratio: number
+}

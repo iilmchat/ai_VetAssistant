@@ -4,6 +4,52 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.9.0] — 2026-11-09
+
+Обратная связь по ответам 👍/👎 (T-139): одна оценка на сообщение, KPI в
+админке; тексты диалогов в БД не хранятся (152-ФЗ).
+
+### Добавлено
+
+- **T-139.1 — схема `feedback`.** Модель `Feedback` в `app/database.py`:
+  `user_id` (FK `users.id ON DELETE CASCADE`, индекс), `message_id`
+  `VARCHAR(128)` (индекс, непрозрачный id сообщения на клиенте), `rating`
+  `SMALLINT CHECK (rating IN (1, -1))`, `created_at`;
+  `UNIQUE (user_id, message_id)`. Идемпотентная миграция для прода —
+  `scripts/migrations/2026-11-09_feedback.sql` (таблица, индексы, ограничения,
+  откат). Текстов диалогов в таблице нет — восстановить переписку нельзя.
+- **T-139.2 — API.** `POST /v1/feedback` (JWT) принимает `{message_id,
+  rating}` и делает upsert: повторная оценка перезаписывает прежнюю, дублей
+  нет. `GET /v1/admin/feedback/stats` (только админ) отдаёт `total`,
+  `positive`, `negative`, `positive_ratio`. При удалении аккаунта оценки
+  удаляются каскадом.
+- **T-139.3 — frontend.** Кнопки 👍/👎 под завершёнными ответами ассистента
+  (`MessageBubble`): выбранная оценка подсвечивается, `aria-pressed` и
+  русские подписи, кнопки блокируются на время запроса. Оценка отправляется
+  на `POST /api/v1/feedback`; ошибка показывается неблокирующим баннером и не
+  сбрасывает прошлую оценку.
+- **T-139.4 — админка.** На вкладке «Аналитика» — KPI-карточка «Рейтинг
+  ответов» (доля 👍, число оценок, расклад 👍/👎); сбой загрузки статистики
+  не ломает остальные метрики.
+- **Тесты.** `tests/test_feedback.py`: 401/403, валидация `rating` и
+  `message_id`, upsert, изоляция пользователей, сводка и доля, каскад при
+  удалении, ограничения БД, наличие миграции, отсутствие колонок с текстом.
+  Frontend: тесты `submitFeedback`/`fetchFeedbackStats`.
+
+### Изменено
+
+- Версия `1.9.0` в `pyproject.toml`, `app/main.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, README.
+- `README.md`: раздел v1.9.0 и статус; `DEPLOYMENT.md`: миграция `feedback`
+  и примеры версии; `TODO.md`: T-138 закрыта, T-139.1–T-139.5 выполнены.
+- `app/database.py::delete_user_account`: удаляет оценки пользователя.
+
+### Проверено
+
+- `pytest`: 785 тестов; `ruff check .` и `mypy app` — чисто.
+- Frontend: `npm run lint` (0 ошибок), `npm test` — 77 тестов,
+  `npm run build` — успешно.
+
 ## [1.8.2] — 2026-11-09
 
 Патч GPU-стрима: `usage` снова приходит от LM Studio (T-138.5).

@@ -27,6 +27,7 @@ from app.database import (
     delete_user_account,
     get_access_request_by_id,
     get_database,
+    get_feedback_stats,
     get_user_by_email,
     get_user_by_id,
     get_users_by_ids,
@@ -120,6 +121,19 @@ class DeleteUserRequest(BaseModel):
 
     confirm_email: str = Field(min_length=1, max_length=320)
     reason: str | None = Field(default=None, max_length=500)
+
+
+class FeedbackStatsRead(BaseModel):
+    """Сводка оценок ответов для админ-аналитики (T-139.2, T-139.4)."""
+
+    total: int
+    positive: int
+    negative: int
+    positive_ratio: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Доля 👍 среди всех оценок; 0.0, если оценок нет",
+    )
 
 
 @router.get("/access-requests", response_model=list[AccessRequestRead])
@@ -793,4 +807,24 @@ async def get_admin_metrics(
         except Exception as exc:
             logger.warning("Админ-аналитика: Prometheus недоступен ({}): {}", base_url, exc)
     return await _in_process_metrics(window, database, degraded=bool(base_url))
+
+
+@router.get("/feedback/stats", response_model=FeedbackStatsRead)
+async def get_admin_feedback_stats(
+    _current_admin: Annotated[User, Depends(get_current_admin)],
+    database: Annotated[Database, Depends(get_database)],
+) -> FeedbackStatsRead:
+    """Сводка оценок ответов для админ-панели (T-139.2, T-139.4).
+
+    Считается по таблице ``feedback``: общее число оценок, расклад 👍/👎 и
+    доля положительных. Тексты сообщений не участвуют — их в БД нет.
+    """
+    async with database.session() as session:
+        stats = await get_feedback_stats(session)
+    return FeedbackStatsRead(
+        total=stats.total,
+        positive=stats.positive,
+        negative=stats.negative,
+        positive_ratio=stats.positive_ratio,
+    )
 

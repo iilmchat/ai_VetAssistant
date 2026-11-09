@@ -9,12 +9,14 @@ import {
   fetchAdminAccessRequests,
   fetchAdminMetrics,
   fetchAdminUsers,
+  fetchFeedbackStats,
   fetchTelegramLink,
   normalizeBaseUrl,
   parseSSEEvent,
   rejectAdminAccessRequest,
   requestAccess,
   setAuthToken,
+  submitFeedback,
   unlinkTelegram,
 } from './api'
 import { AVAILABLE_TOOLS } from './tools'
@@ -501,5 +503,96 @@ describe('telegram linking', () => {
     expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/telegram/link')
     const init = call?.[1] as RequestInit
     expect(init.method).toBe('DELETE')
+  })
+})
+
+describe('feedback API', () => {
+  it('submitFeedback отправляет оценку с Bearer-токеном', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: 'Оценка сохранена',
+          message_id: 'msg-1',
+          rating: 1,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const result = await submitFeedback('msg-1', 1)
+
+    expect(result).toEqual({
+      message: 'Оценка сохранена',
+      message_id: 'msg-1',
+      rating: 1,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/feedback')
+    const init = call?.[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer jwt-token',
+    )
+    expect(JSON.parse(String(init.body))).toEqual({
+      message_id: 'msg-1',
+      rating: 1,
+    })
+  })
+
+  it('submitFeedback передаёт отрицательную оценку', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: 'Оценка обновлена',
+          message_id: 'msg-2',
+          rating: -1,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await submitFeedback('msg-2', -1)
+
+    expect(result.rating).toBe(-1)
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(init.body))).toEqual({
+      message_id: 'msg-2',
+      rating: -1,
+    })
+  })
+
+  it('fetchFeedbackStats читает статистику оценок', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          total: 10,
+          positive: 7,
+          negative: 3,
+          positive_ratio: 0.7,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const result = await fetchFeedbackStats()
+
+    expect(result).toEqual({
+      total: 10,
+      positive: 7,
+      negative: 3,
+      positive_ratio: 0.7,
+    })
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toBe('http://127.0.0.1:8000/v1/admin/feedback/stats')
+    const init = call?.[1] as RequestInit
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer jwt-token',
+    )
   })
 })

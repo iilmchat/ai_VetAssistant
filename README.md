@@ -1,17 +1,17 @@
 # VetAssistant: Русскоязычный ветеринарный ИИ-ассистент
 
 [![CI](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/iilmchat/ai_VetAssistant/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/badge/latest_release-v1.8.2-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
+[![Latest release](https://img.shields.io/badge/latest_release-v1.9.0-blue)](https://github.com/iilmchat/ai_VetAssistant/releases/latest)
 [![Production Ready](https://img.shields.io/badge/status-Production%20Ready-brightgreen)](SECURITY.md)
 
 > Легковесный ассистент на базе Qwen3-8B (GGUF): CPU-инференс с опциональным GPU-бэкендом через LM Studio. Специализируется на многотурном диалоге с владельцами животных, соблюдает медицинские рамки безопасности, вызывает инструменты, сохраняет записи в базе данных и опирается на MSD Vet Manual.
 
-**Статус:** ✅ **Production Ready — v1.8.2** (2026-11-09)
-**Патч v1.8.2:** GPU-стрим запрашивает `usage` у LM Studio через
-`stream_options.include_usage` — токены GPU-стриминга снова попадают в SSE,
-метрики и админку (T-138.5)
-**Предыдущий релиз:** v1.8.1 — usage в SSE-стриме: токены CPU по
-`n_tokens`/tokenizer, `usage` LM Studio пробрасывается (T-138)
+**Статус:** ✅ **Production Ready — v1.9.0** (2026-11-09)
+**Релиз v1.9.0:** обратная связь по ответам 👍/👎 — одна оценка на сообщение,
+KPI «Рейтинг ответов» в админке; в БД только id сообщения и оценка, без
+текстов диалогов (152-ФЗ) (T-139)
+**Предыдущий релиз:** v1.8.2 — GPU-стрим запрашивает `usage` у LM Studio через
+`stream_options.include_usage`; v1.8.1 — usage в SSE-стриме (T-138)
 **Ранее:** v1.8.0 — управление пользователями: мгновенная блокировка,
 каскадное удаление, аудит `admin_actions` и вкладка «Пользователи» (T-140)
 **Фаза 3:** ✅ наблюдаемость (Prometheus + Grafana) и RAG на ChromaDB
@@ -27,7 +27,8 @@
   `ai-pets.ru` и приложение `app.ai-pets.ru`; HTTPS через Caddy/Let's Encrypt
 - **Порты:** `80`/`443` — production, `3000` — Docker dev/Nginx, `5173` — Vite dev server
 - **Метрики:** Prometheus `GET /metrics` + Grafana — HTTP-запросы, латентность LLM, токены (включая стриминг с v1.8.1; GPU — с v1.8.2), TTFT и RAG
-- **Админ-панель:** заявки на доступ, approve с одноразовым паролем и reject с причиной; вкладка «Аналитика» — запросы, токены, RAG hit rate и топ пользователей; вкладка «Пользователи» — поиск, блокировка/разблокировка с причиной и удаление с подтверждением email
+- **Админ-панель:** заявки на доступ, approve с одноразовым паролем и reject с причиной; вкладка «Аналитика» — запросы, токены, RAG hit rate, топ пользователей и «Рейтинг ответов» (доля 👍); вкладка «Пользователи» — поиск, блокировка/разблокировка с причиной и удаление с подтверждением email
+- **Обратная связь (T-139):** 👍/👎 под ответами ассистента; одна оценка на сообщение (upsert), оценки удаляются вместе с аккаунтом; в БД нет текстов диалогов — только id сообщения, оценка и время (152-ФЗ)
 - **Управление пользователями (T-140):** `is_active` и аудит `admin_actions`; блокировка сразу закрывает доступ по JWT и вход (403), удаление каскадное, защита от блокировки себя и последнего админа
 - **CI/CD:** GitHub Actions на self-hosted runner VPS — линтеры, тесты, Docker-сборка, деплой и GitHub Releases по тегам
 - **Дистрибуция:** Docker Compose (`docker compose up --build`)
@@ -87,6 +88,31 @@ hit из ChromaDB.
   `/app/data/chroma_db`.
 - **Документация:** [DEPLOYMENT.md](DEPLOYMENT.md) — проверка `/metrics`,
   список метрик и scrape-конфиг Prometheus.
+
+## 👍 v1.9.0 — обратная связь по ответам (👍/👎)
+
+**Релиз:** 2026-11-09. Под каждым ответом ассистента появились кнопки оценки.
+Оценка одна на сообщение (повторное нажатие меняет её), состояние сохраняется
+в интерфейсе, в админке — KPI «Рейтинг ответов» с долей 👍.
+
+### Что изменилось (T-139)
+
+- **Приватность (152-ФЗ):** в таблице `feedback` нет текстов диалогов —
+  только `user_id`, `message_id` (непрозрачный id сообщения на клиенте),
+  `rating` (1/-1) и `created_at`. Восстановить переписку по этой таблице
+  нельзя.
+- **БД:** модель `Feedback` и идемпотентная миграция
+  `scripts/migrations/2026-11-09_feedback.sql`; индексы по `user_id` и
+  `message_id`, `UNIQUE(user_id, message_id)`, `CHECK (rating IN (1, -1))`.
+  Оценки удаляются каскадом вместе с аккаунтом.
+- **API:** `POST /v1/feedback` (JWT) с `{message_id, rating}` — upsert, одна
+  оценка на сообщение; `GET /v1/admin/feedback/stats` (admin) — общее число
+  оценок, 👍/👎 и доля положительных.
+- **Frontend:** кнопки 👍/👎 в `MessageBubble` для завершённых ответов,
+  активное состояние выбранной оценки, ошибки не блокируют чат.
+- **Админка:** на вкладке «Аналитика» — KPI-карточка «Рейтинг ответов».
+- **Проверка:** T-138 закрыта по итогам эксплуатации — расхождений токенов
+  нет, счётчики Prometheus растут.
 
 ## 📊 v1.8.2 — usage в GPU-стриме
 

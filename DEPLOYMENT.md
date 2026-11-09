@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.8.2
+# VETASSISTANT_VERSION=1.9.0
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.8.2
+gh workflow run deploy.yml --ref main -f version=1.9.0
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -1019,6 +1019,52 @@ docker compose -f docker-compose.edge.yml exec -T db \
 BEGIN;
 DROP TABLE IF EXISTS admin_actions;
 ALTER TABLE users DROP COLUMN IF EXISTS is_active;
+COMMIT;
+```
+
+### Миграция обратной связи (T-139)
+
+Версия 1.9.0 добавляет таблицу `feedback` — оценки ответов 👍/👎. В ней нет
+текстов диалогов (152-ФЗ): только `user_id`, `message_id` (непрозрачный
+идентификатор сообщения на клиенте), `rating` (1/-1) и `created_at`.
+Новый API создаёт таблицу и сам (`create_all`), но на прод рекомендуется
+выполнить SQL **до деплоя образа**:
+
+```bash
+cd /srv/vetassistant
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < scripts/migrations/2026-11-09_feedback.sql
+```
+
+Скрипт идемпотентен: таблица и индексы создаются с `IF NOT EXISTS`,
+повторный запуск не меняет данные. Проверка:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d feedback"'
+```
+
+Ожидается 5 колонок (`id`, `user_id`, `message_id`, `rating`, `created_at`),
+ограничения `uq_feedback_user_message` и `ck_feedback_rating`, внешний ключ
+на `users(id) ON DELETE CASCADE` и индексы `ix_feedback_user_id`,
+`ix_feedback_message_id`.
+
+**Что меняется для пользователей.**
+
+- Под ответом ассистента появляются кнопки 👍/👎. Оценка одна на сообщение:
+  повторное нажатие меняет её (upsert), дублей в БД нет.
+- Удаление аккаунта администратором удаляет и его оценки — осиротевших
+  строк не остаётся.
+- В админ-панели на вкладке «Аналитика» — KPI «Рейтинг ответов» (доля 👍) и
+  число оценок; сводка отдаётся `GET /v1/admin/feedback/stats`.
+
+**Откат.** Предыдущий образ совместим с новой схемой: он не знает о
+`feedback`. Полное удаление таблицы — только после откачки кода:
+
+```sql
+BEGIN;
+DROP TABLE IF EXISTS feedback;
 COMMIT;
 ```
 

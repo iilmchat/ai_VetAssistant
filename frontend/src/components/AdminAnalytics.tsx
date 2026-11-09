@@ -6,8 +6,8 @@ import {
   RefreshCw,
   Server,
 } from 'lucide-react'
-import type { AdminMetrics, AdminMetricsWindow } from '../types'
-import { fetchAdminMetrics } from '../lib/api'
+import type { AdminMetrics, AdminMetricsWindow, FeedbackStats } from '../types'
+import { fetchAdminMetrics, fetchFeedbackStats } from '../lib/api'
 import { formatMetricValue, formatPercent, ragHitRate } from '../lib/metrics'
 import { errorMessage } from '../lib/utils'
 import { Sparkline } from './charts/Sparkline'
@@ -42,12 +42,16 @@ function KpiCard({ label, value, hint }: KpiCardProps) {
 export function AdminAnalytics() {
   const [window, setWindow] = useState<AdminMetricsWindow>('24h')
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // Статистика оценок грузится параллельно с метриками: её сбой не должен
+    // ломать остальную аналитику — просто покажем «—» в KPI-карточке.
+    const statsPromise = fetchFeedbackStats().catch(() => null)
     try {
       setMetrics(await fetchAdminMetrics(window))
     } catch (requestError) {
@@ -55,6 +59,7 @@ export function AdminAnalytics() {
     } finally {
       setLoading(false)
     }
+    setFeedbackStats(await statsPromise)
   }, [window])
 
   useEffect(() => {
@@ -145,7 +150,7 @@ export function AdminAnalytics() {
         </div>
       ) : totals ? (
         <>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <KpiCard
               label="Запросы к модели"
               value={formatMetricValue(totals.requests)}
@@ -165,6 +170,19 @@ export function AdminAnalytics() {
               label="Ошибки 5xx"
               value={formatMetricValue(totals.http_errors)}
               hint={`доля ошибок модели: ${formatPercent(totals.error_rate)}`}
+            />
+            <KpiCard
+              label="Рейтинг ответов"
+              value={
+                feedbackStats && feedbackStats.total > 0
+                  ? formatPercent(feedbackStats.positive_ratio)
+                  : '—'
+              }
+              hint={
+                feedbackStats
+                  ? `оценок: ${formatMetricValue(feedbackStats.total)} · 👍 ${formatMetricValue(feedbackStats.positive)} · 👎 ${formatMetricValue(feedbackStats.negative)}`
+                  : 'оценки недоступны'
+              }
             />
           </div>
 
