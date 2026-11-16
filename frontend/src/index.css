@@ -162,6 +162,27 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * T-168: поле ввода чата не должно получать браузерную «красную» обводку
+ * ошибки валидации. Ошибки ввода обрабатываются в React, а зелёный фокус
+ * рисует контейнер через focus-within.
+ */
+.composer-input:invalid {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.composer-input:user-invalid {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.composer-input:focus,
+.composer-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 ::selection {
   background: rgba(52, 211, 153, 0.35);
   color: #ffffff;

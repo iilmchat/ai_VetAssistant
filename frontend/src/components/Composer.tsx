@@ -57,6 +57,7 @@ export function Composer({
     <div className="bg-gradient-to-t from-app via-app to-transparent px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4 sm:pb-4 lg:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <form
+          noValidate
           onSubmit={(event) => {
             event.preventDefault()
             if (value.trim() && !isStreaming) {
@@ -64,7 +65,7 @@ export function Composer({
             }
           }}
         >
-          <div className="flex items-end gap-2 rounded-3xl border border-line bg-composer p-2 pl-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-colors focus-within:border-emerald-500/40 focus-within:ring-1 focus-within:ring-emerald-500/20">
+          <div className="flex items-end gap-2 rounded-3xl border border-line bg-composer p-2 pl-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-colors focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/25">
             <textarea
               ref={textareaRef}
               value={value}
@@ -74,7 +75,7 @@ export function Composer({
               autoFocus
               placeholder={t('composer.placeholder')}
               aria-label={t('composer.messageAria')}
-              className="max-h-48 min-h-11 flex-1 resize-none bg-transparent py-2.5 pr-2 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-muted"
+              className="composer-input max-h-48 min-h-11 flex-1 resize-none border-0 bg-transparent py-2.5 pr-2 text-[15px] leading-6 text-ink caret-emerald-400 shadow-none outline-none placeholder:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none invalid:border-0 invalid:shadow-none"
             />
             {isStreaming ? (
               <>

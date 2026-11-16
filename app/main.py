@@ -497,7 +497,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.14.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.14.1", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -895,18 +895,49 @@ _PET_CONTEXT_CUES: tuple[str, ...] = (
     "завел",
 )
 
+#: Явная просьба создать карточку (T-169). Проверяется регуляркой, чтобы
+#: ловить перестановки слов и формы глаголов, а не только точные фразы.
+_PATIENT_CREATION_PATTERN = re.compile(
+    r"(?:"
+    r"\bсозда(?:й|йте|ть)\b[^.!?\n]{0,40}\bкарточк"
+    r"|\bсозда(?:й|йте|ть)\b[^.!?\n]{0,25}\bпитомц"
+    r"|\bдобав(?:ь|ьте|ить)\b[^.!?\n]{0,30}\bпитомц"
+    r"|\b(?:завед(?:и|ите|ём|ем|у)|завести)\b[^.!?\n]{0,40}\bкарточк"
+    r"|\bнов(?:ая|ую|ой)\s+карточк"
+    r"|\bcreate\s+(?:a\s+)?(?:new\s+)?(?:patient|pet)\b"
+    r"|\badd\s+(?:a\s+)?(?:new\s+)?pet\b"
+    r")",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _requests_patient_creation(text: str) -> bool:
+    """Прямо ли пользователь просит создать карточку питомца (T-169).
+
+    Это намерение сильнее эвристики «рассказывает о питомце»: при явной
+    просьбе ``create_patient`` добавляется в запрос даже при выбранной
+    карточке и при ``use_patient_tools=false`` — иначе модель выбирает
+    единственный доступный инструмент (``book_appointment``).
+    """
+    if not text:
+        return False
+    return _PATIENT_CREATION_PATTERN.search(text) is not None
+
 
 def _mentions_pet(text: str) -> bool:
-    """Похоже ли сообщение на рассказ о своём питомце (эвристика T-163).
+    """Похоже ли сообщение на рассказ о питомце или просьбу о карточке.
 
-    Инструмент добавляется только при явных маркерах («у меня», «зовут»,
-    «завели» и т. п.), чтобы не переводить обычные стриминговые ответы в
-    agentic-режим и не предлагать карточку на вопрос «какая доза для кошки».
+    Инструмент добавляется при явных маркерах («у меня», «зовут», «завели»)
+    и при прямой просьбе создать карточку («создай карточку», «добавь
+    питомца»), чтобы не переводить обычные ответы в agentic-режим на вопрос
+    «какая доза для кошки».
     """
     if not text:
         return False
     folded = text.casefold()
-    return any(cue in folded for cue in _PET_CONTEXT_CUES)
+    return _requests_patient_creation(text) or any(
+        cue in folded for cue in _PET_CONTEXT_CUES
+    )
 
 
 def _tool_names(request: ChatCompletionRequest) -> set[str]:
@@ -919,20 +950,25 @@ def _effective_tools(
     *,
     query: str = "",
 ) -> list[ToolDefinition]:
-    """Инструменты запроса плюс create_patient для agentic-сценария (T-163).
+    """Инструменты запроса плюс create_patient для agentic-сценария (T-163/T-169).
 
     Если карточка ещё не выбрана, пользователь упомянул питомца и клиент
     не прислал инструмент, сервер добавляет его сам — проактивное
     создание работает без тумблера «Инструменты». Отключается флагом
     ``use_patient_tools=false``.
+
+    Прямая просьба создать карточку (T-169) важнее контекста: инструмент
+    добавляется даже при выбранной карточке и при выключенной
+    автоинъекции, потому что пользователь явно просит создать новую.
     """
     tools = list(request.tools or [])
-    if (
-        request.use_patient_tools
-        and request.patient_id is None
-        and _mentions_pet(query)
-        and all(tool.function.name != "create_patient" for tool in tools)
-    ):
+    explicit_creation = _requests_patient_creation(query)
+    if not explicit_creation:
+        if not request.use_patient_tools:
+            return tools
+        if request.patient_id is not None or not _mentions_pet(query):
+            return tools
+    if all(tool.function.name != "create_patient" for tool in tools):
         tools.append(ToolDefinition.model_validate(CREATE_PATIENT_TOOL))
     return tools
 

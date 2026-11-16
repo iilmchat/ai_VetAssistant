@@ -128,13 +128,13 @@ def test_release_version_is_1_14_0_everywhere() -> None:
     package = json.loads(_read("frontend/package.json"))
     lockfile = json.loads(_read("frontend/package-lock.json"))
 
-    assert 'version = "1.14.0"' in _read("pyproject.toml")
-    assert 'version="1.14.0"' in _read("app/main.py")
-    assert package["version"] == "1.14.0"
-    assert lockfile["version"] == "1.14.0"
-    assert lockfile["packages"][""]["version"] == "1.14.0"
-    assert "latest_release-v1.14.0-blue" in _read("README.md")
-    assert "Production Ready — v1.14.0" in _read("README.md")
+    assert 'version = "1.14.1"' in _read("pyproject.toml")
+    assert 'version="1.14.1"' in _read("app/main.py")
+    assert package["version"] == "1.14.1"
+    assert lockfile["version"] == "1.14.1"
+    assert lockfile["packages"][""]["version"] == "1.14.1"
+    assert "latest_release-v1.14.1-blue" in _read("README.md")
+    assert "Production Ready — v1.14.1" in _read("README.md")
 
 
 def test_docker_compose_uses_dynamic_image_version() -> None:

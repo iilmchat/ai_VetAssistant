@@ -34,6 +34,7 @@ from app.main import (
     ChatCompletionRequest,
     _effective_tools,
     _mentions_pet,
+    _requests_patient_creation,
     app,
     get_backend_router,
     get_knowledge_base,
@@ -160,6 +161,10 @@ def test_mentions_pet_detects_common_phrases() -> None:
         "Мой пёс хромает",
         "Завели котёнка, что делать",
         "Есть кличка?",
+        "Создай карточку Мурзика",
+        "Создать питомца",
+        "Добавь питомца",
+        "Заведи карточку",
     ):
         assert _mentions_pet(text), text
 
@@ -167,6 +172,42 @@ def test_mentions_pet_detects_common_phrases() -> None:
     assert not _mentions_pet("Кот не ест второй день")
     # «который» не должен считаться упоминанием кота.
     assert not _mentions_pet("Кашель, который длится неделю")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Создай карточку Мурзика",
+        "Создайте карточку для кота",
+        "Пожалуйста, создай новую карточку",
+        "Создать питомца",
+        "Создай питомца по имени Барсик",
+        "Добавь питомца",
+        "Добавьте питомца в список",
+        "Заведи карточку",
+        "Заведите карточку на собаку",
+        "Завести карточку питомца",
+        "Create a patient",
+        "Create pet card",
+        "Add a pet",
+    ],
+)
+def test_requests_patient_creation_detects_explicit_phrases(text: str) -> None:
+    assert _requests_patient_creation(text), text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Открой карточку Мурзика",
+        "Покажи карточку питомца",
+        "Какая доза парацетамола для кошки?",
+        "Кот не ест второй день",
+        "Запиши Мурзика на приём",
+    ],
+)
+def test_requests_patient_creation_ignores_other_requests(text: str) -> None:
+    assert not _requests_patient_creation(text), text
 
 
 def _request(**overrides: Any) -> ChatCompletionRequest:
@@ -181,6 +222,30 @@ def test_effective_tools_injects_create_patient_for_pet_mention() -> None:
     request = _request()
 
     tools = _effective_tools(request, query="У меня собака Бобик, чешется")
+
+    assert [tool.function.name for tool in tools] == ["create_patient"]
+
+
+def test_effective_tools_injects_create_patient_for_explicit_request() -> None:
+    request = _request()
+
+    tools = _effective_tools(request, query="Создай карточку Мурзика")
+
+    assert [tool.function.name for tool in tools] == ["create_patient"]
+
+
+def test_effective_tools_explicit_request_overrides_selected_patient() -> None:
+    request = _request(patient_id=5)
+
+    tools = _effective_tools(request, query="Создай карточку Мурзика")
+
+    assert [tool.function.name for tool in tools] == ["create_patient"]
+
+
+def test_effective_tools_explicit_request_overrides_disable_flag() -> None:
+    request = _request(use_patient_tools=False)
+
+    tools = _effective_tools(request, query="Добавь питомца Мурзика")
 
     assert [tool.function.name for tool in tools] == ["create_patient"]
 
@@ -201,6 +266,39 @@ def test_effective_tools_respects_disable_flag() -> None:
     request = _request(use_patient_tools=False)
 
     assert _effective_tools(request, query="У меня собака Бобик") == []
+
+
+def test_effective_tools_explicit_request_adds_to_client_tools() -> None:
+    client_tools = [
+        ToolDefinition.model_validate(
+            {
+                "type": "function",
+                "function": {
+                    "name": "book_appointment",
+                    "description": "Запись",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        )
+    ]
+    request = _request(tools=client_tools)
+
+    tools = _effective_tools(request, query="Создай карточку Мурзика")
+
+    assert [tool.function.name for tool in tools] == [
+        "book_appointment",
+        "create_patient",
+    ]
+
+
+def test_effective_tools_does_not_duplicate_create_patient_for_explicit_request() -> None:
+    request = _request(
+        tools=[ToolDefinition.model_validate(CREATE_PATIENT_TOOL)],
+    )
+
+    tools = _effective_tools(request, query="Создай карточку Мурзика")
+
+    assert [tool.function.name for tool in tools] == ["create_patient"]
 
 
 def test_effective_tools_keeps_client_tools_and_avoids_duplicate() -> None:
@@ -235,6 +333,8 @@ def test_tools_instruction_is_proactive() -> None:
     assert "create_patient" in instruction
     assert "предложи создать её" in instruction
     assert "Не выдумывай кличку" in instruction
+    assert "а не book_appointment" in instruction
+    assert "создай карточку" in instruction
 
 
 class FakeModel:
@@ -416,3 +516,39 @@ def test_api_does_not_inject_tool_for_generic_question(
     assert response.status_code == 200
     assert fake_model.calls[0].get("tools") is None
     assert asyncio.run(_patients(database_url)) == []
+
+
+def test_api_explicit_card_request_wins_over_client_appointment_tool(
+    agent_client: tuple[TestClient, str, FakeModel],
+) -> None:
+    client, database_url, fake_model = agent_client
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Создай карточку Мурзика"}],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "book_appointment",
+                        "description": "Запись на приём",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    first_tools = fake_model.calls[0].get("tools") or []
+    assert {tool["function"]["name"] for tool in first_tools} == {
+        "book_appointment",
+        "create_patient",
+    }
+    system = fake_model.calls[0]["messages"][0]["content"]
+    assert "а не book_appointment" in system
+
+    patients = asyncio.run(_patients(database_url))
+    assert len(patients) == 1
+    assert patients[0].name == "Бобик"
