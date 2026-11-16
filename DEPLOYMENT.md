@@ -1187,6 +1187,27 @@ docker compose -f docker-compose.edge.yml exec -T db \
 Ожидается расширение `vector`, таблицы `patients`/`episodes` и тип
 `embedding = vector(384)`.
 
+**2a. Связь записей с карточками (v1.14.2).** Применяется до деплоя
+v1.14.2; старые записи сохраняются с `patient_id = NULL`:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < scripts/migrations/2026-11-17_appointments_patient.sql
+```
+
+Проверка:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+         -c "\d appointments" \
+         -c "SELECT count(*) FROM appointments WHERE patient_id IS NULL;"'
+```
+
+Ожидается колонка `patient_id`, индекс `ix_appointments_patient_id` и
+внешний ключ на `patients(id) ON DELETE SET NULL`.
+
 **3. API.** Поднимите новую версию и проверьте чат с карточкой:
 
 ```bash

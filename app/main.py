@@ -226,6 +226,7 @@ class AppointmentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    patient_id: int | None = None
     pet_name: str
     date: str
     time: str
@@ -497,7 +498,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.14.1", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.14.2", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -924,6 +925,72 @@ def _requests_patient_creation(text: str) -> bool:
     return _PATIENT_CREATION_PATTERN.search(text) is not None
 
 
+#: T-172: модель не должна утверждать, что карточка создана, если вызова
+#: ``create_patient`` не было (или инструмент вернул ошибку).
+_CARD_CREATED_CLAIM = re.compile(
+    r"(?:"
+    r"\bкарточк\w*[^.!?\n]{0,60}?\bсоздан\w*"
+    r"|\bсоздан\w*[^.!?\n]{0,40}?\bкарточк\w*"
+    r"|\bсозда(?:л|ла|ли)\b[^.!?\n]{0,30}?\bкарточк\w*"
+    r"|\bзав[её]л\w*[^.!?\n]{0,40}?\bкарточк\w*"
+    r"|\b(?:patient\s+)?card[^.!?\n]{0,40}?\bcreated\b"
+    r"|\bcreated\b[^.!?\n]{0,40}?\b(?:patient\s+)?card\b"
+    r")",
+    re.IGNORECASE | re.UNICODE,
+)
+
+_CARD_CREATION_FAILED_MESSAGE = (
+    "Извините, произошла ошибка при создании карточки, попробуйте еще раз."
+)
+
+
+def _claims_card_created(text: str) -> bool:
+    """Утверждает ли текст, что карточка питомца создана (T-172)."""
+    if not text:
+        return False
+    for match in _CARD_CREATED_CLAIM.finditer(text):
+        fragment = match.group(0).casefold()
+        prefix = text[max(0, match.start() - 20) : match.start()].casefold()
+        if re.search(r"\bне\s+", fragment) or re.search(
+            r"\bне\s+(?:\w+\s+){0,2}$", prefix
+        ):
+            continue
+        if text[match.end() : match.end() + 1].strip() == "?":
+            continue
+        return True
+    return False
+
+
+def _executed_tool_created_patient(
+    tool_messages: Sequence[dict[str, Any]],
+) -> bool:
+    """Была ли карточка реально создана в этом шаге agentic loop.
+
+    Учитывает и ``create_patient``, и автосоздание внутри
+    ``book_appointment`` (T-173), чтобы не заменять правдивый ответ.
+    """
+    for message in tool_messages:
+        name = message.get("name")
+        if name not in {"create_patient", "book_appointment"}:
+            continue
+        try:
+            payload = json.loads(str(message.get("content") or ""))
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        status = payload.get("status")
+        if name == "create_patient" and status in {"success", "exists"}:
+            return True
+        if (
+            name == "book_appointment"
+            and status == "success"
+            and "создана автоматически" in str(payload.get("message", "")).casefold()
+        ):
+            return True
+    return False
+
+
 def _mentions_pet(text: str) -> bool:
     """Похоже ли сообщение на рассказ о питомце или просьбу о карточке.
 
@@ -966,7 +1033,14 @@ def _effective_tools(
     if not explicit_creation:
         if not request.use_patient_tools:
             return tools
-        if request.patient_id is not None or not _mentions_pet(query):
+        if request.patient_id is not None:
+            return tools
+        # T-173: запись на приём без выбранной карточки требует create_patient,
+        # иначе book_appointment не сможет привязать запись к питомцу.
+        booking_without_card = any(
+            tool.function.name == "book_appointment" for tool in tools
+        )
+        if not _mentions_pet(query) and not booking_without_card:
             return tools
     if all(tool.function.name != "create_patient" for tool in tools):
         tools.append(ToolDefinition.model_validate(CREATE_PATIENT_TOOL))
@@ -1148,6 +1222,7 @@ async def _complete(
     """Сгенерировать ответ, выполняя tool_calls в agentic loop."""
     working = [dict(message) for message in messages]
     executed: list[ToolCall] = []
+    patient_created = False
     response = await _generate_once(
         backend,
         working,
@@ -1171,15 +1246,16 @@ async def _complete(
                 "tool_calls": [tool_call.model_dump() for tool_call in tool_calls],
             }
         )
-        working.extend(
-            await _execute_tool_calls(
-                tool_calls,
-                database=database,
-                user_id=user_id,
-                telegram_id=telegram_id,
-                background=background,
-            )
+        tool_messages = await _execute_tool_calls(
+            tool_calls,
+            database=database,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            background=background,
         )
+        working.extend(tool_messages)
+        if _executed_tool_created_patient(tool_messages):
+            patient_created = True
         response = await _generate_once(
             backend,
             working,
@@ -1191,6 +1267,14 @@ async def _complete(
     if executed:
         # Оставляем вызовы в ответе как визуальную индикацию для UI.
         response.choices[0].message.tool_calls = executed
+
+    # T-172: не даём модели приписать себе создание карточки, которого не было.
+    content = response.choices[0].message.content or ""
+    if _claims_card_created(content) and not patient_created:
+        logger.warning(
+            "Agent: модель заявила о создании карточки без успешного create_patient"
+        )
+        response.choices[0].message.content = _CARD_CREATION_FAILED_MESSAGE
     return response
 
 

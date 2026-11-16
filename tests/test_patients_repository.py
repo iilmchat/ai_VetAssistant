@@ -508,6 +508,29 @@ def test_embedding_uses_vector_on_postgres_and_json_on_sqlite() -> None:
     assert isinstance(sqlite_type, JSON)
 
 
+def test_embedding_comparator_supports_pgvector_cosine_distance() -> None:
+    """T-170: базовым типом должен быть Vector, иначе нет cosine_distance."""
+    comparator = Episode.embedding.comparator
+
+    assert hasattr(comparator, "cosine_distance")
+    distance = comparator.cosine_distance(_vector(0))
+    compiled = str(distance.compile(dialect=postgresql.dialect()))
+    assert "<=>" in compiled
+
+
+def test_appointments_patient_migration_declares_fk() -> None:
+    migration = (
+        PROJECT_ROOT
+        / "scripts"
+        / "migrations"
+        / "2026-11-17_appointments_patient.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS patient_id" in migration
+    assert "REFERENCES patients(id) ON DELETE SET NULL" in migration
+    assert "ix_appointments_patient_id" in migration
+
+
 def test_migration_declares_pgvector_schema() -> None:
     migration = (
         PROJECT_ROOT / "scripts" / "migrations" / "2026-11-16_patients.sql"

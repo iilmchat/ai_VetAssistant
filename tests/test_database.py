@@ -184,6 +184,7 @@ async def test_create_tables_migrates_legacy_rows(tmp_path: Path) -> None:
         names = {row[1] for row in columns}
 
     assert "user_id" in names
+    assert "patient_id" in names
 
     async with database.session() as session:
         user = await create_user(
@@ -203,6 +204,7 @@ async def test_create_tables_migrates_legacy_rows(tmp_path: Path) -> None:
         appointments = await list_appointments(session, user_id=user.id)
 
     assert [item.pet_name for item in appointments] == ["Новый"]
+    assert appointments[0].patient_id is None
     await database.dispose()
 
 

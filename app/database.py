@@ -290,7 +290,7 @@ class Episode(Base):
     type: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(
-        JSON().with_variant(Vector(MEMORY_EMBEDDING_DIM), "postgresql"),
+        Vector(MEMORY_EMBEDDING_DIM).with_variant(JSON, "sqlite"),
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -355,7 +355,13 @@ class AccessRequest(Base):
 
 
 class Appointment(Base):
-    """Запись на приём, принадлежащая пользователю."""
+    """Запись на приём, принадлежащая пользователю (T-173).
+
+    ``patient_id`` связывает запись с карточкой питомца. Для старых строк и
+    баз без карточек поле остаётся ``NULL``; новые записи создаются только
+    после проверки/создания карточки в ``book_appointment``.
+    """
+
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -363,6 +369,11 @@ class Appointment(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
+    )
+    patient_id: Mapped[int | None] = mapped_column(
+        ForeignKey("patients.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
     )
     pet_name: Mapped[str] = mapped_column(String(120), nullable=False)
     date: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -447,6 +458,26 @@ def _migrate_legacy_tables(connection: Connection) -> None:
                 f"ON {table} (user_id)"
             )
         )
+
+    # T-173: старые базы получают ссылку на карточку питомца. Для SQLite
+    # REFERENCES в ALTER TABLE допустим, потому что колонка nullable.
+    if "appointments" in existing_tables and "patients" in existing_tables:
+        columns = {
+            column["name"] for column in inspector.get_columns("appointments")
+        }
+        if "patient_id" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE appointments ADD COLUMN patient_id INTEGER "
+                    "REFERENCES patients(id) ON DELETE SET NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_appointments_patient_id "
+                    "ON appointments (patient_id)"
+                )
+            )
 
 
 def _migrate_admin_panel(connection: Connection) -> None:
@@ -737,10 +768,12 @@ async def book_appointment(
     pet_name: str,
     date: str,
     time: str,
+    patient_id: int | None = None,
 ) -> Appointment:
-    """Сохранить запись на приём указанному пользователю."""
+    """Сохранить запись на приём указанному пользователю (T-173)."""
     appointment = Appointment(
         user_id=user_id,
+        patient_id=patient_id,
         pet_name=pet_name,
         date=date,
         time=time,

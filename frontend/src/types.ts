@@ -50,6 +50,7 @@ export interface UiMessage {
 
 export interface Appointment {
   id: number
+  patient_id?: number | null
   pet_name: string
   date: string
   time: string

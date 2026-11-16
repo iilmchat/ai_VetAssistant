@@ -264,6 +264,23 @@ def _create_second_user(client: TestClient) -> dict[str, str]:
     return _seed_user(client, "other@example.com", "secret-pass-2")
 
 
+def _create_patient(
+    client: TestClient,
+    name: str,
+    *,
+    species: str = "dog",
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Создать карточку питомца для T-173-сценариев записи на приём."""
+    response = client.post(
+        "/v1/patients",
+        json={"name": name, "species": species},
+        headers=headers or {},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def _set_telegram_id(
     client: TestClient,
     email: str,
@@ -579,6 +596,7 @@ def test_invalid_token_is_rejected(client: TestClient) -> None:
 
 def test_user_records_are_isolated(client: TestClient) -> None:
     other_headers = _create_second_user(client)
+    _create_patient(client, "Мурзик")
 
     owner_record = client.post(
         "/v1/tools/execute",
@@ -1103,6 +1121,7 @@ def test_emergency_instruction_is_not_added_for_normal_message(
 def test_agent_loop_executes_tool_and_returns_final_text(
     client: TestClient, fake_model: FakeModel
 ) -> None:
+    _create_patient(client, "Мурзик")
     fake_model.responses = [
         _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
         _final_response("Я записал Мурзика на 4 ноября в 10:00."),
@@ -1172,6 +1191,7 @@ def test_tool_sends_telegram_notification_for_linked_user(
 ) -> None:
     sent = _capture_notifications(monkeypatch)
     _set_telegram_id(client, "owner@example.com", 424242)
+    _create_patient(client, "Мурзик")
     fake_model.responses = [
         _tool_response(
             arguments={
@@ -1229,6 +1249,7 @@ def test_unlinked_user_gets_no_telegram_notification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sent = _capture_notifications(monkeypatch)
+    _create_patient(client, "Мурзик")
     fake_model.responses = [
         _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
         _final_response("Записал."),
@@ -1253,6 +1274,7 @@ def test_bot_requests_do_not_send_telegram_notifications(
 ) -> None:
     sent = _capture_notifications(monkeypatch)
     _set_telegram_id(client, "owner@example.com", 424242)
+    _create_patient(client, "Мурзик")
     fake_model.responses = [
         _tool_response(arguments={"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}),
         _final_response("Записал."),
@@ -1276,6 +1298,7 @@ def test_agent_loop_writes_records_for_current_user(
     fake_model: FakeModel,
 ) -> None:
     other_headers = _create_second_user(client)
+    _create_patient(client, "Барсик", headers=other_headers)
     fake_model.responses = [
         _tool_response(arguments={"date": "2026-11-06", "time": "12:00", "pet_name": "Барсик"}),
         _final_response("Записал Барсика."),
@@ -1412,6 +1435,7 @@ def test_streaming_agent_loop_returns_final_text_and_tool_badge(
 
 
 def test_tool_execute_persists_appointment(client: TestClient) -> None:
+    patient = _create_patient(client, "Мурзик")
     response = client.post(
         "/v1/tools/execute",
         json={
@@ -1423,10 +1447,12 @@ def test_tool_execute_persists_appointment(client: TestClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
+    assert data["patient_id"] == str(patient["id"])
     assert "Записали Мурзика" in data["message"]
     appointments = client.get("/v1/appointments").json()
     assert len(appointments) == 1
     assert appointments[0]["pet_name"] == "Мурзик"
+    assert appointments[0]["patient_id"] == patient["id"]
 
 
 def test_read_endpoints_are_empty_by_default(client: TestClient) -> None:

@@ -31,7 +31,9 @@ from app.database import (
     list_patients,
 )
 from app.main import (
+    _CARD_CREATION_FAILED_MESSAGE,
     ChatCompletionRequest,
+    _claims_card_created,
     _effective_tools,
     _mentions_pet,
     _requests_patient_creation,
@@ -44,6 +46,7 @@ from app.memory import PatientMemory, get_patient_memory
 from app.router import BackendRouter
 from app.settings import get_app_settings
 from app.tools import (
+    BOOK_APPOINTMENT_TOOL,
     CREATE_PATIENT_TOOL,
     ToolDefinition,
     ToolExecutionError,
@@ -250,6 +253,19 @@ def test_effective_tools_explicit_request_overrides_disable_flag() -> None:
     assert [tool.function.name for tool in tools] == ["create_patient"]
 
 
+def test_effective_tools_injects_create_patient_for_booking_without_card() -> None:
+    request = _request(
+        tools=[ToolDefinition.model_validate(BOOK_APPOINTMENT_TOOL)],
+    )
+
+    tools = _effective_tools(request, query="Запиши Мурзика завтра на 10:00")
+
+    assert [tool.function.name for tool in tools] == [
+        "book_appointment",
+        "create_patient",
+    ]
+
+
 def test_effective_tools_skips_generic_question() -> None:
     request = _request()
 
@@ -331,10 +347,9 @@ def test_tools_instruction_is_proactive() -> None:
     instruction = build_tools_instruction(tools)
 
     assert "create_patient" in instruction
-    assert "предложи создать её" in instruction
-    assert "Не выдумывай кличку" in instruction
-    assert "а не book_appointment" in instruction
-    assert "создай карточку" in instruction
+    assert "вызывай create_patient немедленно" in instruction
+    assert "не задавая уточняющих вопросов" in instruction
+    assert "вес, вакцинация и порода необязательны" in instruction
 
 
 class FakeModel:
@@ -342,9 +357,15 @@ class FakeModel:
 
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.response: dict[str, Any] | None = None
+        self.responses: list[dict[str, Any]] = []
 
     def create_chat_completion(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
+        if self.responses:
+            return self.responses.pop(0)
+        if self.response is not None:
+            return self.response
         if len(self.calls) == 1:
             return {
                 "id": "chatcmpl-tool",
@@ -547,8 +568,143 @@ def test_api_explicit_card_request_wins_over_client_appointment_tool(
         "create_patient",
     }
     system = fake_model.calls[0]["messages"][0]["content"]
-    assert "а не book_appointment" in system
+    assert "не создавай запись на приём без карточки" in system.lower()
 
     patients = asyncio.run(_patients(database_url))
     assert len(patients) == 1
     assert patients[0].name == "Бобик"
+
+
+def test_claims_card_created_detects_only_positive_claims() -> None:
+    assert _claims_card_created("Карточка Мурзика создана.")
+    assert _claims_card_created("Я создал карточку питомца.")
+    assert _claims_card_created("The patient card was created.")
+
+    assert not _claims_card_created("Карточка не создана, попробуйте ещё раз.")
+    assert not _claims_card_created("Я не создал карточку.")
+    assert not _claims_card_created("Не удалось создать карточку.")
+    assert not _claims_card_created("Карточка создана?")
+
+
+def test_api_replaces_fake_card_creation_claim_without_tool_call(
+    agent_client: tuple[TestClient, str, FakeModel],
+) -> None:
+    client, database_url, fake_model = agent_client
+
+    fake_model.response = {
+        "id": "chatcmpl-hallucination",
+        "object": "chat.completion",
+        "created": 3,
+        "model": "fake",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Карточка Мурзика создана.",
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {},
+    }
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Создай карточку Мурзика"}],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "create_patient",
+                        "description": "Создать карточку",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert (
+        response.json()["choices"][0]["message"]["content"]
+        == _CARD_CREATION_FAILED_MESSAGE
+    )
+    assert asyncio.run(_patients(database_url)) == []
+
+
+def test_api_keeps_card_creation_claim_after_successful_tool_call(
+    agent_client: tuple[TestClient, str, FakeModel],
+) -> None:
+    client, database_url, fake_model = agent_client
+
+    fake_model.responses = [
+        {
+            "id": "chatcmpl-tool",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "fake",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call-1",
+                                "type": "function",
+                                "function": {
+                                    "name": "create_patient",
+                                    "arguments": json.dumps(
+                                        {"name": "Мурзик", "species": "cat"},
+                                        ensure_ascii=False,
+                                    ),
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {},
+        },
+        {
+            "id": "chatcmpl-final",
+            "object": "chat.completion",
+            "created": 2,
+            "model": "fake",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Карточка Мурзика создана.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {},
+        },
+    ]
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Создай карточку Мурзика"}],
+            "tools": [{"type": "function", "function": {
+                "name": "create_patient",
+                "description": "Создать карточку",
+                "parameters": {"type": "object", "properties": {}},
+            }}],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["choices"][0]["message"]["content"] == (
+        "Карточка Мурзика создана."
+    )
+    patients = asyncio.run(_patients(database_url))
+    assert len(patients) == 1
+    assert patients[0].name == "Мурзик"

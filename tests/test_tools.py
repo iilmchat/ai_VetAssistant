@@ -8,7 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from app.database import Database, User, create_user, list_appointments, list_reminders
+from app.database import (
+    Database,
+    User,
+    create_user,
+    list_appointments,
+    list_patients,
+    list_reminders,
+)
 from app.tools import (
     AVAILABLE_TOOLS,
     BOOK_APPOINTMENT_TOOL,
@@ -189,6 +196,12 @@ def test_tools_instruction_is_empty_without_tools() -> None:
 
 async def test_execute_tool_book_appointment(database: Database, user: User) -> None:
     async with database.session() as session:
+        await execute_tool(
+            "create_patient",
+            {"name": "Мурзик", "species": "dog"},
+            session=session,
+            user_id=user.id,
+        )
         result = await execute_tool(
             "book_appointment",
             '{"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"}',
@@ -198,11 +211,94 @@ async def test_execute_tool_book_appointment(database: Database, user: User) -> 
 
     assert result["status"] == "success"
     assert "Записали Мурзика" in result["message"]
+    assert result["patient_id"]
     async with database.session() as session:
         appointments = await list_appointments(session, user_id=user.id)
     assert len(appointments) == 1
     assert appointments[0].date == "2026-11-04"
     assert appointments[0].user_id == user.id
+    assert appointments[0].patient_id == int(result["patient_id"])
+
+
+async def test_execute_tool_book_appointment_requires_patient_card(
+    database: Database,
+    user: User,
+) -> None:
+    async with database.session() as session:
+        with pytest.raises(ToolExecutionError, match="не найден среди карточек"):
+            await execute_tool(
+                "book_appointment",
+                {"date": "2026-11-04", "time": "10:00", "pet_name": "Мурзик"},
+                session=session,
+                user_id=user.id,
+            )
+
+    async with database.session() as session:
+        assert await list_appointments(session, user_id=user.id) == []
+
+
+async def test_execute_tool_book_appointment_auto_creates_patient(
+    database: Database,
+    user: User,
+) -> None:
+    async with database.session() as session:
+        result = await execute_tool(
+            "book_appointment",
+            {
+                "date": "2026-11-04",
+                "time": "10:00",
+                "pet_name": "Мурзик",
+                "species": "cat",
+            },
+            session=session,
+            user_id=user.id,
+        )
+
+    assert result["status"] == "success"
+    assert "создана автоматически" in result["message"]
+    async with database.session() as session:
+        appointments = await list_appointments(session, user_id=user.id)
+        patients = await list_patients(session, user_id=user.id)
+    assert len(appointments) == 1
+    assert len(patients) == 1
+    assert patients[0].name == "Мурзик"
+    assert patients[0].species == "cat"
+    assert appointments[0].patient_id == patients[0].id
+
+
+async def test_execute_tool_book_appointment_rejects_foreign_patient(
+    database: Database,
+    user: User,
+) -> None:
+    async with database.session() as session:
+        other = await create_user(
+            session,
+            email="other@example.com",
+            hashed_password="hash",
+        )
+        foreign = await execute_tool(
+            "create_patient",
+            {"name": "Барсик", "species": "cat"},
+            session=session,
+            user_id=other.id,
+        )
+
+    async with database.session() as session:
+        with pytest.raises(ToolExecutionError, match="карточка питомца не найдена"):
+            await execute_tool(
+                "book_appointment",
+                {
+                    "date": "2026-11-04",
+                    "time": "10:00",
+                    "pet_name": "Барсик",
+                    "patient_id": int(foreign["patient_id"]),
+                },
+                session=session,
+                user_id=user.id,
+            )
+
+    async with database.session() as session:
+        assert await list_appointments(session, user_id=user.id) == []
 
 
 async def test_execute_tool_set_reminder(database: Database, user: User) -> None:

@@ -20,9 +20,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import Patient, list_patients
 from app.database import book_appointment as create_appointment
 from app.database import create_patient as create_patient_record
-from app.database import list_patients
 from app.database import set_reminder as create_reminder
 
 ToolName = Literal["book_appointment", "set_reminder", "create_patient"]
@@ -32,7 +32,11 @@ BOOK_APPOINTMENT_TOOL: dict[str, Any] = {
     "type": "function",
     "function": {
         "name": "book_appointment",
-        "description": "Записать питомца на приём к ветеринарному врачу.",
+        "description": (
+            "Записать питомца на приём к ветеринарному врачу. Запись создаётся "
+            "только для питомца с карточкой; если карточки нет, передай species "
+            "для её автоматического создания."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -47,6 +51,22 @@ BOOK_APPOINTMENT_TOOL: dict[str, Any] = {
                 "pet_name": {
                     "type": "string",
                     "description": "Кличка питомца.",
+                },
+                "species": {
+                    "type": "string",
+                    "enum": ["dog", "cat"],
+                    "description": (
+                        "Вид питомца, если известен. Нужен, чтобы автоматически "
+                        "создать карточку при первой записи."
+                    ),
+                },
+                "patient_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": (
+                        "ID карточки питомца, если он известен из контекста. "
+                        "Позволяет выбрать одного из питомцев с одинаковой кличкой."
+                    ),
                 },
             },
             "required": ["date", "time", "pet_name"],
@@ -85,9 +105,9 @@ CREATE_PATIENT_TOOL: dict[str, Any] = {
     "function": {
         "name": "create_patient",
         "description": (
-            "Создать карточку питомца. Вызывай, если пользователь прямо просит "
-            "создать карточку или завести питомца, либо упомянул питомца, "
-            "но карточки ещё нет. Не вызывай без имени и вида."
+            "Создать карточку питомца. Вызывай этот инструмент СРАЗУ, как только "
+            "пользователь назвал кличку и вид. Не задавай вопросы про вес, "
+            "вакцинацию, породу — они необязательны."
         ),
         "parameters": {
             "type": "object",
@@ -243,6 +263,16 @@ def _optional_age(arguments: dict[str, Any]) -> int | None:
     return value
 
 
+def _optional_positive_int(arguments: dict[str, Any], name: str) -> int | None:
+    """Взять необязательный положительный integer из аргументов."""
+    value = arguments.get(name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ToolExecutionError(f"параметр {name} должен быть положительным целым")
+    return value
+
+
 def _pet_name_accusative(name: str) -> str:
     """Простая эвристика для фразы «Записали <кличку в винительном>»."""
     lower = name.lower()
@@ -313,19 +343,77 @@ async def execute_tool(
         }
 
     if name == "book_appointment":
+        pet_name = _required_string(parsed, "pet_name")
+        date_value = _required_string(parsed, "date")
+        time_value = _required_string(parsed, "time")
+        patient_id = _optional_positive_int(parsed, "patient_id")
+        species_value = _optional_string(parsed, "species")
+        if species_value is not None:
+            species_value = species_value.casefold()
+            if species_value not in ("dog", "cat"):
+                raise ToolExecutionError("вид питомца должен быть dog или cat")
+
+        # T-173: запись всегда привязана к карточке. Ищем по id, затем по
+        # кличке (+ виду); если карточки нет, но вид известен — создаём её.
+        patients = await list_patients(session, user_id=user_id)
+        patient_card: Patient | None = None
+        if patient_id is not None:
+            patient_card = next(
+                (item for item in patients if item.id == patient_id),
+                None,
+            )
+            if patient_card is None:
+                raise ToolExecutionError(
+                    "карточка питомца не найдена; выберите питомца из списка"
+                )
+        else:
+            matches = [
+                item
+                for item in patients
+                if item.name.casefold() == pet_name.casefold()
+                and (species_value is None or item.species == species_value)
+            ]
+            if len(matches) == 1:
+                patient_card = matches[0]
+            elif len(matches) > 1:
+                raise ToolExecutionError(
+                    "несколько питомцев с такой кличкой; укажите patient_id "
+                    "или выберите питомца в интерфейсе"
+                )
+
+        created_patient = False
+        if patient_card is None:
+            if species_value is None:
+                raise ToolExecutionError(
+                    f"питомец «{pet_name}» не найден среди карточек; создайте "
+                    "карточку питомца (нужны кличка и вид) и повторите запись"
+                )
+            patient_card = await create_patient_record(
+                session,
+                user_id=user_id,
+                name=pet_name,
+                species=species_value,
+            )
+            created_patient = True
+
         appointment = await create_appointment(
             session,
             user_id=user_id,
-            pet_name=_required_string(parsed, "pet_name"),
-            date=_required_string(parsed, "date"),
-            time=_required_string(parsed, "time"),
+            patient_id=patient_card.id,
+            pet_name=patient_card.name,
+            date=date_value,
+            time=time_value,
         )
+        message = (
+            f"Записали {_pet_name_accusative(appointment.pet_name)} "
+            f"на {appointment.date} в {appointment.time}"
+        )
+        if created_patient:
+            message += f". Карточка {patient_card.name} создана автоматически"
         return {
             "status": "success",
-            "message": (
-                f"Записали {_pet_name_accusative(appointment.pet_name)} "
-                f"на {appointment.date} в {appointment.time}"
-            ),
+            "patient_id": str(patient_card.id),
+            "message": message,
         }
 
     if name == "set_reminder":
@@ -352,13 +440,19 @@ def build_tools_instruction(tools: Sequence[ToolDefinition]) -> str:
     patient_rule = ""
     if "create_patient" in tool_names:
         patient_rule = (
-            " Если пользователь прямо просит создать карточку или завести "
-            "питомца («создай карточку», «создать питомца», «добавь питомца», "
-            "«заведи карточку»), вызови create_patient, а не book_appointment: "
-            "это создание карточки, а не запись на приём. Если питомец только "
-            "упомянут и карточки ещё нет, предложи создать её: спроси имя, вид "
-            "и возраст и вызови create_patient. Не выдумывай кличку, вид или "
-            "возраст."
+            " Если пользователь просит создать карточку, вызывай create_patient "
+            "немедленно, не задавая уточняющих вопросов. Вызывай его сразу, как "
+            "только названы кличка и вид: вес, вакцинация и порода необязательны. "
+            "Если питомец только упомянут и карточки ещё нет, предложи создать её "
+            "и вызови create_patient, не выдумывая кличку и вид."
+        )
+    appointment_rule = ""
+    if "book_appointment" in tool_names:
+        appointment_rule = (
+            " Для book_appointment сначала убедись, что у питомца есть карточка. "
+            "Если карточки нет, вызови create_patient (или передай species в "
+            "book_appointment, чтобы карточка создалась автоматически). Не "
+            "создавай запись на приём без карточки питомца."
         )
     return (
         f"Тебе доступны инструменты: {names}. "
@@ -366,7 +460,7 @@ def build_tools_instruction(tools: Sequence[ToolDefinition]) -> str:
         "верни ТОЛЬКО JSON-объект без markdown и пояснений в формате "
         '{"name": "<имя инструмента>", "arguments": {...}}. '
         "Не выдумывай дату, время или кличку, если пользователь их не указал."
-        f"{patient_rule}"
+        f"{patient_rule}{appointment_rule}"
     )
 
 
