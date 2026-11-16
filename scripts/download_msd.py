@@ -5,15 +5,17 @@
 текст и сохраняет его в ``data/knowledge/real/*.txt``. Эти файлы затем
 индексируются ``scripts/ingest_knowledge.py``.
 
-По умолчанию берутся встроенные статьи (``ARTICLES``), а с ``--url`` можно
-скачать любую статью по прямой ссылке — это и есть путь расширения базы
-знаний (T-133).
+По умолчанию берутся встроенные статьи (``ARTICLES``), с ``--url`` можно
+скачать любую статью по прямой ссылке, а ``--batch expansion`` загружает
+набор узких тем T-156 (стоматология, офтальмология, эндокринология и др.).
 
 Примеры::
 
     python scripts/download_msd.py --help
     python scripts/download_msd.py --dry-run
     python scripts/download_msd.py
+    python scripts/download_msd.py --batch expansion
+    python scripts/download_msd.py --batch all
     python scripts/download_msd.py --url https://www.msdvetmanual.com/...
     python scripts/download_msd.py --url URL1 --url URL2
 """
@@ -55,6 +57,7 @@ class MsdArticle:
     title: str
     url: str
     filename: str
+    topic: str = ""
 
 
 ARTICLES: tuple[MsdArticle, ...] = (
@@ -79,6 +82,121 @@ ARTICLES: tuple[MsdArticle, ...] = (
         filename="msd_acute_hemorrhagic_diarrhea_dogs.txt",
     ),
 )
+
+#: Новые узкие темы T-156: стоматология, офтальмология, эндокринология,
+#: дерматология, ортопедия, нефрология и респираторные болезни.
+EXPANSION_ARTICLES: tuple[MsdArticle, ...] = (
+    MsdArticle(
+        slug="dental-disorders-dogs",
+        title="Dental Disorders of Dogs",
+        url=(
+            "https://www.msdvetmanual.com/dog-owners/"
+            "digestive-disorders-of-dogs/dental-disorders-of-dogs"
+        ),
+        filename="msd_dental_disorders_dogs.txt",
+        topic="Стоматология",
+    ),
+    MsdArticle(
+        slug="dental-disorders-cats",
+        title="Dental Disorders of Cats",
+        url=(
+            "https://www.msdvetmanual.com/cat-owners/"
+            "digestive-disorders-of-cats/dental-disorders-of-cats"
+        ),
+        filename="msd_dental_disorders_cats.txt",
+        topic="Стоматология",
+    ),
+    MsdArticle(
+        slug="glaucoma-dogs",
+        title="Glaucoma in Dogs",
+        url=(
+            "https://www.msdvetmanual.com/dog-owners/"
+            "eye-disorders-of-dogs/glaucoma-in-dogs"
+        ),
+        filename="msd_glaucoma_dogs.txt",
+        topic="Офтальмология",
+    ),
+    MsdArticle(
+        slug="thyroid-disorders-dogs",
+        title="Disorders of the Thyroid Gland in Dogs",
+        url=(
+            "https://www.msdvetmanual.com/dog-owners/"
+            "hormonal-disorders-of-dogs/disorders-of-the-thyroid-gland-in-dogs"
+        ),
+        filename="msd_thyroid_disorders_dogs.txt",
+        topic="Эндокринология",
+    ),
+    MsdArticle(
+        slug="thyroid-disorders-cats",
+        title="Disorders of the Thyroid Gland in Cats",
+        url=(
+            "https://www.msdvetmanual.com/cat-owners/"
+            "hormonal-disorders-of-cats/disorders-of-the-thyroid-gland-in-cats"
+        ),
+        filename="msd_thyroid_disorders_cats.txt",
+        topic="Эндокринология",
+    ),
+    MsdArticle(
+        slug="allergies-dogs",
+        title="Allergies in Dogs",
+        url=(
+            "https://www.msdvetmanual.com/dog-owners/"
+            "skin-disorders-of-dogs/allergies-in-dogs"
+        ),
+        filename="msd_allergies_dogs.txt",
+        topic="Дерматология",
+    ),
+    MsdArticle(
+        slug="ringworm-cats",
+        title="Ringworm (Dermatophytosis) in Cats",
+        url=(
+            "https://www.msdvetmanual.com/cat-owners/"
+            "skin-disorders-of-cats/ringworm-dermatophytosis-in-cats"
+        ),
+        filename="msd_ringworm_cats.txt",
+        topic="Дерматология",
+    ),
+    MsdArticle(
+        slug="osteoarthritis-dogs",
+        title="Osteoarthritis (Degenerative Joint Disease) in Dogs",
+        url=(
+            "https://www.msdvetmanual.com/dog-owners/"
+            "bone-joint-and-muscle-disorders-of-dogs/"
+            "osteoarthritis-degenerative-joint-disease"
+        ),
+        filename="msd_osteoarthritis_dogs.txt",
+        topic="Ортопедия",
+    ),
+    MsdArticle(
+        slug="chronic-kidney-disease-dogs",
+        title="Chronic Kidney Disease in Dogs",
+        url=(
+            "https://www.msdvetmanual.com/dog-owners/"
+            "kidney-and-urinary-tract-disorders-of-dogs/"
+            "chronic-kidney-disease-in-dogs"
+        ),
+        filename="msd_chronic_kidney_disease_dogs.txt",
+        topic="Нефрология",
+    ),
+    MsdArticle(
+        slug="feline-asthma",
+        title="Tracheobronchitis (Bronchitis, Bronchial Asthma) in Cats",
+        url=(
+            "https://www.msdvetmanual.com/cat-owners/"
+            "lung-and-airway-disorders-of-cats/"
+            "tracheobronchitis-bronchitis-bronchial-asthma-in-cats"
+        ),
+        filename="msd_feline_asthma_bronchitis.txt",
+        topic="Респираторные болезни",
+    ),
+)
+
+#: Наборы статей для ``--batch``.
+BATCHES: dict[str, tuple[MsdArticle, ...]] = {
+    "default": ARTICLES,
+    "expansion": EXPANSION_ARTICLES,
+    "all": (*ARTICLES, *EXPANSION_ARTICLES),
+}
 
 
 def _slugify(value: str) -> str:
@@ -253,7 +371,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="URL",
         help=(
             "прямая ссылка на статью MSD; можно указать несколько раз. "
-            "Без --url скачиваются встроенные статьи (T-133)"
+            "Без --url скачивается выбранный --batch"
+        ),
+    )
+    parser.add_argument(
+        "--batch",
+        choices=tuple(BATCHES),
+        default="default",
+        help=(
+            "набор статей без --url: default — две базовые, "
+            "expansion — 10 новых тем T-156, all — все (по умолчанию default)"
         ),
     )
     parser.add_argument(
@@ -280,16 +407,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             logger.error("{}", exc)
             return 2
     else:
-        articles = ARTICLES
+        articles = BATCHES[args.batch]
 
     if args.dry_run:
         for article in articles:
+            topic = f"[{article.topic}] " if article.topic else ""
             logger.info(
-                "DRY-RUN {} -> {} ({})",
+                "DRY-RUN {}{} -> {} ({})",
+                topic,
                 article.url,
                 args.output_dir / article.filename,
                 article.title,
             )
+        logger.info("Всего статей в наборе {}: {}", args.batch, len(articles))
         return 0
 
     saved = 0

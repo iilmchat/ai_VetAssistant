@@ -463,7 +463,7 @@ tag` берёт `GITHUB_REF_NAME` без префикса `v` (`v1.5.5` → `1.5
 ```bash
 # как это выглядит на сервере после деплоя
 grep '^VETASSISTANT_VERSION=' /srv/vetassistant/.env
-# VETASSISTANT_VERSION=1.12.1
+# VETASSISTANT_VERSION=1.13.0
 ```
 
 Файл должен принадлежать пользователю runner (`deployer`). Если `.env`
@@ -481,7 +481,7 @@ sudo chmod 600 /srv/vetassistant/.env
 входным параметром):
 
 ```bash
-gh workflow run deploy.yml --ref main -f version=1.12.1
+gh workflow run deploy.yml --ref main -f version=1.13.0
 ```
 
 Благодаря этому версия переживает ручной `docker compose up -d` и перезагрузку
@@ -808,14 +808,29 @@ docker compose -f docker-compose.edge.yml logs api | grep -E "RAG|чанк"
 Если RAG не отвечает, проверьте, что `data/knowledge/*.txt` есть на сервере
 и индекс пересобран после `git pull`.
 
-### Как добавить новые статьи в RAG (T-133)
+### Как добавить новые статьи в RAG (T-133, T-156)
 
 Индекс `msd_vet_manual` обновляется через `upsert`: новые чанки добавляются,
 существующие обновляются на месте, старые не удаляются. Для расширения базы
 `--rebuild` не нужен — он пересобирает индекс с нуля.
 
-**1. Скачать статью по прямой ссылке.** Возьмите URL со страницы
-msdvetmanual.com и передайте его скрипту (`--url` можно повторять):
+**0. Готовый набор узких тем (T-156).** Для стоматологии, офтальмологии,
+эндокринологии, дерматологии, ортопедии, нефрологии и респираторных
+болезней скачайте 10 статей одной командой:
+
+```bash
+python scripts/download_msd.py --batch expansion --dry-run
+python scripts/download_msd.py --batch expansion
+```
+
+`--batch all` скачивает базовые и новые статьи, `--batch default` — только
+две базовые. Файлы появляются в `data/knowledge/real/` с именами
+`msd_*.txt`; повторная загрузка перезаписывает тот же файл. Набор задан в
+`EXPANSION_ARTICLES` (`scripts/download_msd.py`), поэтому состав
+воспроизводим на любом окружении.
+
+**1. Скачать произвольную статью по прямой ссылке.** Возьмите URL со
+страницы msdvetmanual.com и передайте его скрипту (`--url` можно повторять):
 
 ```bash
 python scripts/download_msd.py \
@@ -854,9 +869,9 @@ docker compose -f docker-compose.edge.yml up -d api
 всего:
 
 ```
-Новых чанков: 37 | будет обновлено: 204 | к записи: 241
-Записано чанков: 241/241
-В коллекции msd_vet_manual теперь 241 чанков
+Новых чанков: 138 | будет обновлено: 766 | к записи: 904
+Записано чанков: 904/904
+В коллекции msd_vet_manual теперь 904 чанков
 ```
 
 Если в строке `Новых чанков` стоит 0, значит имена файлов совпали с уже
@@ -868,6 +883,27 @@ docker compose -f docker-compose.edge.yml up -d api
 ```bash
 docker compose -f docker-compose.edge.yml logs api | grep -E "RAG|чанк"
 ```
+
+**5. Замерить Hit@3 после расширения (T-156).** Скрипт проверяет поиск, а не
+генерацию: 27 вопросов, включая 10 новых по стоматологии, офтальмологии,
+эндокринологии и другим темам. Запускайте отдельным контейнером, чтобы
+embedding-модель не конкурировала с 8B-моделью за память:
+
+```bash
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  --entrypoint python api scripts/evaluate_hybrid_rag.py --mode both \
+  --output /app/data/rag_hybrid_eval_v1130.json
+```
+
+Ориентир: vector-only на старом наборе давал 12/17 (70.6 %), hybrid —
+17/17 (100 %). После добавления статей hybrid должен остаться на уровне
+**27/27**; если новые вопросы промахиваются, добавьте русско-английские
+термины в `RU_EN_TERMS` (`app/rag_hybrid.py`) и повторите замер. Результат
+сохраняется в JSON и печатается таблицей в stdout.
+
+> После `ingest_knowledge.py` **перезапустите API** (`up -d api` уже это
+> делает): BM25-индекс строится в памяти при старте и без перезапуска будет
+> работать по старому набору чанков.
 
 Файл, скопированный только через `scp`, не попадёт в Git: если статья нужна
 на всех окружениях, положите её в `data/knowledge/` локально и закоммитьте.

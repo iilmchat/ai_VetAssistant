@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from scripts.evaluate_hybrid_rag import (
     QUESTIONS,
     RetrievalResult,
@@ -10,16 +12,37 @@ from scripts.evaluate_hybrid_rag import (
 )
 
 
-def test_question_set_has_12_base_and_5_drug_questions() -> None:
-    assert len(QUESTIONS) == 17
-    assert len({question.id for question in QUESTIONS}) == 17
+def test_question_set_has_12_base_5_drug_and_10_expansion_questions() -> None:
+    assert len(QUESTIONS) == 27
+    assert len({question.id for question in QUESTIONS}) == 27
     assert [question.id for question in QUESTIONS][-5:] == [
-        "drug-fomepizole",
-        "drug-acetylcysteine",
-        "drug-ivermectin",
-        "drug-phenobarbital",
-        "drug-levetiracetam",
+        "allergies-dogs",
+        "ringworm-cats",
+        "osteoarthritis-dogs",
+        "ckd-dogs",
+        "feline-asthma",
     ]
+
+
+def test_expansion_questions_cover_new_topics_and_files() -> None:
+    """T-156: у каждого нового вопроса есть статья в локальном корпусе."""
+    expansion = QUESTIONS[17:]
+    assert {question.topic for question in expansion} >= {
+        "Стоматология",
+        "Офтальмология",
+        "Эндокринология",
+        "Дерматология",
+        "Ортопедия",
+        "Нефрология",
+        "Респираторные болезни",
+    }
+    knowledge_dir = Path(__file__).resolve().parents[1] / "data" / "knowledge" / "real"
+    missing = [
+        question.source
+        for question in expansion
+        if not (knowledge_dir / question.source).is_file()
+    ]
+    assert missing == []
 
 
 def test_hit_rank_compares_by_basename() -> None:

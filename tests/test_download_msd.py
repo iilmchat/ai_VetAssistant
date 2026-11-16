@@ -9,10 +9,13 @@ import requests
 
 from scripts.download_msd import (
     ARTICLES,
+    BATCHES,
+    EXPANSION_ARTICLES,
     article_from_url,
     download_article,
     extract_article,
     main,
+    parse_args,
     to_proxy_url,
 )
 
@@ -158,3 +161,61 @@ def test_main_with_url_downloads_only_given_article(
 
 def test_main_with_invalid_url_returns_error_code(tmp_path: Path) -> None:
     assert main(["--url", "not-a-url", "--output-dir", str(tmp_path)]) == 2
+
+
+def test_expansion_batch_has_ten_unique_msd_articles() -> None:
+    """T-156: 5–10 новых статей, без дублей и с каноническими URL."""
+    assert len(EXPANSION_ARTICLES) == 10
+    assert len({article.filename for article in EXPANSION_ARTICLES}) == 10
+    assert len({article.url for article in EXPANSION_ARTICLES}) == 10
+    assert all(
+        article.url.startswith("https://www.msdvetmanual.com/")
+        for article in EXPANSION_ARTICLES
+    )
+    assert all(article.filename.startswith("msd_") for article in EXPANSION_ARTICLES)
+    assert {"Стоматология", "Офтальмология", "Эндокринология"} <= {
+        article.topic for article in EXPANSION_ARTICLES
+    }
+
+
+def test_batches_composition() -> None:
+    assert BATCHES["default"] == ARTICLES
+    assert BATCHES["expansion"] == EXPANSION_ARTICLES
+    assert len(BATCHES["all"]) == len(ARTICLES) + len(EXPANSION_ARTICLES)
+
+
+def test_dry_run_expansion_batch_does_not_create_files(tmp_path: Path) -> None:
+    output_dir = tmp_path / "knowledge"
+
+    assert main(["--dry-run", "--batch", "expansion", "--output-dir", str(output_dir)]) == 0
+    assert not output_dir.exists()
+
+
+def test_main_with_expansion_batch_downloads_all_articles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    def fake_fetch(url: str, *, timeout: float) -> str:
+        calls.append(url)
+        return SAMPLE_HTML
+
+    monkeypatch.setattr("scripts.download_msd.fetch_html", fake_fetch)
+    output_dir = tmp_path / "real"
+
+    exit_code = main(
+        ["--batch", "expansion", "--output-dir", str(output_dir)]
+    )
+
+    assert exit_code == 0
+    assert len(calls) == len(EXPANSION_ARTICLES)
+    assert {path.name for path in output_dir.glob("*.txt")} == {
+        article.filename for article in EXPANSION_ARTICLES
+    }
+
+
+def test_parse_args_defaults_to_default_batch(tmp_path: Path) -> None:
+    args = parse_args(["--output-dir", str(tmp_path)])
+
+    assert args.batch == "default"
+    assert args.url is None

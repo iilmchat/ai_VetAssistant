@@ -214,3 +214,67 @@ hybrid даёт 17/17 Hit@3 против 12/17 у vector-only, MRR 0.912 про�
 - `data/rag_hybrid_eval_bm25_plain.json` — 0/17 без глоссария (офлайн).
 - `/srv/vetassistant/data/rag_hybrid_eval_results.json` — серверный прогон
   vector vs hybrid (на сервере).
+
+## 9. Расширение базы v1.13.0 (T-156)
+
+### 9.1. Что добавлено
+
+10 статей MSD Vet Manual по темам, которых не было в индексе:
+
+| Тема | Статьи |
+|---|---|
+| Стоматология | `msd_dental_disorders_dogs.txt`, `msd_dental_disorders_cats.txt` |
+| Офтальмология | `msd_glaucoma_dogs.txt` |
+| Эндокринология | `msd_thyroid_disorders_dogs.txt`, `msd_thyroid_disorders_cats.txt` |
+| Дерматология | `msd_allergies_dogs.txt`, `msd_ringworm_cats.txt` |
+| Ортопедия | `msd_osteoarthritis_dogs.txt` |
+| Нефрология | `msd_chronic_kidney_disease_dogs.txt` |
+| Респираторные болезни | `msd_feline_asthma_bronchitis.txt` |
+
+Скачивание воспроизводимо: `python scripts/download_msd.py --batch expansion`.
+Корпус вырос с 17 до **27 статей**, нарезка — с 766 до **904 чанков**
+(+138). На сервере после `git pull` нужен `scripts/ingest_knowledge.py`
+(upsert) и перезапуск API, чтобы BM25 пересобрался по новым чанкам.
+
+### 9.2. Офлайн-замер BM25 (27 вопросов)
+
+К 17 вопросам T-141 добавлены 10 вопросов по новым темам. Прогон
+`python scripts/evaluate_hybrid_rag.py --mode bm25`, 904 чанка:
+
+| Режим | Вопросов | Hit@3 | Hit rate | MRR | Среднее, мс | p95, мс |
+|---|---:|---:|---:|---:|---:|---:|
+| BM25 + глоссарий | 27 | **27/27** | **100 %** | **0.938** | 1.0 | 1.4 |
+
+Все 10 новых вопросов попали в top-3, 9 из 10 — на первое место;
+`thyroid-dogs` — rank 2, `epilepsy-1` и `pancreatitis-2` сохранили прежние
+rank 3 и 2. Регрессии на старых 17 вопросах нет.
+
+Новые термины глоссария: `глаукома`, `щитовидная`, `тиреоид`,
+`гипотиреоз`, `гипертиреоз`, `астма`, `бронхит`, `пародонт`, `кариес`,
+`десны`, `камень`, `остеоартроз`, `артроз`, `дерматофит`, `лишай`,
+`почечн`, `хроническ`. Без них новые вопросы промахивались бы: статьи
+англоязычные, вопросы русские.
+
+### 9.3. Серверный замер
+
+На production-индексе после `git pull` и ingest:
+
+```bash
+docker compose -f docker-compose.edge.yml run --rm --no-deps \
+  --entrypoint python api scripts/evaluate_hybrid_rag.py --mode both \
+  --output /app/data/rag_hybrid_eval_v1130.json
+```
+
+Критерий приёмки T-156: hybrid Hit@3 не ниже прежнего 100 % на старых
+вопросах и все новые вопросы в top-3. Офлайн-прогон это подтверждает;
+серверный результат сохраняется в `data/rag_hybrid_eval_v1130.json` и
+дополняется после деплоя.
+
+### 9.4. Артефакты T-156
+
+- `scripts/download_msd.py` — `EXPANSION_ARTICLES` и `--batch expansion|all`.
+- `data/knowledge/real/msd_*.txt` — 10 новых статей в Git.
+- `scripts/evaluate_hybrid_rag.py` — 27 вопросов.
+- `data/rag_hybrid_eval_v1130.json` — офлайн-прогон 27/27.
+- `DEPLOYMENT.md` §«Как добавить новые статьи в RAG» — скачивание,
+  переиндексация и замер.

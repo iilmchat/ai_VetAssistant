@@ -119,6 +119,67 @@ QUESTIONS: tuple[EvalQuestion, ...] = (
         question="Какая доза леветирацетама при эпилепсии у собак и кошек?",
         source="msd_epilepsy_seizures_small_animals.txt",
     ),
+    # T-156: узкие темы расширенной базы.
+    EvalQuestion(
+        id="dental-dogs",
+        topic="Стоматология",
+        question="Почему у собаки воспаляются дёсны и образуется зубной камень?",
+        source="msd_dental_disorders_dogs.txt",
+    ),
+    EvalQuestion(
+        id="dental-cats",
+        topic="Стоматология",
+        question="Какие болезни зубов и дёсен бывают у кошек?",
+        source="msd_dental_disorders_cats.txt",
+    ),
+    EvalQuestion(
+        id="glaucoma-dogs",
+        topic="Офтальмология",
+        question="Какие симптомы глаукомы у собаки и как её лечат?",
+        source="msd_glaucoma_dogs.txt",
+    ),
+    EvalQuestion(
+        id="thyroid-dogs",
+        topic="Эндокринология",
+        question="Признаки гипотиреоза у собак и лечение щитовидной железы",
+        source="msd_thyroid_disorders_dogs.txt",
+    ),
+    EvalQuestion(
+        id="thyroid-cats",
+        topic="Эндокринология",
+        question="Чем лечат гипертиреоз у кошек?",
+        source="msd_thyroid_disorders_cats.txt",
+    ),
+    EvalQuestion(
+        id="allergies-dogs",
+        topic="Дерматология",
+        question="Что вызывает аллергию и зуд у собаки?",
+        source="msd_allergies_dogs.txt",
+    ),
+    EvalQuestion(
+        id="ringworm-cats",
+        topic="Дерматология",
+        question="Как распознать лишай (дерматофитоз) у кошки?",
+        source="msd_ringworm_cats.txt",
+    ),
+    EvalQuestion(
+        id="osteoarthritis-dogs",
+        topic="Ортопедия",
+        question="Как лечат остеоартроз и боль в суставах у собак?",
+        source="msd_osteoarthritis_dogs.txt",
+    ),
+    EvalQuestion(
+        id="ckd-dogs",
+        topic="Нефрология",
+        question="Какие симптомы хронической болезни почек у собаки?",
+        source="msd_chronic_kidney_disease_dogs.txt",
+    ),
+    EvalQuestion(
+        id="feline-asthma",
+        topic="Респираторные болезни",
+        question="Какие признаки астмы и бронхита у кошек?",
+        source="msd_feline_asthma_bronchitis.txt",
+    ),
 )
 
 
