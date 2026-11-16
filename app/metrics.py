@@ -101,6 +101,27 @@ RAG_INDEX_READY = Gauge(
     "Найден ли индекс ChromaDB при старте API (1/0)",
 )
 
+#: Сборка контекста памяти пациента (T-162): hit|miss|error.
+MEMORY_CONTEXT_REQUESTS = Counter(
+    "vet_memory_context_total",
+    "Сборки контекста памяти пациента по результату",
+    ("result",),
+)
+
+#: Сохранение эпизода памяти (T-162): ok|error.
+MEMORY_EPISODES_SAVED = Counter(
+    "vet_memory_episode_saved_total",
+    "Сохранения эпизодов памяти по результату",
+    ("result",),
+)
+
+#: Длительность сборки контекста памяти, секунды.
+MEMORY_CONTEXT_SECONDS = Histogram(
+    "vet_memory_context_seconds",
+    "Длительность сборки контекста памяти, секунды",
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+)
+
 #: Вызовы модели в разрезе пользователей (T-135). Метка — числовой user_id:
 #: кардинальность ограничена числом пользователей, email в метрику не пишем.
 USER_REQUESTS = Counter(
@@ -295,3 +316,14 @@ def record_backend_request(backend: str, status: str) -> None:
 def record_backend_ttft(backend: str, seconds: float) -> None:
     """Записать время до первого токена бэкенда (T-144)."""
     BACKEND_TTFT.labels(backend=backend).observe(max(seconds, 0.0))
+
+
+def record_memory_context(*, result: str, duration_s: float) -> None:
+    """Учесть сборку контекста памяти пациента (``result``: hit|miss|error)."""
+    MEMORY_CONTEXT_REQUESTS.labels(result=result).inc()
+    MEMORY_CONTEXT_SECONDS.observe(max(duration_s, 0.0))
+
+
+def record_memory_episode(*, result: str) -> None:
+    """Учесть сохранение эпизода памяти (``result``: ok|error)."""
+    MEMORY_EPISODES_SAVED.labels(result=result).inc()

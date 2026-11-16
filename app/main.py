@@ -76,6 +76,11 @@ from app.database import (
 )
 from app.inference_usage import TokenUsage
 from app.knowledge import KnowledgeBase, get_knowledge_base, with_rag_context
+from app.memory import (
+    PatientMemory,
+    get_patient_memory,
+    with_patient_context,
+)
 from app.metrics import (
     record_generation,
     record_rag_search,
@@ -157,6 +162,14 @@ class ChatCompletionRequest(BaseModel):
     use_rag: bool = Field(
         default=False,
         description="Использовать поиск по локальной базе знаний",
+    )
+    patient_id: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "T-162: карточка питомца для контекста памяти; "
+            "ответ сохраняется как эпизод"
+        ),
     )
     tools: list[ToolDefinition] | None = Field(
         default=None,
@@ -1334,6 +1347,107 @@ async def _stream_with_tools(
     yield "data: [DONE]\n\n"
 
 
+def _stream_text_delta(chunk: str) -> str:
+    """Извлечь текст ассистента из одного SSE-чанка (T-162)."""
+    prefix = "data: "
+    if not chunk.startswith(prefix):
+        return ""
+    payload = chunk[len(prefix) :].strip()
+    if not payload or payload == "[DONE]":
+        return ""
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        return ""
+    delta = choice.get("delta")
+    if not isinstance(delta, dict):
+        return ""
+    content = delta.get("content")
+    return content if isinstance(content, str) else ""
+
+
+async def _save_chat_episode(
+    database: Database,
+    memory: PatientMemory,
+    *,
+    user_id: int,
+    patient_id: int | None,
+    question: str,
+    answer: str,
+) -> None:
+    """Сохранить эпизод после ответа; ошибки памяти не ломают чат."""
+    if patient_id is None or not answer.strip():
+        return
+    try:
+        async with database.session() as session:
+            episode = await memory.save_episode(
+                session,
+                user_id=user_id,
+                patient_id=patient_id,
+                question=question,
+                answer=answer,
+            )
+    except Exception as exc:
+        logger.warning("Memory: эпизод не сохранён — {}", exc)
+        return
+    if episode is not None:
+        logger.info(
+            "Memory: сохранён эпизод {} для питомца {}",
+            episode.id,
+            patient_id,
+        )
+
+
+async def _stream_with_memory(
+    backend: BackendRouter,
+    messages: Sequence[dict[str, Any]],
+    request: ChatCompletionRequest,
+    model_name: str,
+    *,
+    database: Database,
+    user_id: int,
+    telegram_id: int | None = None,
+    background: BackgroundTasks | None = None,
+    memory: PatientMemory,
+    patient_id: int | None,
+    question: str,
+) -> AsyncIterator[str]:
+    """Обёртка над SSE-потоком: сохраняет эпизод после генерации (T-162)."""
+    parts: list[str] = []
+    try:
+        async for sse_chunk in _stream(
+            backend,
+            messages,
+            request,
+            model_name,
+            database=database,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            background=background,
+        ):
+            delta = _stream_text_delta(sse_chunk)
+            if delta:
+                parts.append(delta)
+            yield sse_chunk
+    finally:
+        await _save_chat_episode(
+            database,
+            memory,
+            user_id=user_id,
+            patient_id=patient_id,
+            question=question,
+            answer="".join(parts),
+        )
+
+
 async def _stream(
     backend: BackendRouter,
     messages: Sequence[dict[str, Any]],
@@ -1482,6 +1596,7 @@ async def chat_completions(
     knowledge: Annotated[KnowledgeBase | None, Depends(get_knowledge_base)],
     database: Annotated[Database, Depends(get_database)],
     current_user: Annotated[User, Depends(get_current_user)],
+    memory: Annotated[PatientMemory, Depends(get_patient_memory)],
 ) -> ChatCompletionResponse | StreamingResponse:
     """Сгенерировать ответ модели в формате OpenAI Chat Completions."""
     # Быстрый триаж до генерации: не тратим ресурсы LLM на prompt injection
@@ -1500,6 +1615,34 @@ async def chat_completions(
     settings = get_app_settings()
     model_name = _model_name(request, settings)
     messages = build_messages(request.messages)
+
+    # T-162: память пациента добавляется после базового prompt и до RAG,
+    # чтобы модель видела профиль и прошлые эпизоды рядом с правилами.
+    if request.patient_id is not None:
+        try:
+            async with database.session() as session:
+                memory_context = await memory.build_context(
+                    session,
+                    user_id=current_user.id,
+                    patient_id=request.patient_id,
+                    query=user_message,
+                )
+        except LookupError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Питомец не найден",
+            ) from exc
+        except Exception as exc:
+            # Память не должна ломать чат: работаем без неё.
+            logger.warning("Memory: контекст не собран — {}", exc)
+            memory_context = ""
+        if memory_context:
+            messages = with_patient_context(messages, memory_context)
+            logger.info(
+                "Memory: контекст пациента {} добавлен ({} символов)",
+                request.patient_id,
+                len(memory_context),
+            )
 
     if request.use_rag and knowledge is not None:
         query = _last_user_message(request.messages)
@@ -1543,7 +1686,7 @@ async def chat_completions(
 
     if request.stream:
         return StreamingResponse(
-            _stream(
+            _stream_with_memory(
                 backend,
                 messages,
                 request,
@@ -1552,13 +1695,16 @@ async def chat_completions(
                 user_id=current_user.id,
                 telegram_id=notify_chat_id,
                 background=background,
+                memory=memory,
+                patient_id=request.patient_id,
+                question=user_message,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             background=background,
         )
 
-    return await _complete(
+    response = await _complete(
         backend,
         messages,
         request,
@@ -1568,6 +1714,15 @@ async def chat_completions(
         telegram_id=notify_chat_id,
         background=background,
     )
+    await _save_chat_episode(
+        database,
+        memory,
+        user_id=current_user.id,
+        patient_id=request.patient_id,
+        question=user_message,
+        answer=response.choices[0].message.content or "",
+    )
+    return response
 
 
 @app.get("/v1/appointments", response_model=list[AppointmentRead])
