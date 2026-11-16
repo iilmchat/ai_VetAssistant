@@ -17,16 +17,24 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated, Any, Literal, cast
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -47,14 +55,22 @@ from app.auth import (
 from app.backends import ChatModel, CpuLlamaBackend, GpuHttpBackend
 from app.database import (
     Database,
+    Episode,
+    Patient,
     User,
+    count_episodes,
     create_access_request,
+    create_patient,
     get_database,
+    get_patient,
     get_pending_access_request,
     get_user_by_email,
     get_user_by_id,
     list_appointments,
+    list_episodes,
+    list_patients,
     list_reminders,
+    update_patient,
     update_user_password,
     upsert_feedback,
 )
@@ -223,6 +239,149 @@ class FeedbackRead(BaseModel):
     message: str
     message_id: str
     rating: Literal[1, -1]
+
+
+class PatientCreate(BaseModel):
+    """Создание карточки питомца (T-161)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    species: Literal["dog", "cat"]
+    breed: str | None = Field(default=None, max_length=120)
+    birth_date: date | None = None
+    weight: float | None = Field(default=None, gt=0, lt=10000)
+    known_allergies: str | None = Field(default=None, max_length=2000)
+    chronic_conditions: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("имя питомца не может быть пустым")
+        return value
+
+    @field_validator("birth_date")
+    @classmethod
+    def _birth_date_not_future(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise ValueError("дата рождения не может быть в будущем")
+        return value
+
+
+class PatientUpdate(BaseModel):
+    """Дозаполнение карточки питомца (PATCH-семантика).
+
+    Отсутствующие поля не меняются; явный ``null`` очищает необязательное
+    поле. Имя и вид обязательны — ``null`` для них отклоняется.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    species: Literal["dog", "cat"] | None = None
+    breed: str | None = Field(default=None, max_length=120)
+    birth_date: date | None = None
+    weight: float | None = Field(default=None, gt=0, lt=10000)
+    known_allergies: str | None = Field(default=None, max_length=2000)
+    chronic_conditions: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("имя питомца не может быть пустым")
+        return value
+
+    @field_validator("birth_date")
+    @classmethod
+    def _birth_date_not_future(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise ValueError("дата рождения не может быть в будущем")
+        return value
+
+
+class PatientRead(BaseModel):
+    """Карточка питомца в ответах API."""
+
+    id: int
+    name: str
+    species: Literal["dog", "cat"]
+    breed: str | None
+    birth_date: date | None
+    weight: float | None
+    known_allergies: str | None
+    chronic_conditions: str | None
+    age_years: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class EpisodeRead(BaseModel):
+    """Эпизод памяти питомца (без вектора и user_id)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    patient_id: int
+    type: Literal["chat", "appointment", "reminder", "manual"]
+    content: str
+    created_at: datetime
+
+
+class PatientHistory(BaseModel):
+    """Страница истории эпизодов питомца."""
+
+    items: list[EpisodeRead]
+    total: int
+    limit: int
+    offset: int
+
+
+def _age_years(birth_date: date | None) -> int | None:
+    """Полных лет по дате рождения (None, если дата не заполнена)."""
+    if birth_date is None:
+        return None
+    today = date.today()
+    years = today.year - birth_date.year
+    if (today.month, today.day) < (birth_date.month, birth_date.day):
+        years -= 1
+    return max(0, years)
+
+
+def _patient_read(patient: Patient) -> PatientRead:
+    """Собрать ответ API из ORM-модели и вычислить возраст."""
+    return PatientRead(
+        id=patient.id,
+        name=patient.name,
+        species=cast(Literal["dog", "cat"], patient.species),
+        breed=patient.breed,
+        birth_date=patient.birth_date,
+        weight=float(patient.weight) if patient.weight is not None else None,
+        known_allergies=patient.known_allergies,
+        chronic_conditions=patient.chronic_conditions,
+        age_years=_age_years(patient.birth_date),
+        created_at=patient.created_at,
+        updated_at=patient.updated_at,
+    )
+
+
+def _episode_read(episode: Episode) -> EpisodeRead:
+    """Собрать ответ истории без раскрытия embedding."""
+    return EpisodeRead(
+        id=episode.id,
+        patient_id=episode.patient_id,
+        type=cast(
+            Literal["chat", "appointment", "reminder", "manual"],
+            episode.type,
+        ),
+        content=episode.content,
+        created_at=episode.created_at,
+    )
 
 
 @lru_cache(maxsize=1)
@@ -528,6 +687,129 @@ async def submit_feedback(
         message="Спасибо за оценку",
         message_id=message_id,
         rating=payload.rating,
+    )
+
+
+# --- Карточки пациентов (T-161) ----------------------------------------------
+
+
+@app.get("/v1/patients", response_model=list[PatientRead])
+async def get_patients(
+    database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> list[PatientRead]:
+    """Вернуть карточки питомцев текущего пользователя."""
+    async with database.session() as session:
+        patients = await list_patients(session, user_id=current_user.id)
+    return [_patient_read(patient) for patient in patients]
+
+
+@app.post(
+    "/v1/patients",
+    response_model=PatientRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_patient_endpoint(
+    payload: PatientCreate,
+    database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> PatientRead:
+    """Создать карточку питомца для текущего пользователя."""
+    async with database.session() as session:
+        try:
+            patient = await create_patient(
+                session,
+                user_id=current_user.id,
+                **payload.model_dump(),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    logger.info(
+        "Patients: пользователь {} создал карточку {} (id={})",
+        current_user.id,
+        patient.name,
+        patient.id,
+    )
+    return _patient_read(patient)
+
+
+@app.patch("/v1/patients/{patient_id}", response_model=PatientRead)
+async def update_patient_endpoint(
+    patient_id: int,
+    payload: PatientUpdate,
+    database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> PatientRead:
+    """Дозаполнить карточку питомца (только свою)."""
+    changes = payload.model_dump(exclude_unset=True)
+    for required in ("name", "species"):
+        if required in changes and changes[required] is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"поле {required} не может быть пустым",
+            )
+
+    async with database.session() as session:
+        if not changes:
+            patient = await get_patient(
+                session,
+                user_id=current_user.id,
+                patient_id=patient_id,
+            )
+        else:
+            try:
+                patient = await update_patient(
+                    session,
+                    user_id=current_user.id,
+                    patient_id=patient_id,
+                    changes=changes,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Питомец не найден")
+    return _patient_read(patient)
+
+
+@app.get(
+    "/v1/patients/{patient_id}/history",
+    response_model=PatientHistory,
+)
+async def get_patient_history(
+    patient_id: int,
+    database: Annotated[Database, Depends(get_database)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> PatientHistory:
+    """Вернуть историю эпизодов питомца с пагинацией."""
+    async with database.session() as session:
+        patient = await get_patient(
+            session,
+            user_id=current_user.id,
+            patient_id=patient_id,
+        )
+        if patient is None:
+            raise HTTPException(status_code=404, detail="Питомец не найден")
+        episodes = await list_episodes(
+            session,
+            user_id=current_user.id,
+            patient_id=patient_id,
+            limit=limit,
+            offset=offset,
+        )
+        total = await count_episodes(
+            session,
+            user_id=current_user.id,
+            patient_id=patient_id,
+        )
+
+    return PatientHistory(
+        items=[_episode_read(episode) for episode in episodes],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 

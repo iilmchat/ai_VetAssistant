@@ -15,17 +15,26 @@ SQLite через aiosqlite. Таблицы создаются в lifespan FastA
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from math import sqrt
+from typing import Any, cast
 
 from fastapi import HTTPException, Request
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
+    Index,
+    Integer,
+    Numeric,
     SmallInteger,
     String,
     Text,
@@ -53,6 +62,27 @@ from app.settings import DEFAULT_DATABASE_URL
 
 class Base(DeclarativeBase):
     """Базовый класс ORM-моделей."""
+
+
+#: Допустимые виды питомцев (T-160).
+PATIENT_SPECIES: frozenset[str] = frozenset({"dog", "cat"})
+
+#: Допустимые типы эпизодов памяти (T-160).
+EPISODE_TYPES: frozenset[str] = frozenset(
+    {"chat", "appointment", "reminder", "manual"}
+)
+
+#: Максимальная длина выжимки эпизода (152-ФЗ, T-160/T-162).
+EPISODE_MAX_CONTENT_LENGTH = 500
+
+#: Размерность эмбеддингов RAG-модели paraphrase-multilingual-MiniLM-L12-v2.
+MEMORY_EMBEDDING_DIM = 384
+
+#: Минимальное косинусное сходство для попадания в семантическую память.
+MEMORY_MIN_SIMILARITY = 0.25
+
+#: Сколько последних эпизодов просматривать на SQLite-фолбэке поиска.
+MEMORY_SQLITE_SCAN_LIMIT = 200
 
 
 class User(Base):
@@ -163,6 +193,106 @@ class Feedback(Base):
         nullable=False,
     )
     rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
+class Patient(Base):
+    """Карточка питомца пользователя (T-160).
+
+    ``user_id`` — владелец; удаление пользователя каскадно удаляет карточку.
+    Обязательны только имя и вид, остальные поля дозаполняются через PATCH.
+    """
+
+    __tablename__ = "patients"
+    __table_args__ = (
+        CheckConstraint("species IN ('dog', 'cat')", name="ck_patients_species"),
+        CheckConstraint(
+            "length(trim(name)) > 0",
+            name="ck_patients_name_not_blank",
+        ),
+        CheckConstraint(
+            "weight IS NULL OR weight > 0",
+            name="ck_patients_weight_positive",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    species: Mapped[str] = mapped_column(String(16), nullable=False)
+    breed: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    weight: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    known_allergies: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chronic_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
+class Episode(Base):
+    """Эпизод памяти питомца: краткая выжимка обсуждения (T-160).
+
+    ``content`` ограничен 500 символами и не содержит полных диалогов или
+    контактных данных (152-ФЗ). ``embedding`` — вектор RAG-модели
+    (384 измерения) для семантического поиска; в SQLite хранится как JSON,
+    чтобы локальные тесты шли без pgvector.
+    """
+
+    __tablename__ = "episodes"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('chat', 'appointment', 'reminder', 'manual')",
+            name="ck_episodes_type",
+        ),
+        CheckConstraint(
+            "length(trim(content)) > 0",
+            name="ck_episodes_content_not_blank",
+        ),
+        CheckConstraint(
+            f"length(content) <= {EPISODE_MAX_CONTENT_LENGTH}",
+            name="ck_episodes_content_length",
+        ),
+        Index("ix_episodes_patient_created", "patient_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
+    patient_id: Mapped[int] = mapped_column(
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        JSON().with_variant(Vector(MEMORY_EMBEDDING_DIM), "postgresql"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -426,8 +556,15 @@ class Database:
         )
 
     async def create_tables(self) -> None:
-        """Создать таблицы и мягко мигрировать схему до T-140.1."""
+        """Создать таблицы и мягко мигрировать схему до T-160."""
         async with self.engine.begin() as connection:
+            # Для PostgreSQL векторный тип требует расширения pgvector.
+            # В проде миграция применяется заранее; здесь — для dev/CI
+            # и для идемпотентности при чистой базе.
+            if connection.dialect.name == "postgresql":
+                await connection.execute(
+                    text("CREATE EXTENSION IF NOT EXISTS vector")
+                )
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(_migrate_legacy_tables)
             await connection.run_sync(_migrate_admin_panel)
@@ -735,6 +872,10 @@ async def delete_user_account(session: AsyncSession, user_id: int) -> bool:
         delete(TelegramLinkCode).where(TelegramLinkCode.user_id == user_id)
     )
     await session.execute(delete(Feedback).where(Feedback.user_id == user_id))
+    # Сначала эпизоды: они ссылаются и на пациента, и на пользователя.
+    # Затем карточки. Явно, чтобы не зависеть от PRAGMA foreign_keys в SQLite.
+    await session.execute(delete(Episode).where(Episode.user_id == user_id))
+    await session.execute(delete(Patient).where(Patient.user_id == user_id))
     await session.execute(
         update(AccessRequest)
         .where(AccessRequest.reviewed_by == user_id)
@@ -814,3 +955,352 @@ async def get_feedback_stats(session: AsyncSession) -> FeedbackStats:
         ).scalar_one()
     )
     return FeedbackStats(total=total, positive=positive, negative=total - positive)
+
+
+# --- Карточки пациентов и память (T-160) -------------------------------------
+
+
+_PATIENT_FIELDS: frozenset[str] = frozenset(
+    {
+        "name",
+        "species",
+        "breed",
+        "birth_date",
+        "weight",
+        "known_allergies",
+        "chronic_conditions",
+    }
+)
+
+
+def _clean_optional_text(value: str | None) -> str | None:
+    """Обрезать необязательный текст; пустая строка превращается в ``None``."""
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _normalize_patient_fields(
+    fields: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Проверить и нормализовать поля карточки питомца.
+
+    Raises:
+        ValueError: неизвестное поле, пустое имя или некорректный вид/вес/дата.
+    """
+    unknown = set(fields) - _PATIENT_FIELDS
+    if unknown:
+        raise ValueError(f"неизвестные поля пациента: {sorted(unknown)}")
+
+    normalized: dict[str, Any] = {}
+
+    if "name" in fields:
+        name = fields["name"]
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("имя питомца не может быть пустым")
+        name = name.strip()
+        if len(name) > 120:
+            raise ValueError("имя питомца длиннее 120 символов")
+        normalized["name"] = name
+
+    if "species" in fields:
+        species = fields["species"]
+        if species not in PATIENT_SPECIES:
+            raise ValueError("вид питомца должен быть dog или cat")
+        normalized["species"] = species
+
+    if "breed" in fields:
+        breed = _clean_optional_text(fields["breed"])
+        if breed is not None and len(breed) > 120:
+            raise ValueError("порода длиннее 120 символов")
+        normalized["breed"] = breed
+
+    if "birth_date" in fields:
+        birth_date = fields["birth_date"]
+        if birth_date is not None:
+            if not isinstance(birth_date, date):
+                raise ValueError("дата рождения должна быть датой")
+            if birth_date > date.today():
+                raise ValueError("дата рождения не может быть в будущем")
+        normalized["birth_date"] = birth_date
+
+    if "weight" in fields:
+        weight = fields["weight"]
+        if weight is not None:
+            try:
+                weight = Decimal(str(weight))
+            except (ArithmeticError, ValueError) as exc:
+                raise ValueError("вес должен быть числом") from exc
+            if not weight.is_finite() or weight <= 0:
+                raise ValueError("вес должен быть положительным")
+            if weight >= Decimal("10000"):
+                raise ValueError("вес слишком большой")
+        normalized["weight"] = weight
+
+    if "known_allergies" in fields:
+        normalized["known_allergies"] = _clean_optional_text(
+            fields["known_allergies"]
+        )
+
+    if "chronic_conditions" in fields:
+        normalized["chronic_conditions"] = _clean_optional_text(
+            fields["chronic_conditions"]
+        )
+
+    return normalized
+
+
+async def create_patient(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    name: str,
+    species: str,
+    breed: str | None = None,
+    birth_date: date | None = None,
+    weight: Decimal | float | None = None,
+    known_allergies: str | None = None,
+    chronic_conditions: str | None = None,
+) -> Patient:
+    """Создать карточку питомца, принадлежащую пользователю."""
+    fields = _normalize_patient_fields(
+        {
+            "name": name,
+            "species": species,
+            "breed": breed,
+            "birth_date": birth_date,
+            "weight": weight,
+            "known_allergies": known_allergies,
+            "chronic_conditions": chronic_conditions,
+        }
+    )
+    patient = Patient(user_id=user_id, **fields)
+    session.add(patient)
+    await session.commit()
+    await session.refresh(patient)
+    return patient
+
+
+async def list_patients(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> list[Patient]:
+    """Вернуть карточки только указанного пользователя."""
+    result = await session.execute(
+        select(Patient)
+        .where(Patient.user_id == user_id)
+        .order_by(Patient.created_at, Patient.id)
+    )
+    return list(result.scalars().all())
+
+
+async def get_patient(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    patient_id: int,
+) -> Patient | None:
+    """Найти карточку пользователя по id (чужие карточки не видны)."""
+    result = await session.execute(
+        select(Patient).where(
+            Patient.id == patient_id,
+            Patient.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_patient(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    patient_id: int,
+    changes: Mapping[str, Any],
+) -> Patient | None:
+    """Дозаполнить карточку питомца.
+
+    ``changes`` содержит только переданные клиентом поля (PATCH-семантика):
+    отсутствующие ключи не меняются, явный ``None`` очищает необязательное
+    поле. Чужая карточка возвращает ``None``.
+    """
+    patient = await get_patient(session, user_id=user_id, patient_id=patient_id)
+    if patient is None:
+        return None
+
+    normalized = _normalize_patient_fields(changes)
+    for key, value in normalized.items():
+        setattr(patient, key, value)
+    patient.updated_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(patient)
+    return patient
+
+
+async def add_episode(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    patient_id: int,
+    content: str,
+    episode_type: str = "chat",
+    embedding: Sequence[float] | None = None,
+) -> Episode:
+    """Сохранить краткую выжимку эпизода в память питомца.
+
+    Raises:
+        LookupError: карточка не найдена или принадлежит другому пользователю.
+        ValueError: неверный тип, пустой/слишком длинный текст или вектор.
+    """
+    episode_type = episode_type.strip().lower()
+    if episode_type not in EPISODE_TYPES:
+        raise ValueError(f"неизвестный тип эпизода: {episode_type}")
+
+    content = content.strip()
+    if not content:
+        raise ValueError("описание эпизода не может быть пустым")
+    if len(content) > EPISODE_MAX_CONTENT_LENGTH:
+        raise ValueError(
+            f"описание эпизода длиннее {EPISODE_MAX_CONTENT_LENGTH} символов"
+        )
+
+    vector: list[float] | None = None
+    if embedding is not None:
+        vector = [float(value) for value in embedding]
+        if len(vector) != MEMORY_EMBEDDING_DIM:
+            raise ValueError(
+                f"эмбеддинг должен быть длины {MEMORY_EMBEDDING_DIM}"
+            )
+
+    patient = await get_patient(session, user_id=user_id, patient_id=patient_id)
+    if patient is None:
+        raise LookupError("питомец не найден")
+
+    episode = Episode(
+        patient_id=patient_id,
+        user_id=user_id,
+        type=episode_type,
+        content=content,
+        embedding=vector,
+    )
+    session.add(episode)
+    await session.commit()
+    await session.refresh(episode)
+    return episode
+
+
+async def list_episodes(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    patient_id: int,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[Episode]:
+    """Вернуть эпизоды питомца, новые сверху."""
+    result = await session.execute(
+        select(Episode)
+        .where(
+            Episode.user_id == user_id,
+            Episode.patient_id == patient_id,
+        )
+        .order_by(Episode.created_at.desc(), Episode.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all())
+
+
+async def count_episodes(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    patient_id: int,
+) -> int:
+    """Посчитать эпизоды питомца для пагинации."""
+    result = await session.execute(
+        select(func.count())
+        .select_from(Episode)
+        .where(
+            Episode.user_id == user_id,
+            Episode.patient_id == patient_id,
+        )
+    )
+    return int(result.scalar_one())
+
+
+def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
+    """Косинусное сходство двух векторов без numpy."""
+    if len(left) != len(right):
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right, strict=False))
+    left_norm = sqrt(sum(a * a for a in left))
+    right_norm = sqrt(sum(b * b for b in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return dot / (left_norm * right_norm)
+
+
+async def search_similar_episodes(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    patient_id: int,
+    embedding: Sequence[float],
+    limit: int = 3,
+    exclude_ids: Sequence[int] = (),
+    min_similarity: float = MEMORY_MIN_SIMILARITY,
+) -> list[Episode]:
+    """Найти эпизоды питомца, близкие к запросу, по косинусу.
+
+    На PostgreSQL используется pgvector (`<=>` + HNSW), на SQLite —
+    косинус в Python по последним ``MEMORY_SQLITE_SCAN_LIMIT`` эпизодам.
+    Эпизоды без эмбеддинга пропускаются.
+    """
+    vector = [float(value) for value in embedding]
+    if len(vector) != MEMORY_EMBEDDING_DIM:
+        raise ValueError(f"эмбеддинг должен быть длины {MEMORY_EMBEDDING_DIM}")
+
+    if session.get_bind().dialect.name == "postgresql":
+        node = cast(Any, Episode.embedding)
+        distance = node.cosine_distance(vector)
+        statement = (
+            select(Episode)
+            .where(
+                Episode.user_id == user_id,
+                Episode.patient_id == patient_id,
+                Episode.embedding.is_not(None),
+                distance <= 1.0 - min_similarity,
+            )
+            .order_by(distance)
+            .limit(limit)
+        )
+        if exclude_ids:
+            statement = statement.where(Episode.id.not_in(exclude_ids))
+        result = await session.execute(statement)
+        return list(result.scalars().all())
+
+    statement = (
+        select(Episode)
+        .where(
+            Episode.user_id == user_id,
+            Episode.patient_id == patient_id,
+            Episode.embedding.is_not(None),
+        )
+        .order_by(Episode.created_at.desc(), Episode.id.desc())
+        .limit(MEMORY_SQLITE_SCAN_LIMIT)
+    )
+    if exclude_ids:
+        statement = statement.where(Episode.id.not_in(exclude_ids))
+    result = await session.execute(statement)
+    scored: list[tuple[float, Episode]] = []
+    for episode in result.scalars().all():
+        stored = episode.embedding
+        if not stored:
+            continue
+        similarity = _cosine_similarity(vector, [float(value) for value in stored])
+        if similarity >= min_similarity:
+            scored.append((similarity, episode))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [episode for _, episode in scored[:limit]]

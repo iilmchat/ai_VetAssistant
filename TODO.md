@@ -1176,7 +1176,7 @@ T-164 — 2, T-165 — 1).
   для PostgreSQL, совместимость со SQLite и `create_all`.
 
 #### Подзадачи T-160
-- [ ] **T-160.1. Модели и repository в `app/database.py`.**
+- [x] **T-160.1. Модели и repository в `app/database.py`.**
   - `Patient`: `id`, `user_id` FK → `users.id` (`ON DELETE CASCADE`,
     индекс), `name` (≤ 120, trim), `species` (`dog`/`cat`, CHECK),
     `breed` (≤ 120, nullable), `birth_date` (Date, nullable, не в
@@ -1199,7 +1199,7 @@ T-164 — 2, T-165 — 1).
     `create_tables` дополнительно выполняет
     `CREATE EXTENSION IF NOT EXISTS vector`; типы/mypy чистые.
 
-- [ ] **T-160.2. SQL-миграция `scripts/migrations/2026-11-16_patients.sql`.**
+- [x] **T-160.2. SQL-миграция `scripts/migrations/2026-11-16_patients.sql`.**
   - `BEGIN; CREATE EXTENSION IF NOT EXISTS vector;` → `patients` →
     `episodes` → индексы (`ix_patients_user_id`,
     `ix_episodes_patient_created`, `ix_episodes_user_id`,
@@ -1215,7 +1215,7 @@ T-164 — 2, T-165 — 1).
     `pgvector/pgvector:pg16`), повторный запуск не падает; файл
     передан сисадмину.
 
-- [ ] **T-160.3. Тесты схемы и repository (`tests/test_patients_repository.py`).**
+- [x] **T-160.3. Тесты схемы и repository (`tests/test_patients_repository.py`).**
   - CRUD, каскадное удаление пользователя, `species`/`weight`/`birth_date`
     ограничения, ownership (чужой пациент не читается и не правится),
     пагинация истории, дедупликация/сортировка эпизодов, семантический
@@ -1223,13 +1223,13 @@ T-164 — 2, T-165 — 1).
     отсутствие embedding не ломает поиск.
   - DoD: тесты зелёные на SQLite; `ruff`/`mypy` чисто.
 
-### [ ] T-161. API карточек пациентов (CRUD)
+### [x] T-161. API карточек пациентов (CRUD)
 - **Зависит от:** T-160
 - **Что:** четыре эндпоинта в `app/main.py` и Pydantic-схемы; все
   запросы скоупятся `current_user.id`.
 
 #### Подзадачи T-161
-- [ ] **T-161.1. Схемы и эндпоинты.**
+- [x] **T-161.1. Схемы и эндпоинты.**
   - `PatientCreate` (`name`, `species`, `breed`, `birth_date`, `weight`,
     `known_allergies`, `chronic_conditions`), `PatientUpdate` (все поля
     optional, PATCH-семантика, явный `null` очищает поле),
@@ -1243,7 +1243,7 @@ T-164 — 2, T-165 — 1).
     новые сверху, `total` для UI.
   - DoD: OpenAPI отражает схемы; ошибки 401/404/422 единообразны.
 
-- [ ] **T-161.2. Тесты API (`tests/test_patients_api.py`).**
+- [x] **T-161.2. Тесты API (`tests/test_patients_api.py`).**
   - Изоляция пользователей (A не видит и не правит пациента B),
     пагинация и границы `limit`, пустая история, невалидные поля,
     PATCH дозаполнения, каскад после удаления пользователя.
