@@ -11,6 +11,10 @@ import type {
   ChatSettings,
   FeedbackRating,
   FeedbackStats,
+  Patient,
+  PatientHistory,
+  PatientInput,
+  PatientUpdate,
   Reminder,
   Role,
   TelegramLinkCode,
@@ -94,6 +98,7 @@ export interface StreamChatOptions {
   messages: ChatHistoryMessage[]
   settings: ChatSettings
   tools: ToolDefinition[]
+  patientId?: number | null
   signal?: AbortSignal
   baseUrl?: string
   modelId?: string
@@ -119,6 +124,7 @@ export function buildChatPayload(
   settings: ChatSettings,
   tools: ToolDefinition[],
   modelId: string = MODEL_ID,
+  patientId: number | null = null,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     model: modelId,
@@ -133,6 +139,10 @@ export function buildChatPayload(
 
   if (settings.useTools && tools.length > 0) {
     payload.tools = tools
+  }
+
+  if (patientId !== null) {
+    payload.patient_id = patientId
   }
 
   return payload
@@ -483,6 +493,58 @@ export async function fetchReminders(
   return Array.isArray(payload) ? payload : []
 }
 
+export async function fetchPatients(
+  baseUrl: string = API_BASE_URL,
+): Promise<Patient[]> {
+  const payload = await requestJson<Patient[]>('/v1/patients', {}, baseUrl)
+  return Array.isArray(payload) ? payload : []
+}
+
+export function createPatient(
+  input: PatientInput,
+  baseUrl: string = API_BASE_URL,
+): Promise<Patient> {
+  return requestJson<Patient>(
+    '/v1/patients',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    baseUrl,
+  )
+}
+
+export function updatePatient(
+  patientId: number,
+  patch: PatientUpdate,
+  baseUrl: string = API_BASE_URL,
+): Promise<Patient> {
+  return requestJson<Patient>(
+    `/v1/patients/${patientId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    },
+    baseUrl,
+  )
+}
+
+export async function fetchPatientHistory(
+  patientId: number,
+  options: { limit?: number; offset?: number } = {},
+  baseUrl: string = API_BASE_URL,
+): Promise<PatientHistory> {
+  const limit = options.limit ?? 10
+  const offset = options.offset ?? 0
+  return requestJson<PatientHistory>(
+    `/v1/patients/${patientId}/history?limit=${limit}&offset=${offset}`,
+    {},
+    baseUrl,
+  )
+}
+
 export function fetchTelegramLink(
   baseUrl: string = API_BASE_URL,
 ): Promise<TelegramLinkStatus> {
@@ -638,12 +700,13 @@ export async function* streamChat(
     messages,
     settings,
     tools,
+    patientId = null,
     signal,
     baseUrl = API_BASE_URL,
     modelId = MODEL_ID,
   } = options
 
-  const payload = buildChatPayload(messages, settings, tools, modelId)
+  const payload = buildChatPayload(messages, settings, tools, modelId, patientId)
 
   let response: Response
   try {

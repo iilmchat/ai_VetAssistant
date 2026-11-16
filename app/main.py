@@ -103,6 +103,7 @@ from app.telegram_notify import (
     send_telegram_message,
 )
 from app.tools import (
+    CREATE_PATIENT_TOOL,
     ToolCall,
     ToolDefinition,
     ToolExecutionError,
@@ -169,6 +170,13 @@ class ChatCompletionRequest(BaseModel):
         description=(
             "T-162: карточка питомца для контекста памяти; "
             "ответ сохраняется как эпизод"
+        ),
+    )
+    use_patient_tools: bool = Field(
+        default=True,
+        description=(
+            "T-163: автоматически добавлять create_patient, если "
+            "patient_id не передан"
         ),
     )
     tools: list[ToolDefinition] | None = Field(
@@ -489,7 +497,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await database.dispose()
 
 
-app = FastAPI(title="VetAssistant API", version="1.13.0", lifespan=lifespan)
+app = FastAPI(title="VetAssistant API", version="1.14.0", lifespan=lifespan)
 
 # Limiter общий с роутерами (app.rate_limit), чтобы лимиты и их счётчики жили
 # в одном месте; app.state.limiter нужен slowapi для заголовков и обработчика.
@@ -869,9 +877,64 @@ def _last_user_message(messages: Sequence[ChatMessage]) -> str | None:
     return None
 
 
+#: Явные маркеры, что пользователь рассказывает о своём питомце (T-163).
+#: Только они включают проактивное создание карточки: обычные вопросы
+#: («кот не ест», «доза для кошки») не должны менять режим стриминга.
+_PET_CONTEXT_CUES: tuple[str, ...] = (
+    "у меня",
+    "моя ",
+    "мой ",
+    "мои ",
+    "наш",
+    "наша",
+    "зовут",
+    "кличк",
+    "питом",
+    "завели",
+    "завёл",
+    "завел",
+)
+
+
+def _mentions_pet(text: str) -> bool:
+    """Похоже ли сообщение на рассказ о своём питомце (эвристика T-163).
+
+    Инструмент добавляется только при явных маркерах («у меня», «зовут»,
+    «завели» и т. п.), чтобы не переводить обычные стриминговые ответы в
+    agentic-режим и не предлагать карточку на вопрос «какая доза для кошки».
+    """
+    if not text:
+        return False
+    folded = text.casefold()
+    return any(cue in folded for cue in _PET_CONTEXT_CUES)
+
+
 def _tool_names(request: ChatCompletionRequest) -> set[str]:
     """Имена инструментов, разрешённых в текущем запросе."""
     return {tool.function.name for tool in request.tools or []}
+
+
+def _effective_tools(
+    request: ChatCompletionRequest,
+    *,
+    query: str = "",
+) -> list[ToolDefinition]:
+    """Инструменты запроса плюс create_patient для agentic-сценария (T-163).
+
+    Если карточка ещё не выбрана, пользователь упомянул питомца и клиент
+    не прислал инструмент, сервер добавляет его сам — проактивное
+    создание работает без тумблера «Инструменты». Отключается флагом
+    ``use_patient_tools=false``.
+    """
+    tools = list(request.tools or [])
+    if (
+        request.use_patient_tools
+        and request.patient_id is None
+        and _mentions_pet(query)
+        and all(tool.function.name != "create_patient" for tool in tools)
+    ):
+        tools.append(ToolDefinition.model_validate(CREATE_PATIENT_TOOL))
+    return tools
 
 
 def _generation_kwargs(request: ChatCompletionRequest) -> dict[str, Any]:
@@ -1615,6 +1678,11 @@ async def chat_completions(
     settings = get_app_settings()
     model_name = _model_name(request, settings)
     messages = build_messages(request.messages)
+    effective_request = request.model_copy(
+        update={
+            "tools": _effective_tools(request, query=user_message) or None,
+        }
+    )
 
     # T-162: память пациента добавляется после базового prompt и до RAG,
     # чтобы модель видела профиль и прошлые эпизоды рядом с правилами.
@@ -1668,8 +1736,8 @@ async def chat_completions(
                 messages = with_rag_context(messages, chunks)
                 logger.info("RAG: добавлено чанков: {}", len(chunks))
 
-    if request.tools:
-        messages = with_tools_instruction(messages, request.tools)
+    if effective_request.tools:
+        messages = with_tools_instruction(messages, effective_request.tools)
 
     # Инструкция добавляется последней, чтобы модель прочитала её после RAG.
     if triage["is_emergency"]:
@@ -1689,7 +1757,7 @@ async def chat_completions(
             _stream_with_memory(
                 backend,
                 messages,
-                request,
+                effective_request,
                 model_name,
                 database=database,
                 user_id=current_user.id,
@@ -1707,7 +1775,7 @@ async def chat_completions(
     response = await _complete(
         backend,
         messages,
-        request,
+        effective_request,
         model_name,
         database=database,
         user_id=current_user.id,

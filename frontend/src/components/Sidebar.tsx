@@ -21,6 +21,7 @@ import type {
   ApiStatus,
   Appointment,
   ChatSettings,
+  Patient,
   Reminder,
 } from '../types'
 import { formatAppointmentMoment } from '../lib/format'
@@ -39,6 +40,14 @@ interface SidebarProps {
   onExportHistory: () => void
   appointments: Appointment[]
   reminders: Reminder[]
+  patients: Patient[]
+  patientsLoading: boolean
+  patientsError: string | null
+  activePatientId: number | null
+  onSelectPatient: (patientId: number | null) => void
+  onOpenPatientCard: () => void
+  onCreatePatient: () => void
+  onRefreshPatients: () => void
   recordsLoading: boolean
   recordsError: string | null
   onRefreshRecords: () => void
@@ -80,6 +89,14 @@ export function Sidebar({
   onExportHistory,
   appointments,
   reminders,
+  patients,
+  patientsLoading,
+  patientsError,
+  activePatientId,
+  onSelectPatient,
+  onOpenPatientCard,
+  onCreatePatient,
+  onRefreshPatients,
   recordsLoading,
   recordsError,
   onRefreshRecords,
@@ -91,6 +108,8 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const { t, i18n } = useTranslation()
+  const activePatient =
+    patients.find((patient) => patient.id === activePatientId) ?? null
 
   return (
     <>
@@ -168,6 +187,94 @@ export function Sidebar({
         )}
 
         <div className="mt-5 flex-1 space-y-6 overflow-y-auto px-3 pb-4">
+          <section>
+            <div className="mb-2.5 flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <PawPrint className="h-3.5 w-3.5 text-ink-muted" />
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
+                  {t('patient.pickerLabel')}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={onRefreshPatients}
+                disabled={patientsLoading}
+                aria-label={t('patient.refresh')}
+                className="rounded-md p-1 text-ink-muted transition-colors hover:bg-hover hover:text-ink disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${patientsLoading ? 'animate-spin' : ''}`}
+                />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-line-soft bg-tint p-3">
+              <div className="flex items-center gap-2">
+                <select
+                  aria-label={t('patient.pickerLabel')}
+                  value={activePatientId ?? ''}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    onSelectPatient(value ? Number(value) : null)
+                  }}
+                  disabled={patientsLoading && patients.length === 0}
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-2.5 py-2 text-[12.5px] text-ink outline-none transition-colors focus:border-emerald-500/40 disabled:opacity-60"
+                >
+                  <option value="">{t('patient.noPatient')}</option>
+                  {patients.map((patient) => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.name} ·{' '}
+                      {patient.species === 'cat'
+                        ? t('patient.cat')
+                        : t('patient.dog')}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={onCreatePatient}
+                  aria-label={t('patient.add')}
+                  title={t('patient.add')}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-accent transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/15"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              {patientsError ? (
+                <p className="mt-2 text-[10.5px] leading-4 text-danger">
+                  {patientsError}
+                </p>
+              ) : patientsLoading && patients.length === 0 ? (
+                <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-ink-muted">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {t('patient.loading')}
+                </p>
+              ) : patients.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={onCreatePatient}
+                  className="mt-2 w-full rounded-lg border border-dashed border-line px-2.5 py-2 text-left text-[10.5px] leading-4 text-ink-muted transition-colors hover:border-emerald-500/30 hover:text-ink-soft"
+                >
+                  {t('patient.emptyHint')}
+                </button>
+              ) : activePatient ? (
+                <button
+                  type="button"
+                  onClick={onOpenPatientCard}
+                  className="mt-2 flex w-full items-center justify-between gap-2 rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-ink-soft transition-colors hover:border-emerald-500/25 hover:bg-hover hover:text-ink"
+                >
+                  <span className="truncate">
+                    {activePatient.breed || t('patient.openCard')}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-accent">
+                    {t('patient.cardAction')}
+                  </span>
+                </button>
+              ) : null}
+            </div>
+          </section>
+
           <section>
             <div className="mb-2.5 flex items-center gap-2 px-1">
               <SlidersHorizontal className="h-3.5 w-3.5 text-ink-muted" />

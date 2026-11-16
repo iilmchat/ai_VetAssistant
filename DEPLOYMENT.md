@@ -1141,6 +1141,83 @@ WAU. Данные берутся из Prometheus по метрике `vet_llm_us
 `"source": "unavailable"` и пустым рядом — админка показывает «История
 активности недоступна», остальная аналитика работает.
 
+### Память и карточки пациентов (T-160…T-164)
+
+**1. БД с pgvector.** В образе `postgres:16-alpine` нет расширения
+`vector`. Перед деплоем v1.14.0 переведите сервис `db` на
+`pgvector/pgvector:pg16` (тот же major PostgreSQL 16, volume
+`postgres_data` совместим):
+
+```bash
+cd /srv/vetassistant
+mkdir -p backups
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+  > "backups/pre-v1.14.0-$(date +%F).sql"
+
+# в репозитории уже image: pgvector/pgvector:pg16
+# (docker-compose.edge.yml); на сервере образ обновится после git pull
+docker compose -f docker-compose.edge.yml stop api db
+docker compose -f docker-compose.edge.yml up -d db
+```
+
+Проверьте, что данные на месте:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) FROM users;"'
+```
+
+**2. Миграция.** Применяется до запуска новой версии API:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < scripts/migrations/2026-11-16_patients.sql
+```
+
+Проверки:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dx vector" \
+         -c "\d patients" -c "\d episodes"'
+```
+
+Ожидается расширение `vector`, таблицы `patients`/`episodes` и тип
+`embedding = vector(384)`.
+
+**3. API.** Поднимите новую версию и проверьте чат с карточкой:
+
+```bash
+docker compose -f docker-compose.edge.yml up -d api
+curl -fsS https://app.ai-pets.ru/api/health
+```
+
+В веб-интерфейсе: сайдбар → «Мой питомец» → «＋» → заполнить карточку →
+задать вопрос. В system prompt попадут профиль и история; после ответа
+в `episodes` появится запись:
+
+```bash
+docker compose -f docker-compose.edge.yml exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+         -c "SELECT id, patient_id, type, length(content) FROM episodes ORDER BY id DESC LIMIT 5;"'
+```
+
+**4. Откат.** Если API не стартует, верните предыдущий тег и (при
+необходимости) удалите новые таблицы:
+
+```sql
+BEGIN;
+DROP TABLE IF EXISTS episodes;
+DROP TABLE IF EXISTS patients;
+COMMIT;
+```
+
+Расширение `vector` можно оставить: оно не мешает старой версии.
+Карточки и эпизоды при откате теряются — поэтому бэкап из шага 1
+обязателен.
+
 ## 9. Проверка после запуска
 
 ```bash

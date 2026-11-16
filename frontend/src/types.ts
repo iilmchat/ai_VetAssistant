@@ -61,6 +61,55 @@ export interface Reminder {
   time: string
 }
 
+export type PatientSpecies = 'dog' | 'cat'
+
+export interface Patient {
+  id: number
+  name: string
+  species: PatientSpecies
+  breed: string | null
+  birth_date: string | null
+  weight: number | null
+  known_allergies: string | null
+  chronic_conditions: string | null
+  age_years: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PatientInput {
+  name: string
+  species: PatientSpecies
+  breed?: string | null
+  birth_date?: string | null
+  weight?: number | null
+  known_allergies?: string | null
+  chronic_conditions?: string | null
+}
+
+export type PatientUpdate = Partial<PatientInput>
+
+export type PatientEpisodeType =
+  | 'chat'
+  | 'appointment'
+  | 'reminder'
+  | 'manual'
+
+export interface PatientEpisode {
+  id: number
+  patient_id: number
+  type: PatientEpisodeType
+  content: string
+  created_at: string
+}
+
+export interface PatientHistory {
+  items: PatientEpisode[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export type ApiStatus = 'checking' | 'online' | 'offline'
 
 export interface TelegramLinkStatus {

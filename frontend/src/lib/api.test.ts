@@ -4,6 +4,7 @@ import {
   blockAdminUser,
   buildChatPayload,
   changePassword,
+  createPatient,
   createTelegramLinkCode,
   deleteAdminUser,
   fetchAdminAccessRequests,
@@ -11,6 +12,8 @@ import {
   fetchAdminMetrics,
   fetchAdminUsers,
   fetchFeedbackStats,
+  fetchPatientHistory,
+  fetchPatients,
   fetchTelegramLink,
   normalizeBaseUrl,
   parseSSEEvent,
@@ -19,6 +22,7 @@ import {
   setAuthToken,
   submitFeedback,
   unlinkTelegram,
+  updatePatient,
 } from './api'
 import { AVAILABLE_TOOLS } from './tools'
 import type { ChatSettings } from '../types'
@@ -76,6 +80,28 @@ describe('buildChatPayload', () => {
     )
 
     expect(payload).not.toHaveProperty('tools')
+  })
+
+  it('добавляет patient_id, если выбран питомец', () => {
+    const payload = buildChatPayload(
+      [{ role: 'user', content: 'Сыпь' }],
+      settings,
+      AVAILABLE_TOOLS,
+      'qwen3-8b-vet',
+      42,
+    )
+
+    expect(payload.patient_id).toBe(42)
+  })
+
+  it('не добавляет patient_id без выбранного питомца', () => {
+    const payload = buildChatPayload(
+      [{ role: 'user', content: 'Сыпь' }],
+      settings,
+      AVAILABLE_TOOLS,
+    )
+
+    expect(payload).not.toHaveProperty('patient_id')
   })
 })
 
@@ -667,6 +693,108 @@ describe('admin activity API', () => {
     expect(result.wau).toBe(0)
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       'http://127.0.0.1:8000/v1/admin/activity?window=30d',
+    )
+  })
+})
+
+describe('patients API', () => {
+  const patient = {
+    id: 7,
+    name: 'Бобик',
+    species: 'dog',
+    breed: 'Корги',
+    birth_date: '2020-05-01',
+    weight: 12.5,
+    known_allergies: 'курица',
+    chronic_conditions: null,
+    age_years: 6,
+    created_at: '2026-11-16T10:00:00Z',
+    updated_at: '2026-11-16T10:00:00Z',
+  }
+
+  it('fetchPatients запрашивает список с Bearer-токеном', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([patient]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    setAuthToken('jwt-token')
+
+    const result = await fetchPatients()
+
+    expect(result).toEqual([patient])
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe('http://127.0.0.1:8000/v1/patients')
+    expect((init as RequestInit).headers).toBeInstanceOf(Headers)
+    expect(
+      ((init as RequestInit).headers as Headers).get('Authorization'),
+    ).toBe('Bearer jwt-token')
+  })
+
+  it('createPatient отправляет POST с полями карточки', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(patient), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await createPatient({
+      name: 'Бобик',
+      species: 'dog',
+      breed: 'Корги',
+    })
+
+    expect(result.id).toBe(7)
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe('http://127.0.0.1:8000/v1/patients')
+    expect((init as RequestInit).method).toBe('POST')
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      name: 'Бобик',
+      species: 'dog',
+      breed: 'Корги',
+    })
+  })
+
+  it('updatePatient отправляет PATCH на карточку', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(patient), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await updatePatient(7, { weight: 13 })
+
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe('http://127.0.0.1:8000/v1/patients/7')
+    expect((init as RequestInit).method).toBe('PATCH')
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      weight: 13,
+    })
+  })
+
+  it('fetchPatientHistory передаёт limit и offset', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ items: [], total: 0, limit: 5, offset: 10 }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const page = await fetchPatientHistory(7, { limit: 5, offset: 10 })
+
+    expect(page).toEqual({ items: [], total: 0, limit: 5, offset: 10 })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8000/v1/patients/7/history?limit=5&offset=10',
     )
   })
 })

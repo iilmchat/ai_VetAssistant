@@ -3,6 +3,7 @@ import {
   BellRing,
   CalendarCheck2,
   Check,
+  PawPrint,
   Wrench,
 } from 'lucide-react'
 import type { ToolCall } from '../types'
@@ -33,6 +34,9 @@ function ToolIcon({ kind }: { kind: ToolKind }) {
   }
   if (kind === 'bell') {
     return <BellRing className="h-4 w-4" />
+  }
+  if (kind === 'paw') {
+    return <PawPrint className="h-4 w-4" />
   }
   return <Wrench className="h-4 w-4" />
 }

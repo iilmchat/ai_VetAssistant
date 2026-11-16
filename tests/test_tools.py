@@ -12,6 +12,7 @@ from app.database import Database, User, create_user, list_appointments, list_re
 from app.tools import (
     AVAILABLE_TOOLS,
     BOOK_APPOINTMENT_TOOL,
+    CREATE_PATIENT_TOOL,
     SET_REMINDER_TOOL,
     TOOL_NAMES,
     ToolDefinition,
@@ -45,15 +46,18 @@ async def user(database: Database) -> User:
 
 
 def test_default_tools_have_expected_names_and_required_fields() -> None:
-    assert {"book_appointment", "set_reminder"} == TOOL_NAMES
+    assert {"book_appointment", "set_reminder", "create_patient"} == TOOL_NAMES
 
     appointment = BOOK_APPOINTMENT_TOOL["function"]
     reminder = SET_REMINDER_TOOL["function"]
+    patient = CREATE_PATIENT_TOOL["function"]
     assert appointment["name"] == "book_appointment"
     assert appointment["parameters"]["required"] == ["date", "time", "pet_name"]
     assert reminder["name"] == "set_reminder"
     assert reminder["parameters"]["required"] == ["time", "text"]
-    assert len(AVAILABLE_TOOLS) == 2
+    assert patient["name"] == "create_patient"
+    assert patient["parameters"]["required"] == ["name", "species"]
+    assert len(AVAILABLE_TOOLS) == 3
 
 
 def test_parse_qwen_tool_call_block() -> None:

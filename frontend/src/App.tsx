@@ -15,6 +15,7 @@ import type {
   Appointment,
   ChatSettings,
   FeedbackRating,
+  Patient,
   Reminder,
   ToolCall,
   UiMessage,
@@ -24,6 +25,7 @@ import {
   fetchAppointments,
   fetchCurrentUser,
   fetchHealth,
+  fetchPatients,
   fetchReminders,
   setAuthToken,
   streamChat,
@@ -36,7 +38,13 @@ import {
   saveAuthSession,
 } from './lib/auth'
 import type { AuthSession } from './lib/auth'
-import { AVAILABLE_TOOLS, mergeToolCalls } from './lib/tools'
+import { AVAILABLE_TOOLS, mergeToolCalls, parseToolArguments } from './lib/tools'
+import {
+  findPatientByName,
+  readActivePatientId,
+  resolveActivePatientId,
+  saveActivePatientId,
+} from './lib/patients'
 import { downloadChatExport } from './lib/export'
 import { isFocusComposerHotkey } from './lib/hotkeys'
 import { watchTheme } from './lib/theme'
@@ -48,6 +56,7 @@ import { Welcome } from './components/Welcome'
 import { AuthScreen } from './components/AuthScreen'
 import { ChangePasswordDialog } from './components/ChangePasswordDialog'
 import { SettingsDialog } from './components/SettingsDialog'
+import { PatientCardDialog } from './components/PatientCardDialog'
 import { AdminDashboard } from './components/AdminDashboard'
 import { AdminI18nProvider } from './components/AdminI18nProvider'
 
@@ -138,6 +147,13 @@ function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [patientsLoading, setPatientsLoading] = useState(true)
+  const [patientsError, setPatientsError] = useState<string | null>(null)
+  const [activePatientId, setActivePatientId] = useState<number | null>(null)
+  const [patientDialog, setPatientDialog] = useState<{
+    patient: Patient | null
+  } | null>(null)
   const [recordsLoading, setRecordsLoading] = useState(true)
   const [recordsError, setRecordsError] = useState<string | null>(null)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
@@ -174,6 +190,11 @@ function App() {
     setFeedbackError(null)
     setAppointments([])
     setReminders([])
+    setPatients([])
+    setActivePatientId(null)
+    setPatientDialog(null)
+    setPatientsError(null)
+    setPatientsLoading(true)
     setRecordsError(null)
     setRecordsLoading(true)
     setSidebarOpen(false)
@@ -236,6 +257,58 @@ function App() {
       setRecordsLoading(false)
     }
   }, [session, handleLogout])
+
+  const refreshPatients = useCallback(
+    async (options?: { selectName?: string }) => {
+      if (!session) {
+        return
+      }
+      setPatientsLoading(true)
+      try {
+        const next = await fetchPatients()
+        setPatients(next)
+        setPatientsError(null)
+
+        if (options?.selectName) {
+          const created = findPatientByName(next, options.selectName)
+          if (created) {
+            setActivePatientId(created.id)
+            saveActivePatientId(session.user.id, created.id)
+            return
+          }
+        }
+
+        setActivePatientId((previous) => {
+          const stored = previous ?? readActivePatientId(session.user.id)
+          const resolved = resolveActivePatientId(stored, next)
+          if (resolved !== stored) {
+            saveActivePatientId(session.user.id, resolved)
+          }
+          return resolved
+        })
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleLogout()
+          return
+        }
+        if (!isAbortError(error)) {
+          setPatientsError(errorMessage(error))
+        }
+      } finally {
+        setPatientsLoading(false)
+      }
+    },
+    [session, handleLogout],
+  )
+
+  useEffect(() => {
+    if (!session) {
+      return
+    }
+    // oxlint-disable-next-line react/set-state-in-effect
+    setActivePatientId(readActivePatientId(session.user.id))
+    void refreshPatients()
+  }, [session, refreshPatients])
 
   useEffect(() => {
     setAuthToken(session?.access_token ?? null)
@@ -451,6 +524,7 @@ function App() {
         messages: history,
         settings,
         tools: AVAILABLE_TOOLS,
+        patientId: activePatientId,
         signal: controller.signal,
       })) {
         if (event.done) {
@@ -479,6 +553,14 @@ function App() {
 
       if (toolCalls.length > 0) {
         void loadRecords()
+        const created = toolCalls.find(
+          (call) => call.function.name === 'create_patient',
+        )
+        if (created) {
+          const args = parseToolArguments(created.function.arguments)
+          const name = typeof args.name === 'string' ? args.name : ''
+          void refreshPatients({ selectName: name })
+        }
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -592,6 +674,29 @@ function App() {
         onExportHistory={handleExportHistory}
         appointments={appointments}
         reminders={reminders}
+        patients={patients}
+        patientsLoading={patientsLoading}
+        patientsError={patientsError}
+        activePatientId={activePatientId}
+        onSelectPatient={(patientId) => {
+          setActivePatientId(patientId)
+          if (session) {
+            saveActivePatientId(session.user.id, patientId)
+          }
+        }}
+        onOpenPatientCard={() => {
+          const active =
+            patients.find((patient) => patient.id === activePatientId) ?? null
+          if (active) {
+            setPatientDialog({ patient: active })
+          } else {
+            setPatientDialog({ patient: null })
+          }
+        }}
+        onCreatePatient={() => setPatientDialog({ patient: null })}
+        onRefreshPatients={() => {
+          void refreshPatients()
+        }}
         recordsLoading={recordsLoading}
         recordsError={recordsError}
         onRefreshRecords={() => {
@@ -627,6 +732,22 @@ function App() {
         <ChangePasswordDialog
           onClose={() => setPasswordDialogOpen(false)}
           onPasswordChanged={handlePasswordChanged}
+        />
+      )}
+
+      {patientDialog && (
+        <PatientCardDialog
+          key={patientDialog.patient?.id ?? 'new-patient'}
+          patient={patientDialog.patient}
+          onClose={() => setPatientDialog(null)}
+          onSaved={(saved) => {
+            setPatientDialog(null)
+            setActivePatientId(saved.id)
+            if (session) {
+              saveActivePatientId(session.user.id, saved.id)
+            }
+            void refreshPatients()
+          }}
         />
       )}
 

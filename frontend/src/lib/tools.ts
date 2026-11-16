@@ -125,7 +125,7 @@ export function mergeToolCalls(
 }
 
 export type ToolTone = 'success' | 'warning' | 'neutral'
-export type ToolKind = 'calendar' | 'bell' | 'wrench'
+export type ToolKind = 'calendar' | 'bell' | 'paw' | 'wrench'
 
 /** Минимальный контракт перевода: хватает и `i18n.t`, и `t` из useTranslation. */
 export type Translate = (
@@ -189,6 +189,24 @@ export function presentToolCall(
       details: details || t('toolCall.reminderFallback'),
       tone: 'warning',
       kind: 'bell',
+    }
+  }
+
+  if (call.function.name === 'create_patient') {
+    const petName = stringArg(args, 'name')
+    const species = stringArg(args, 'species')
+    const speciesLabel =
+      species === 'cat'
+        ? t('patient.cat')
+        : species === 'dog'
+          ? t('patient.dog')
+          : undefined
+    const details = [petName, speciesLabel].filter(Boolean).join(' · ')
+    return {
+      title: t('toolCall.patientTitle'),
+      details: details || t('toolCall.patientFallback'),
+      tone: 'success',
+      kind: 'paw',
     }
   }
 

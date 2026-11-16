@@ -4,6 +4,66 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.14.0] — 2026-11-16
+
+Память и карточки пациентов (T-160…T-164): ассистент помнит питомцев,
+историю эпизодов и релевантные прошлые обсуждения, умеет сам предложить
+создать карточку питомца.
+
+### Добавлено
+
+- **T-160 — схема БД.** Таблицы `patients` и `episodes` в SQLAlchemy 2.0:
+  вид (dog/cat), порода, дата рождения, вес, аллергии, хронические болезни;
+  эпизоды с типом (`chat`/`appointment`/`reminder`/`manual`), выжимкой
+  ≤ 500 символов и эмбеддингом `vector(384)` (pgvector, HNSW
+  `vector_cosine_ops`). Для SQLite — JSON-фолбэк, чтобы тесты шли без
+  pgvector. Каскадное удаление вместе с пользователем; миграция
+  `scripts/migrations/2026-11-16_patients.sql`.
+- **T-161 — API карточек.** `GET /v1/patients`, `POST /v1/patients`,
+  `PATCH /v1/patients/{id}`, `GET /v1/patients/{id}/history?limit&offset`.
+  PATCH-семантика с дозаполнением, `age_years` в ответе, пагинация истории
+  с `total`. Чужой пациент → 404, все запросы изолированы по `user_id`.
+- **T-162 — Memory Router.** `app/memory.py`: профиль + последние 5
+  эпизодов + до 3 семантически близких (`search_similar_episodes`,
+  pgvector `<=>` / косинус на SQLite), дедупликация, бюджет 1200 символов.
+  После ответа сохраняется выжимка (вопрос ≤ 300 + ответ ≤ 200). Стрим
+  сохраняет эпизод в `finally`; ошибки памяти не ломают чат. Метрики
+  `vet_memory_context_total`, `vet_memory_episode_saved_total`,
+  `vet_memory_context_seconds`.
+- **T-163 — agentic-создание.** Инструмент `create_patient`
+  (`name`, `species`, `breed`, `age`), проверка дубликатов по кличке и
+  виду, `age` → приблизительная дата рождения. Сервер добавляет инструмент
+  и проактивную инструкцию, если `patient_id` не передан и сообщение
+  содержит явные маркеры («у меня», «зовут», «завели»); отключается
+  флагом `use_patient_tools=false`.
+- **T-164 — UI.** Селектор «Мой питомец» в сайдбаре, модалка «Карточка
+  питомца» (просмотр/редактирование, история с пагинацией), `patient_id`
+  во всех запросах чата, сохранение выбора в `localStorage`, автообновление
+  и автовыбор после `create_patient` из чата. i18n RU/EN.
+
+### Изменено
+
+- Версия `1.14.0` в `pyproject.toml`, `app/main.py`,
+  `frontend/package.json`, `frontend/package-lock.json`, README и
+  `tests/test_deployment.py`.
+- `DELETE` пользователя явно удаляет его эпизоды и карточки (не зависит
+  от `PRAGMA foreign_keys` в SQLite).
+- Добавлена зависимость `pgvector>=0.3.0`; PostgreSQL при старте API
+  получает `CREATE EXTENSION IF NOT EXISTS vector`.
+
+### Инфраструктура
+
+- Прод-БД переводится на `pgvector/pgvector:pg16` — в `postgres:16-alpine`
+  нет расширения `vector`. Миграция применяется до деплоя, порядок и
+  проверки — в `DEPLOYMENT.md`.
+- Retention эпизодов 180 дней вынесен в T-166 (v1.15.0).
+
+### Проверено
+
+- Python: `pytest` — 921 тест; `ruff check .` и `mypy app` — чисто.
+- Frontend: `npm run test` — 114 тестов; `npm run lint` и `npm run build` —
+  без ошибок.
+
 ## [1.13.0] — 2026-11-16
 
 Каркас DPO-датасета из оценок 👍/👎 (T-155) и расширение RAG десятью

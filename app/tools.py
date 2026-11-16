@@ -14,15 +14,18 @@ import json
 import re
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
+from datetime import date, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import book_appointment as create_appointment
+from app.database import create_patient as create_patient_record
+from app.database import list_patients
 from app.database import set_reminder as create_reminder
 
-ToolName = Literal["book_appointment", "set_reminder"]
+ToolName = Literal["book_appointment", "set_reminder", "create_patient"]
 
 #: Инструмент записи питомца на приём.
 BOOK_APPOINTMENT_TOOL: dict[str, Any] = {
@@ -76,10 +79,49 @@ SET_REMINDER_TOOL: dict[str, Any] = {
     },
 }
 
+#: Инструмент создания карточки питомца (T-163).
+CREATE_PATIENT_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "create_patient",
+        "description": (
+            "Создать карточку питомца, если пользователь упомянул его, "
+            "но карточки ещё нет. Не вызывай без имени и вида."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Кличка питомца.",
+                },
+                "species": {
+                    "type": "string",
+                    "enum": ["dog", "cat"],
+                    "description": "Вид: dog — собака, cat — кошка.",
+                },
+                "breed": {
+                    "type": "string",
+                    "description": "Порода, если пользователь её назвал.",
+                },
+                "age": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 40,
+                    "description": "Возраст в полных годах, если известен.",
+                },
+            },
+            "required": ["name", "species"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 #: Все инструменты, доступные UI по умолчанию.
 AVAILABLE_TOOLS: tuple[dict[str, Any], ...] = (
     BOOK_APPOINTMENT_TOOL,
     SET_REMINDER_TOOL,
+    CREATE_PATIENT_TOOL,
 )
 
 #: Имена инструментов для валидации ответа модели.
@@ -177,6 +219,29 @@ def _required_string(arguments: dict[str, Any], name: str) -> str:
     return value.strip()
 
 
+def _optional_string(arguments: dict[str, Any], name: str) -> str | None:
+    """Взять необязательный строковый аргумент (пустая строка → None)."""
+    value = arguments.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ToolExecutionError(f"параметр {name} должен быть строкой")
+    value = value.strip()
+    return value or None
+
+
+def _optional_age(arguments: dict[str, Any]) -> int | None:
+    """Взять возраст в годах (0…40) из аргументов инструмента."""
+    value = arguments.get("age")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ToolExecutionError("возраст должен быть целым числом лет")
+    if not 0 <= value <= 40:
+        raise ToolExecutionError("возраст должен быть от 0 до 40 лет")
+    return value
+
+
 def _pet_name_accusative(name: str) -> str:
     """Простая эвристика для фразы «Записали <кличку в винительном>»."""
     lower = name.lower()
@@ -207,6 +272,44 @@ async def execute_tool(
         ToolExecutionError: неизвестный инструмент или некорректные аргументы.
     """
     parsed = parse_tool_arguments(arguments)
+
+    if name == "create_patient":
+        patient_name = _required_string(parsed, "name")
+        species = _required_string(parsed, "species").casefold()
+        if species not in ("dog", "cat"):
+            raise ToolExecutionError("вид питомца должен быть dog или cat")
+        breed = _optional_string(parsed, "breed")
+        age = _optional_age(parsed)
+
+        # Не создаём дубликат, если карточка с такой кличкой и видом уже есть.
+        existing_patients = await list_patients(session, user_id=user_id)
+        for existing in existing_patients:
+            if (
+                existing.name.casefold() == patient_name.casefold()
+                and existing.species == species
+            ):
+                return {
+                    "status": "exists",
+                    "patient_id": str(existing.id),
+                    "message": f"Карточка {existing.name} уже существует",
+                }
+
+        birth_date = (
+            date.today() - timedelta(days=age * 365) if age is not None else None
+        )
+        patient = await create_patient_record(
+            session,
+            user_id=user_id,
+            name=patient_name,
+            species=species,
+            breed=breed,
+            birth_date=birth_date,
+        )
+        return {
+            "status": "success",
+            "patient_id": str(patient.id),
+            "message": f"Карточка {patient.name} создана",
+        }
 
     if name == "book_appointment":
         appointment = await create_appointment(
@@ -244,12 +347,21 @@ def build_tools_instruction(tools: Sequence[ToolDefinition]) -> str:
     names = ", ".join(tool.function.name for tool in tools)
     if not names:
         return ""
+    tool_names = {tool.function.name for tool in tools}
+    patient_rule = ""
+    if "create_patient" in tool_names:
+        patient_rule = (
+            " Если пользователь упоминает питомца, но карточки ещё нет, предложи "
+            "создать её: спроси имя, вид и возраст и вызови create_patient. "
+            "Не выдумывай кличку, вид или возраст."
+        )
     return (
         f"Тебе доступны инструменты: {names}. "
         "Если пользователь просит записать питомца на приём или создать напоминание, "
         "верни ТОЛЬКО JSON-объект без markdown и пояснений в формате "
         '{"name": "<имя инструмента>", "arguments": {...}}. '
         "Не выдумывай дату, время или кличку, если пользователь их не указал."
+        f"{patient_rule}"
     )
 
 
