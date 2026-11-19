@@ -34,6 +34,7 @@ RU/EN в админке больше не меняет язык чата (T-154.
 
 - **Telegram:** отдельный процесс/контейнер `bot`; запись питомца на приём и напоминания прямо из чата; привязка к веб-аккаунту по одноразовому коду (`/link`), уведомления в чат и доступ в production — только по allowlist Telegram ID
 - **Web:** React 19 + Vite + TypeScript + Tailwind CSS — SSE-чат в стиле ChatGPT, настройки и «Мои записи»
+- **Мобильное (Android/RuStore):** нативного приложения пока нет — работает адаптивный веб и Telegram-бот. Дорожная карта PWA → Capacitor → публикация в RuStore: [ANDROID_RUSTORE_ROADMAP.md](docs/development/ANDROID_RUSTORE_ROADMAP.md)
 - **Локализация (T-153):** RU/EN через `react-i18next`, мгновенное переключение, выбор в `localStorage`, даты через `Intl.DateTimeFormat`
 - **UI/UX (T-154):** светлая / тёмная / системная тема (`vetassistant.theme`), хоткеи Ctrl/Cmd+K, Ctrl+Enter и Esc, мобильный drawer, индикатор отправки
 - **Экспорт:** история диалога скачивается в Markdown одной кнопкой
@@ -60,7 +61,7 @@ RU/EN в админке больше не меняет язык чата (T-154.
 - **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 - **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
-**Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md)
+**Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md) · [Roadmap Android/RuStore](docs/development/ANDROID_RUSTORE_ROADMAP.md)
 
 ## 🌐 Архитектура доменов
 

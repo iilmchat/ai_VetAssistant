@@ -4,6 +4,15 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Unreleased]
+
+### Документация
+
+- Добавлена дорожная карта Android-приложения и публикации в RuStore
+  (T-175…T-191): аудит текущего состояния, сравнение PWA/TWA/Capacitor/Kotlin,
+  требования RuStore, спринты, риски и Definition of Done —
+  `docs/development/ANDROID_RUSTORE_ROADMAP.md`.
+
 ## [1.14.2] — 2026-11-17
 
 Патч логики памяти, `create_patient`, анти-галлюцинаций и связи записей
