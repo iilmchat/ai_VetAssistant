@@ -75,6 +75,10 @@ jobs:
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)"
           yes | "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Set up Gradle cache
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Decode signing keystore
         if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         env:
