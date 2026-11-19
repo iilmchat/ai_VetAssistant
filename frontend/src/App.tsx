@@ -32,10 +32,8 @@ import {
   submitFeedback,
 } from './lib/api'
 import {
-  clearAuthSession,
-  loadAuthSession,
   messagesStorageKey,
-  saveAuthSession,
+  persistAuthSession,
 } from './lib/auth'
 import type { AuthSession } from './lib/auth'
 import { AVAILABLE_TOOLS, mergeToolCalls, parseToolArguments } from './lib/tools'
@@ -45,6 +43,7 @@ import {
   resolveActivePatientId,
   saveActivePatientId,
 } from './lib/patients'
+import { registerNativeBack } from './lib/native'
 import { downloadChatExport } from './lib/export'
 import { isFocusComposerHotkey } from './lib/hotkeys'
 import { watchTheme } from './lib/theme'
@@ -122,7 +121,12 @@ function loadStoredMessages(userId: number | null): UiMessage[] {
   }
 }
 
-function App() {
+interface AppProps {
+  /** Сессия, восстановленная из 안전ного хранилища до первого рендера. */
+  initialSession?: AuthSession | null
+}
+
+function App({ initialSession = null }: AppProps) {
   const { t } = useTranslation()
 
   function apiStatusLabel(status: ApiStatus): string {
@@ -135,11 +139,9 @@ function App() {
     return t('app.apiChecking')
   }
 
-  const [session, setSession] = useState<AuthSession | null>(() =>
-    loadAuthSession(),
-  )
+  const [session, setSession] = useState<AuthSession | null>(initialSession)
   const [messages, setMessages] = useState<UiMessage[]>(() =>
-    loadStoredMessages(loadAuthSession()?.user.id ?? null),
+    loadStoredMessages(initialSession?.user.id ?? null),
   )
   const [input, setInput] = useState('')
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS)
@@ -182,7 +184,7 @@ function App() {
     abortRef.current = null
     refreshedTokenRef.current = null
     setAuthToken(null)
-    clearAuthSession()
+    void persistAuthSession(null)
     setSession(null)
     setMessages([])
     setInput('')
@@ -206,7 +208,7 @@ function App() {
 
   const handleAuthenticated = useCallback((next: AuthSession) => {
     setAuthToken(next.access_token)
-    saveAuthSession(next)
+    void persistAuthSession(next)
     setSession(next)
     setMessages(loadStoredMessages(next.user.id))
     setFeedbackRatings({})
@@ -314,9 +316,9 @@ function App() {
   useEffect(() => {
     setAuthToken(session?.access_token ?? null)
     if (session) {
-      // Держим localStorage в актуальном состоянии после /auth/me:
-      // старые сессии могли быть сохранены до появления is_admin.
-      saveAuthSession(session)
+      // Держим хранилище актуальным после /auth/me: старые сессии могли
+      // быть сохранены до появления is_admin.
+      void persistAuthSession(session)
     }
   }, [session])
 
@@ -428,6 +430,41 @@ function App() {
       stopWatchingTheme()
     }
   }, [passwordDialogOpen, settingsOpen, sidebarOpen])
+
+  useEffect(() => {
+    // T-180: системная «Назад» закрывает модалки/drawer, иначе — браузер.
+    let removeListener: () => void = () => {}
+    void registerNativeBack(() => {
+      if (patientDialog) {
+        setPatientDialog(null)
+        return true
+      }
+      if (settingsOpen) {
+        setSettingsOpen(false)
+        return true
+      }
+      if (passwordDialogOpen) {
+        setPasswordDialogOpen(false)
+        return true
+      }
+      if (adminOpen) {
+        setAdminOpen(false)
+        return true
+      }
+      if (sidebarOpen) {
+        setSidebarOpen(false)
+        return true
+      }
+      if (window.history.length > 1) {
+        window.history.back()
+        return true
+      }
+      return false
+    }).then((cleanup) => {
+      removeListener = cleanup
+    })
+    return () => removeListener()
+  }, [adminOpen, passwordDialogOpen, patientDialog, settingsOpen, sidebarOpen])
 
   useEffect(() => {
     if (!session) {
@@ -664,7 +701,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-app text-ink">
+    <div className="flex h-dvh w-full box-border overflow-hidden bg-app text-ink pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

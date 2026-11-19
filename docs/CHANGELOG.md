@@ -11,6 +11,10 @@
 - **Спринт 0 мобильного roadmap (T-175…T-178):** PWA-манифест, иконки
   192/512, Service Worker с кэшем оболочки (без кэша API), кнопка
   «Установить», Origin прода в CORS, чек-лист мобильного QA.
+- **Спринт 1 (T-179…T-182):** Capacitor 8 проект и Android-оболочка
+  (свои launcher/splash-иконки, статус-бар, safe-area, кнопка «Назад»),
+  JWT в Preferences на Android, подпись через CI-секреты, Android job в CI
+  и загрузка AAB/APK в GitHub Release после добавления секретов.
 
 ### Документация
 

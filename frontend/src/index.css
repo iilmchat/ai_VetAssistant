@@ -446,3 +446,16 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* T-180: нативное приложение — без двойного tap-зума и подсветки тапа. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}

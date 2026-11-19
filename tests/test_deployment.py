@@ -319,9 +319,15 @@ def test_compose_passes_gpu_backend_settings() -> None:
 
 
 def test_all_workflows_use_self_hosted_label_set() -> None:
+    # Android-сборка требует JDK 21 + Android SDK, которых нет на VPS,
+    # поэтому эти два job запускаются на GitHub-hosted runner (T-182).
+    github_hosted_jobs = {"android-build", "android-release"}
     for name in ("ci.yml", "deploy.yml", "release.yml"):
         workflow = _yaml(f".github/workflows/{name}")
-        for job in workflow["jobs"].values():
+        for job_name, job in workflow["jobs"].items():
+            if job_name in github_hosted_jobs:
+                assert job["runs-on"] == "ubuntu-latest"
+                continue
             assert job["runs-on"] == ["self-hosted", "linux", "x64", "vps"]
 
 

@@ -1612,17 +1612,22 @@ T-166 (retention 180 дней), T-167 (грязное дерево на серв
 
 ### Спринт 1 (2 недели) — MVP Android-обёртки
 
-- [ ] **T-179. Capacitor-проект.** `capacitor.config.ts`, `android/`, скрипты
-      `android:sync/build/open`, инструкция по локальной сборке.
-- [ ] **T-180. Нативная оболочка.** Splash, иконки, статус-бар под тему,
-      safe-area, системная кнопка «Назад», ориентация, без zoom-артефактов.
-- [ ] **T-181. Сессия и данные.** Безопасное хранилище токена вместо
-      `localStorage`, автологин/logout, проверка SSE/patient picker/карточек/
-      истории в WebView. Зависит от T-105.
-- [ ] **T-182. Подпись и сборка.** Собственный keystore (не debug!), ключ и
-      пароль в секретах CI, `versionCode`/`versionName`, release AAB/APK;
-      для AAB подпись загружается отдельно; job `Android Build` в CI,
-      артефакт на GitHub Release. Один сертификат на все версии.
+- [x] **T-179. Capacitor-проект.** `capacitor.config.ts`, `frontend/android/`
+      (Capacitor 8), скрипты `android:add/sync/build/open`, документ
+      `docs/development/ANDROID_LOCAL_BUILD.md`.
+- [x] **T-180. Нативная оболочка.** Лапа в splash/launcher, статус-бар под
+      тему, `overlay` + `viewport-fit=cover` safe-area, `touch-action:
+      manipulation` и `user-scalable=no`, системная «Назад» закрывает
+      модалки/drawer.
+- [x] **T-181. Сессия и данные.** `Preferences` на Android вместо
+      `localStorage` для JWT; восстановление до рендера через `bootstrap()`;
+      in-app SSE/patient picker/карточки работают в той же React-кодовой базе.
+      Зависит от T-105 (оставлено в бэклоге).
+- [x] **T-182. Подпись и сборка.** `signingConfigs.release` в `build.gradle`
+      читает keystore из env, `versionCode/versionName` из CI; job
+      `android-build` (debug всегда, release при секретах) и `android-release`
+      с прикреплением AAB/APK к GitHub Release. Фактический подписанный
+      артефакт появится после того, как владелец добавит 4 GitHub Secret.
 
 ### Спринт 2 (2 недели) — ссылки и офлайн
 

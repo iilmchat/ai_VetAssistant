@@ -12,6 +12,8 @@ export interface AuthSession {
   user: AuthUser
 }
 
+import { readSecureValue, writeSecureValue } from './secureStorage'
+
 const AUTH_STORAGE_KEY = 'vetassistant.auth.v1'
 const MESSAGES_STORAGE_PREFIX = 'vetassistant.messages.v1'
 
@@ -83,6 +85,24 @@ export function clearAuthSession(): void {
   } catch {
     // Хранилище недоступно — очищать нечего.
   }
+}
+
+/** Восстановить сессию при старте (Preferences на Android). */
+export async function restoreAuthSession(): Promise<AuthSession | null> {
+  const raw = await readSecureValue()
+  if (!raw) {
+    return null
+  }
+  try {
+    return parseAuthSession(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+/** Сохранить сессию в безопасное хранилище текущей платформы. */
+export async function persistAuthSession(session: AuthSession | null): Promise<void> {
+  await writeSecureValue(session === null ? null : JSON.stringify(session))
 }
 
 export function messagesStorageKey(userId: number): string {

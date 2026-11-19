@@ -61,7 +61,7 @@ RU/EN в админке больше не меняет язык чата (T-154.
 - **Обучение:** Unsloth + QLoRA на арендованных GPU (Vast.ai / RunPod)
 - **Генерация данных:** Зарубежные LLM через API (слой абстракции)
 
-**Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md) · [Roadmap Android/RuStore](docs/development/ANDROID_RUSTORE_ROADMAP.md)
+**Документация:** [SECURITY.md](SECURITY.md) · [DEPLOYMENT.md](DEPLOYMENT.md) · [CHANGELOG.md](docs/CHANGELOG.md) · [Roadmap Android/RuStore](docs/development/ANDROID_RUSTORE_ROADMAP.md) · [Сборка Android](docs/development/ANDROID_LOCAL_BUILD.md)
 
 ## 🌐 Архитектура доменов
 
