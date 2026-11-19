@@ -1,6 +1,53 @@
 import type { Patient } from '../types'
 
 const ACTIVE_PATIENT_PREFIX = 'vetassistant.activePatient'
+const PATIENT_CACHE_PREFIX = 'vetassistant.patientsCache'
+
+/** Ключ кэша списка питомцев конкретного пользователя. */
+export function patientsCacheKey(userId: number): string {
+  return `${PATIENT_CACHE_PREFIX}.${userId}`
+}
+
+/** Прочитать последний успешно загруженный список питомцев. */
+export function readCachedPatients(userId: number): Patient[] | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    const raw = window.localStorage.getItem(patientsCacheKey(userId))
+    if (!raw) {
+      return null
+    }
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+    return parsed.filter(
+      (item): item is Patient =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Patient).id === 'number' &&
+        typeof (item as Patient).name === 'string',
+    )
+  } catch {
+    return null
+  }
+}
+
+/** Обновить кэш списка питомцев. */
+export function writeCachedPatients(userId: number, patients: Patient[]): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    window.localStorage.setItem(
+      patientsCacheKey(userId),
+      JSON.stringify(patients),
+    )
+  } catch {
+    // Приватный режим — кэш не нужен, данные останутся на сервере.
+  }
+}
 
 /** Ключ localStorage для активного питомца конкретного пользователя. */
 export function activePatientStorageKey(userId: number): string {

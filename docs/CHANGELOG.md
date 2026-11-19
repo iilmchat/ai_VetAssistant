@@ -15,6 +15,9 @@
   (свои launcher/splash-иконки, статус-бар, safe-area, кнопка «Назад»),
   JWT в Preferences на Android, подпись через CI-секреты, Android job в CI
   и загрузка AAB/APK в GitHub Release после добавления секретов.
+- **Спринт 2 (T-184, T-185):** deep links `vetassistant://patient/{id}`,
+  in-app-уведомления с переходом в карточку, кэш питомцев, баннер офлайна
+  и очередь оценок с автосинхронизацией.
 
 ### Документация
 

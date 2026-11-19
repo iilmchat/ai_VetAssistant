@@ -40,10 +40,20 @@ import { AVAILABLE_TOOLS, mergeToolCalls, parseToolArguments } from './lib/tools
 import {
   findPatientByName,
   readActivePatientId,
+  readCachedPatients,
   resolveActivePatientId,
   saveActivePatientId,
+  writeCachedPatients,
 } from './lib/patients'
-import { registerNativeBack } from './lib/native'
+import { registerNativeBack, registerNativeDeepLinks } from './lib/native'
+import { useOnlineStatus } from './lib/offline'
+import { parseAppRoute } from './lib/deepLinks'
+import type { AppRoute } from './lib/deepLinks'
+import { notify, clearNotifications } from './lib/notifications'
+import {
+  enqueueFeedback,
+  flushFeedbackQueue,
+} from './lib/feedbackQueue'
 import { downloadChatExport } from './lib/export'
 import { isFocusComposerHotkey } from './lib/hotkeys'
 import { watchTheme } from './lib/theme'
@@ -57,6 +67,7 @@ import { ChangePasswordDialog } from './components/ChangePasswordDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { PatientCardDialog } from './components/PatientCardDialog'
 import { PwaInstallButton } from './components/PwaInstallButton'
+import { NotificationCenter } from './components/NotificationCenter'
 import { AdminDashboard } from './components/AdminDashboard'
 import { AdminI18nProvider } from './components/AdminI18nProvider'
 
@@ -148,6 +159,7 @@ function App({ initialSession = null }: AppProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
+  const online = useOnlineStatus()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
@@ -191,6 +203,7 @@ function App({ initialSession = null }: AppProps) {
     setFeedbackRatings({})
     setFeedbackPending({})
     setFeedbackError(null)
+    clearNotifications()
     setAppointments([])
     setReminders([])
     setPatients([])
@@ -262,23 +275,30 @@ function App({ initialSession = null }: AppProps) {
   }, [session, handleLogout])
 
   const refreshPatients = useCallback(
-    async (options?: { selectName?: string }) => {
+    async (options?: {
+      selectName?: string
+      selectId?: number
+    }): Promise<Patient | null> => {
       if (!session) {
-        return
+        return null
       }
       setPatientsLoading(true)
       try {
         const next = await fetchPatients()
+        writeCachedPatients(session.user.id, next)
         setPatients(next)
         setPatientsError(null)
 
-        if (options?.selectName) {
-          const created = findPatientByName(next, options.selectName)
-          if (created) {
-            setActivePatientId(created.id)
-            saveActivePatientId(session.user.id, created.id)
-            return
-          }
+        const target = options?.selectId
+          ? next.find((patient) => patient.id === options.selectId) ?? null
+          : options?.selectName
+            ? findPatientByName(next, options.selectName)
+            : null
+
+        if (target) {
+          setActivePatientId(target.id)
+          saveActivePatientId(session.user.id, target.id)
+          return target
         }
 
         setActivePatientId((previous) => {
@@ -289,20 +309,81 @@ function App({ initialSession = null }: AppProps) {
           }
           return resolved
         })
+        return null
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           handleLogout()
-          return
+          return null
         }
-        if (!isAbortError(error)) {
+
+        const cached = readCachedPatients(session.user.id)
+        if (cached) {
+          setPatients(cached)
+          setPatientsError(null)
+          setActivePatientId((previous) =>
+            resolveActivePatientId(previous, cached),
+          )
+        } else if (!isAbortError(error)) {
           setPatientsError(errorMessage(error))
         }
+        return null
       } finally {
         setPatientsLoading(false)
       }
     },
     [session, handleLogout],
   )
+
+  const applyRoute = useCallback(
+    (route: AppRoute | null) => {
+      if (!route || route.type !== 'patient') {
+        return
+      }
+      void refreshPatients({ selectId: route.patientId }).then((patient) => {
+        if (patient) {
+          setPatientDialog({ patient })
+        } else {
+          notify({
+            title: t('notification.patientNotFound.title'),
+            body: t('notification.patientNotFound.body', {
+              id: route.patientId,
+            }),
+          })
+        }
+      })
+    },
+    [refreshPatients, t],
+  )
+
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
+    applyRoute(parseAppRoute(window.location.href))
+  }, [applyRoute])
+
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => {
+    let removeListener: () => void = () => {}
+    void registerNativeDeepLinks(applyRoute).then((cleanup) => {
+      removeListener = cleanup
+    })
+    return () => removeListener()
+  }, [applyRoute])
+
+  useEffect(() => {
+    if (!session || !online) {
+      return
+    }
+    void flushFeedbackQueue(async (item) => {
+      await submitFeedback(item.messageId, item.rating)
+    }).then((count) => {
+      if (count > 0) {
+        notify({
+          title: t('notification.feedbackSynced.title'),
+          body: t('notification.feedbackSynced.body', { count }),
+        })
+      }
+    })
+  }, [online, session, t])
 
   useEffect(() => {
     if (!session) {
@@ -597,7 +678,42 @@ function App({ initialSession = null }: AppProps) {
         if (created) {
           const args = parseToolArguments(created.function.arguments)
           const name = typeof args.name === 'string' ? args.name : ''
-          void refreshPatients({ selectName: name })
+          void refreshPatients({ selectName: name }).then((patient) => {
+            notify({
+              title: t('notification.patientCreated.title'),
+              body: patient?.name || name,
+              action: patient
+                ? {
+                    label: t('notification.openCard'),
+                    route: { type: 'patient', patientId: patient.id },
+                  }
+                : undefined,
+            })
+          })
+        }
+
+        const reminder = toolCalls.find(
+          (call) => call.function.name === 'set_reminder',
+        )
+        if (reminder) {
+          const args = parseToolArguments(reminder.function.arguments)
+          const text = typeof args.text === 'string' ? args.text : ''
+          notify({
+            title: t('notification.reminderCreated.title'),
+            body: text || undefined,
+          })
+        }
+
+        const appointment = toolCalls.find(
+          (call) => call.function.name === 'book_appointment',
+        )
+        if (appointment) {
+          const args = parseToolArguments(appointment.function.arguments)
+          const petName = typeof args.pet_name === 'string' ? args.pet_name : ''
+          notify({
+            title: t('notification.appointmentCreated.title'),
+            body: [petName, args.date, args.time].filter(Boolean).join(' · '),
+          })
         }
       }
     } catch (error) {
@@ -661,6 +777,25 @@ function App({ initialSession = null }: AppProps) {
           handleLogout()
           return
         }
+        const shouldQueue =
+          !online ||
+          !(error instanceof ApiError) ||
+          (error.status ?? 0) >= 500
+
+        if (shouldQueue) {
+          enqueueFeedback({
+            messageId,
+            rating,
+            createdAt: new Date().toISOString(),
+          })
+          setFeedbackRatings((previous) => ({ ...previous, [messageId]: rating }))
+          notify({
+            title: t('notification.feedbackQueued.title'),
+            body: t('notification.feedbackQueued.body'),
+          })
+          return
+        }
+
         // Не блокируем чат: показываем небольшую ошибку и оставляем
         // прежнюю оценку, если она была.
         setFeedbackError(
@@ -674,7 +809,7 @@ function App({ initialSession = null }: AppProps) {
         })
       }
     },
-    [handleLogout, t],
+    [handleLogout, online, t],
   )
 
   function handleExportHistory() {
@@ -702,6 +837,7 @@ function App({ initialSession = null }: AppProps) {
 
   return (
     <div className="flex h-dvh w-full box-border overflow-hidden bg-app text-ink pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <NotificationCenter onOpenRoute={applyRoute} />
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -856,6 +992,15 @@ function App({ initialSession = null }: AppProps) {
           className="flex-1 overflow-y-auto"
         >
           <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+            {!online && (
+              <div
+                role="status"
+                className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2 text-[11.5px] leading-4 text-warn"
+              >
+                <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                {t('offline.banner')}
+              </div>
+            )}
             {messages.length === 0 ? (
               <Welcome
                 onSuggestion={(prompt) => {

@@ -34,6 +34,28 @@
     "install": "Install",
     "installTitle": "Install VetAssistant on your device"
   },
+  "offline": {
+    "banner": "No connection — showing saved data. Answers and ratings will be sent when you're back online."
+  },
+  "notification": {
+    "dismiss": "Dismiss notification",
+    "openCard": "Open card",
+    "patientCreated": { "title": "Pet card created" },
+    "patientNotFound": {
+      "title": "Pet not found",
+      "body": "Card #{{id}} is unavailable. Refresh your pet list."
+    },
+    "reminderCreated": { "title": "Reminder created" },
+    "appointmentCreated": { "title": "Appointment created" },
+    "feedbackQueued": {
+      "title": "Rating saved",
+      "body": "We'll send it automatically when you're online."
+    },
+    "feedbackSynced": {
+      "title": "Ratings synced",
+      "body": "Synced: {{count}}"
+    }
+  },
   "sidebar": {
     "closeMenu": "Close menu",
     "tagline": "AI veterinarian for your pets",

@@ -1,6 +1,8 @@
 /** Нативная оболочка Capacitor: статус-бар, splash и кнопка «Назад» (T-180). */
 
 import { Capacitor } from '@capacitor/core'
+import { parseAppRoute } from './deepLinks'
+import type { AppRoute } from './deepLinks'
 
 /** Приложение запущено внутри Capacitor (Android), а не в браузере. */
 export function isNativeApp(): boolean {
@@ -40,6 +42,30 @@ export async function registerNativeBack(
     const handle = await CapacitorApp.addListener('backButton', () => {
       if (!onBack()) {
         void CapacitorApp.minimizeApp()
+      }
+    })
+    return () => {
+      void handle.remove()
+    }
+  } catch {
+    return () => {}
+  }
+}
+
+/** Открыть deep link (`vetassistant://...`) из нативного приложения (T-184). */
+export async function registerNativeDeepLinks(
+  onRoute: (route: AppRoute) => void,
+): Promise<() => void> {
+  if (!isNativeApp()) {
+    return () => {}
+  }
+
+  try {
+    const { App: CapacitorApp } = await import('@capacitor/app')
+    const handle = await CapacitorApp.addListener('appUrlOpen', (event) => {
+      const route = parseAppRoute(event.url)
+      if (route) {
+        onRoute(route)
       }
     })
     return () => {

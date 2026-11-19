@@ -3,9 +3,12 @@ import type { Patient } from '../types'
 import {
   activePatientStorageKey,
   findPatientByName,
+  patientsCacheKey,
   readActivePatientId,
+  readCachedPatients,
   resolveActivePatientId,
   saveActivePatientId,
+  writeCachedPatients,
 } from './patients'
 
 function createStorage() {
@@ -100,5 +103,22 @@ describe('findPatientByName', () => {
 
     expect(findPatientByName(patients, '   ')).toBeNull()
     expect(findPatientByName(patients, 'Рекс')).toBeNull()
+  })
+})
+
+describe('patients cache', () => {
+  it('сохраняет и читает список питомцев', () => {
+    const patients = [patient(1, 'Бобик')]
+
+    writeCachedPatients(7, patients)
+
+    expect(patientsCacheKey(7)).toBe('vetassistant.patientsCache.7')
+    expect(readCachedPatients(7)).toEqual(patients)
+  })
+
+  it('возвращает null при повреждённом кэше', () => {
+    storage.setItem(patientsCacheKey(7), '{broken')
+
+    expect(readCachedPatients(7)).toBeNull()
   })
 })

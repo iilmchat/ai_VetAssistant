@@ -40,6 +40,8 @@ def test_android_project_exists() -> None:
     ).read_text(encoding="utf-8")
     assert "android.permission.INTERNET" in manifest
     assert "MainActivity" in manifest
+    assert 'android:scheme="vetassistant"' in manifest
+    assert "android.intent.action.VIEW" in manifest
 
 
 def test_android_icons_and_splash_are_custom() -> None:
