@@ -18,7 +18,8 @@
 - Node.js **22** (как в CI и Vite 8).
 - JDK **21**.
 - Android SDK **platform 36** и Build Tools (устанавливаются через Android Studio
-  или `android-actions/setup-android` в CI).
+  или предустановлен на GitHub-hosted runner; CI дополнительно ставит
+  `platforms;android-36` через `sdkmanager`).
 - Для release-сборки — keystore (см. ниже).
 
 ## Команды
