@@ -35,12 +35,14 @@ jobs:
     # Пока секреты подписи не заданы, job быстро завершается без сборки.
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      ANDROID_SIGNING_ENABLED: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Node.js 22
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -48,30 +50,30 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         run: npm ci
         working-directory: frontend
 
       - name: Build web assets and sync Capacitor
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         run: |
           npm run build
           npx cap sync android
         working-directory: frontend
 
       - name: Set up JDK 21
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Android SDK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         uses: android-actions/setup-android@v3
 
       - name: Decode signing keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -80,7 +82,7 @@ jobs:
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/android/vetassistant.keystore" >> "$GITHUB_ENV"
 
       - name: Build signed AAB/APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -91,7 +93,7 @@ jobs:
         working-directory: frontend/android
 
       - name: Attach Android assets to Release
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_SIGNING_ENABLED == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
