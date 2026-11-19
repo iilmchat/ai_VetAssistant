@@ -152,7 +152,7 @@ jobs:
           yes | "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: bash ./gradlew assembleDebug --no-daemon
         working-directory: frontend/android
 
       - name: Decode signing keystore
@@ -172,7 +172,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           ANDROID_VERSION_NAME: ${{ github.ref_name }}
-        run: ./gradlew bundleRelease assembleRelease --no-daemon
+        run: bash ./gradlew bundleRelease assembleRelease --no-daemon
         working-directory: frontend/android
 
       - name: Upload Android artifacts
