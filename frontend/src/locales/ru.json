@@ -30,6 +30,10 @@
     "openMenu": "Открыть меню",
     "hideError": "Скрыть сообщение об ошибке"
   },
+  "pwa": {
+    "install": "Установить",
+    "installTitle": "Установить VetAssistant на устройство"
+  },
   "sidebar": {
     "closeMenu": "Закрыть меню",
     "tagline": "ИИ-ветеринар для ваших питомцев",

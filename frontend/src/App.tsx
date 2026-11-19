@@ -57,6 +57,7 @@ import { AuthScreen } from './components/AuthScreen'
 import { ChangePasswordDialog } from './components/ChangePasswordDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { PatientCardDialog } from './components/PatientCardDialog'
+import { PwaInstallButton } from './components/PwaInstallButton'
 import { AdminDashboard } from './components/AdminDashboard'
 import { AdminI18nProvider } from './components/AdminI18nProvider'
 
@@ -789,6 +790,7 @@ function App() {
                 Tools
               </span>
             )}
+            <PwaInstallButton />
 
             <div
               title={apiStatusLabel(apiStatus)}

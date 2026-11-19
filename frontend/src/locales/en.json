@@ -30,6 +30,10 @@
     "openMenu": "Open menu",
     "hideError": "Hide error message"
   },
+  "pwa": {
+    "install": "Install",
+    "installTitle": "Install VetAssistant on your device"
+  },
   "sidebar": {
     "closeMenu": "Close menu",
     "tagline": "AI veterinarian for your pets",
